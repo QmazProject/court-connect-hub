@@ -145,6 +145,25 @@ function VenueSection({ venue }: { venue: Venue }) {
     },
   });
 
+  const courtIds = (courtsQ.data ?? []).map((c) => c.id);
+  const bookingsQ = useQuery({
+    queryKey: ["venue-bookings", venue.id, courtIds.join(",")],
+    enabled: courtIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, court_id, start_time, end_time, status")
+        .in("court_id", courtIds)
+        .gte("end_time", new Date().toISOString())
+        .order("start_time", { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      return data as { id: number; court_id: number; start_time: string; end_time: string; status: string }[];
+    },
+  });
+
+  const courtName = (id: number) => courtsQ.data?.find((c) => c.id === id)?.name ?? `Court #${id}`;
+
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm">
       <header className="flex items-center justify-between border-b border-border p-6">
@@ -166,6 +185,33 @@ function VenueSection({ venue }: { venue: Venue }) {
             </div>
           ))}
           <AddCourt venueId={venue.id} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+        </div>
+
+        <div className="mt-8">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Upcoming bookings</h3>
+          {courtIds.length === 0 ? null : bookingsQ.isLoading ? (
+            <div className="mt-3 h-16 animate-pulse rounded-lg bg-muted" />
+          ) : (bookingsQ.data?.length ?? 0) === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">No upcoming bookings yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border rounded-xl border border-border">
+              {bookingsQ.data!.map((b) => {
+                const s = new Date(b.start_time);
+                const e = new Date(b.end_time);
+                return (
+                  <li key={b.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                    <div>
+                      <div className="font-medium">{courtName(b.court_id)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {s.toLocaleDateString()} · {s.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {e.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary capitalize">{b.status}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
     </section>
