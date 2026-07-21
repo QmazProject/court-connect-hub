@@ -164,10 +164,12 @@ function VenueDetail() {
         </div>
       </section>
 
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <h2 className="mt-8 text-xl font-bold">
         {sport ? "Courts for this sport" : "All courts"}{" "}
         <span className="text-muted-foreground">({courts.length})</span>
       </h2>
+
 
 
       {courtsQ.isLoading ? (
