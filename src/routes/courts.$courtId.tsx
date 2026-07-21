@@ -286,7 +286,7 @@ function CourtBooking() {
                 title={label}
                 className={"flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " + stateClass}
               >
-                <span className={disabled ? "line-through" : ""}>{String(h).padStart(2, "0")}:00</span>
+                <span className={"text-xs leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
                 {label && <span className="mt-0.5 text-[10px] uppercase tracking-wide">{label}</span>}
               </button>
             );
