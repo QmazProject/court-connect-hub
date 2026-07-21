@@ -53,16 +53,17 @@ function Landing() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, sports!inner(name, slug), venues(name, address)")
+        .select("id, name, hourly_rate, is_indoor, venue_id, sports!inner(name, slug), venues(id, name, address)")
         .order("id", { ascending: false })
-        .limit(48);
+        .limit(200);
       if (sport) q = q.eq("sports.slug", sport);
       const { data, error } = await q;
       if (error) throw error;
-      return data as unknown as CourtRow[];
+      return data as unknown as (CourtRow & { venue_id: number; venues: { id: number; name: string; address: string } | null })[];
     },
     enabled: !!sport,
   });
+
 
   // Sport picker view
   if (!sport) {
