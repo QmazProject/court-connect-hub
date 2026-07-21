@@ -17,6 +17,7 @@ type Court = {
   amenities: string[] | null;
   images: string[] | null;
   blocked_hours: Record<string, number[]> | null;
+  blocked_dates: Record<string, number[]> | null;
   sports: { name: string } | null;
 };
 
