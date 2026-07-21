@@ -116,7 +116,7 @@ function Landing() {
       const term = venueQuery.trim();
       let q = supabase
         .from("venues")
-        .select("id, name, address, latitude, longitude, courts!inner(hourly_rate, sports!inner(slug))")
+        .select("id, name, address, latitude, longitude, courts!inner(id, hourly_rate, sports!inner(slug, name))")
         .order("name")
         .limit(50);
       if (term) q = q.ilike("name", `%${term}%`);
@@ -126,7 +126,7 @@ function Landing() {
       if (maxPrice) q = q.lte("courts.hourly_rate", Number(maxPrice));
       const { data, error } = await q;
       if (error) throw error;
-      type Row = { id: number; name: string; address: string; latitude: number | null; longitude: number | null; courts: { hourly_rate: number }[] };
+      type Row = { id: number; name: string; address: string; latitude: number | null; longitude: number | null; courts: { id: number; hourly_rate: number; sports: { slug: string; name: string } | null }[] };
       let rows = (data as unknown as Row[]) ?? [];
       if (nearby) {
         rows = rows
@@ -134,17 +134,27 @@ function Landing() {
           .map((r) => ({ ...r, _d: haversineKm(nearby, { lat: r.latitude as number, lng: r.longitude as number }) }))
           .sort((a: any, b: any) => a._d - b._d) as any;
       }
-      return rows.slice(0, 8).map((r) => {
+      return rows.slice(0, 24).map((r) => {
         const rates = r.courts?.map((c) => Number(c.hourly_rate)) ?? [];
-        const min = rates.length ? Math.min(...rates) : null;
+        const sportSet = new Map<string, string>();
+        r.courts?.forEach((c) => c.sports && sportSet.set(c.sports.slug, c.sports.name));
         const dist = nearby && r.latitude != null && r.longitude != null
           ? haversineKm(nearby, { lat: r.latitude as number, lng: r.longitude as number })
           : null;
-        return { id: r.id, name: r.name, address: r.address, minRate: min, distanceKm: dist };
+        return {
+          id: r.id,
+          name: r.name,
+          address: r.address,
+          courtCount: r.courts?.length ?? 0,
+          minRate: rates.length ? Math.min(...rates) : null,
+          sports: Array.from(sportSet.values()),
+          distanceKm: dist,
+        };
       });
     },
     enabled: searchActive,
   });
+
 
   const requestNearby = () => {
     if (!("geolocation" in navigator)) {
