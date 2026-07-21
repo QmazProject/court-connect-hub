@@ -58,7 +58,7 @@ function AuthPage() {
       if (mode === "signup") {
         if (!role) throw new Error("Please choose an account type.");
         if (!pwStrong) throw new Error("Password does not meet the requirements.");
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email, password,
           options: {
             emailRedirectTo: window.location.origin,
@@ -66,6 +66,11 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        // If email confirmation is required, session will be null
+        if (!data.session) {
+          setSignupSuccess(email);
+          return;
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
