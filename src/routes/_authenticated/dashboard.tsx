@@ -12,6 +12,9 @@ type Sport = { id: number; name: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
   sport_id: number; venue_id: number;
+  description: string | null;
+  amenities: string[] | null;
+  images: string[] | null;
   sports: { name: string } | null;
 };
 
@@ -175,17 +178,11 @@ function VenueSection({ venue }: { venue: Venue }) {
       <div className="p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(courtsQ.data ?? []).map((c) => (
-            <div key={c.id} className="rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="rounded-full bg-secondary px-2 py-1 font-medium">{c.sports?.name}</span>
-                <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
-              </div>
-              <h3 className="mt-2 font-semibold">{c.name}</h3>
-              <div className="mt-2 text-primary"><span className="text-lg font-bold">₱{Number(c.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
-            </div>
+            <CourtCard key={c.id} court={c} onChanged={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
           ))}
           <AddCourt venueId={venue.id} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
         </div>
+
 
         <div className="mt-8">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Upcoming bookings</h3>
@@ -218,23 +215,71 @@ function VenueSection({ venue }: { venue: Venue }) {
   );
 }
 
-function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [rate, setRate] = useState("25");
-  const [sportId, setSportId] = useState<string>("");
-  const [isIndoor, setIsIndoor] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    return <EditCourt court={court} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
+  }
+  const cover = court.images?.[0];
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      {cover ? (
+        <img src={cover} alt={court.name} className="h-32 w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="court-pattern h-32" />
+      )}
+      <div className="p-4">
+        <div className="flex items-center justify-between text-xs">
+          <span className="rounded-full bg-secondary px-2 py-1 font-medium">{court.sports?.name}</span>
+          <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
+        </div>
+        <h3 className="mt-2 font-semibold">{court.name}</h3>
+        {court.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{court.description}</p>}
+        {(court.amenities?.length ?? 0) > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {court.amenities!.slice(0, 4).map((a) => (
+              <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{a}</span>
+            ))}
+            {(court.amenities!.length > 4) && <span className="text-[10px] text-muted-foreground">+{court.amenities!.length - 4} more</span>}
+          </div>
+        )}
+        <div className="mt-3 flex items-center justify-between">
+          <div className="text-primary"><span className="text-lg font-bold">₱{Number(court.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
+          <button onClick={() => setEditing(true)} className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary">Edit details</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const sportsQ = useQuery({
+function useSportsQuery(enabled: boolean) {
+  return useQuery({
     queryKey: ["sports"],
     queryFn: async () => {
       const { data, error } = await supabase.from("sports").select("id, name").order("name");
       if (error) throw error;
       return data as Sport[];
     },
-    enabled: open,
+    enabled,
   });
+}
+
+function parseList(input: string): string[] {
+  return input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+}
+
+function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [rate, setRate] = useState("25");
+  const [sportId, setSportId] = useState<string>("");
+  const [isIndoor, setIsIndoor] = useState(false);
+  const [description, setDescription] = useState("");
+  const [amenities, setAmenities] = useState("");
+  const [images, setImages] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  const sportsQ = useSportsQuery(open);
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -244,11 +289,17 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
+        description: description || null,
+        amenities: parseList(amenities),
+        images: parseList(images),
         operating_hours: { mon: "08:00-22:00", tue: "08:00-22:00", wed: "08:00-22:00", thu: "08:00-22:00", fri: "08:00-22:00", sat: "08:00-22:00", sun: "08:00-22:00" },
       });
       if (error) throw error;
     },
-    onSuccess: () => { setOpen(false); setName(""); setRate("25"); setSportId(""); setErr(null); onCreated(); },
+    onSuccess: () => {
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setDescription(""); setAmenities(""); setImages(""); setErr(null);
+      onCreated();
+    },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -279,6 +330,11 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
           Indoor court
         </label>
       </div>
+      <div className="mt-3 grid gap-3">
+        <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
+        <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
+        <Textarea label="Image URLs (one per line)" value={images} onChange={setImages} placeholder="https://…/court-1.jpg&#10;https://…/court-2.jpg" />
+      </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
         <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
@@ -289,6 +345,73 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
     </form>
   );
 }
+
+function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState(court.name);
+  const [rate, setRate] = useState(String(court.hourly_rate));
+  const [isIndoor, setIsIndoor] = useState(court.is_indoor);
+  const [description, setDescription] = useState(court.description ?? "");
+  const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
+  const [images, setImages] = useState((court.images ?? []).join("\n"));
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("courts").update({
+        name,
+        hourly_rate: Number(rate),
+        is_indoor: isIndoor,
+        description: description || null,
+        amenities: parseList(amenities),
+        images: parseList(images),
+      }).eq("id", court.id);
+      if (error) throw error;
+    },
+    onSuccess: onDone,
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Input label="Court name" value={name} onChange={setName} required />
+        <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
+          Indoor court
+        </label>
+      </div>
+      <div className="mt-3 grid gap-3">
+        <Textarea label="Description" value={description} onChange={setDescription} />
+        <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
+        <Textarea label="Image URLs (one per line)" value={images} onChange={setImages} />
+      </div>
+      {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <div className="mt-3 flex gap-2">
+        <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+          {mut.isPending ? "Saving…" : "Save changes"}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function Textarea(props: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
+      <textarea
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        placeholder={props.placeholder}
+        rows={3}
+        className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+      />
+    </label>
+  );
+}
+
 
 function Input(props: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) {
   return (

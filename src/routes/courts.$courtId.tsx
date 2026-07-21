@@ -13,6 +13,9 @@ type Court = {
   hourly_rate: number;
   is_indoor: boolean;
   operating_hours: Record<string, string>;
+  description: string | null;
+  amenities: string[] | null;
+  images: string[] | null;
   sports: { name: string } | null;
   venues: { name: string; address: string; timezone: string } | null;
 };
@@ -43,7 +46,7 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, sports(name), venues(name, address, timezone)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, description, amenities, images, sports(name), venues(name, address, timezone)")
         .eq("id", Number(courtId))
         .maybeSingle();
       if (error) throw error;
@@ -148,6 +151,46 @@ function CourtBooking() {
           </div>
         </div>
       </header>
+
+      {(court.images?.length ?? 0) > 0 && (
+        <section className="mt-6 grid gap-3 sm:grid-cols-2">
+          {court.images!.map((src, i) => (
+            <img
+              key={i}
+              src={src}
+              alt={`${court.name} photo ${i + 1}`}
+              className={
+                "w-full rounded-2xl border border-border object-cover " +
+                (i === 0 ? "h-64 sm:col-span-2 sm:h-80" : "h-40")
+              }
+              loading="lazy"
+            />
+          ))}
+        </section>
+      )}
+
+      {(court.description || (court.amenities?.length ?? 0) > 0) && (
+        <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
+          {court.description && (
+            <>
+              <h2 className="text-lg font-semibold">About this court</h2>
+              <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{court.description}</p>
+            </>
+          )}
+          {(court.amenities?.length ?? 0) > 0 && (
+            <>
+              <h3 className="mt-6 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Amenities</h3>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {court.amenities!.map((a) => (
+                  <li key={a} className="rounded-full border border-border bg-secondary px-3 py-1 text-xs font-medium">
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
