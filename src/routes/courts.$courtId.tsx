@@ -33,8 +33,9 @@ function CourtBooking() {
   const router = useRouter();
   const qc = useQueryClient();
   const [date, setDate] = useState(todayISO());
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
   const [err, setErr] = useState<string | null>(null);
+
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
@@ -68,34 +69,39 @@ function CourtBooking() {
   });
 
   const bookMut = useMutation({
-    mutationFn: async (hour: number) => {
+    mutationFn: async (hours: number[]) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Please sign in to book a court.");
-      const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
-      const end = new Date(start.getTime() + 60 * 60 * 1000);
-      const { error } = await supabase.from("bookings").insert({
-        court_id: Number(courtId),
-        user_id: userData.user.id,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        status: "confirmed",
+      const sorted = [...hours].sort((a, b) => a - b);
+      const rows = sorted.map((hour) => {
+        const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        return {
+          court_id: Number(courtId),
+          user_id: userData.user!.id,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          status: "confirmed",
+        };
       });
+      const { error } = await supabase.from("bookings").insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
-      setSelected(null);
+      setSelected([]);
       setErr(null);
       qc.invalidateQueries({ queryKey: ["busy", courtId, date] });
     },
     onError: (e: Error) => {
       if (/exclusion|overlap|conflict/i.test(e.message)) {
-        setErr("That hour was just taken. Pick another slot.");
+        setErr("One of those hours was just taken. Pick another slot.");
         qc.invalidateQueries({ queryKey: ["busy", courtId, date] });
       } else {
         setErr(e.message);
       }
     },
   });
+
 
   if (courtQ.isLoading) {
     return <main className="mx-auto max-w-4xl px-6 py-10"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></main>;
@@ -234,25 +240,32 @@ function CourtBooking() {
               type="date"
               value={date}
               min={todayISO()}
-              onChange={(e) => { setDate(e.target.value); setSelected(null); setErr(null); }}
+              onChange={(e) => { setDate(e.target.value); setSelected([]); setErr(null); }}
               className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
             />
           </label>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+        <p className="mt-2 text-xs text-muted-foreground">Tap multiple hours to book them together.</p>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {slots.map((h) => {
             const booked = isBooked(h);
             const blockedSlot = isBlocked(h);
             const past = isPast(h);
             const disabled = booked || blockedSlot || past;
-            const active = selected === h;
+            const active = selected.includes(h);
             const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
             return (
               <button
                 key={h}
                 disabled={disabled}
-                onClick={() => setSelected(h)}
+                onClick={() => {
+                  setErr(null);
+                  setSelected((prev) =>
+                    prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b)
+                  );
+                }}
                 title={label}
                 className={
                   "flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " +
@@ -273,20 +286,31 @@ function CourtBooking() {
 
         {err && <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
-        <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <div className="text-sm text-muted-foreground">
-            {selected !== null
-              ? <>Selected: <span className="font-semibold text-foreground">{String(selected).padStart(2, "0")}:00 – {String(selected + 1).padStart(2, "0")}:00</span> · Total <span className="font-semibold text-foreground">₱{Number(court.hourly_rate).toFixed(0)}</span></>
-              : "Choose an available hour above."}
+            {selected.length > 0
+              ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> ({selected.map((h) => String(h).padStart(2, "0") + ":00").join(", ")}) · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
+              : "Choose one or more available hours above."}
           </div>
-          <button
-            disabled={selected === null || bookMut.isPending}
-            onClick={() => selected !== null && bookMut.mutate(selected)}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            {bookMut.isPending ? "Booking…" : "Confirm booking"}
-          </button>
+          <div className="flex gap-2">
+            {selected.length > 0 && (
+              <button
+                onClick={() => setSelected([])}
+                className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:border-primary hover:text-primary"
+              >
+                Clear
+              </button>
+            )}
+            <button
+              disabled={selected.length === 0 || bookMut.isPending}
+              onClick={() => selected.length > 0 && bookMut.mutate(selected)}
+              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {bookMut.isPending ? "Booking…" : `Confirm booking${selected.length > 1 ? ` (${selected.length} hrs)` : ""}`}
+            </button>
+          </div>
         </div>
+
         <p className="mt-2 text-xs text-muted-foreground">Payment will be handled at the venue for now.</p>
       </section>
     </main>
