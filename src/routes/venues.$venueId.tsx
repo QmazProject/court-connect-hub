@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,6 +41,8 @@ function VenueDetail() {
   const { sport } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
   const [imgIdx, setImgIdx] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
@@ -85,10 +87,18 @@ function VenueDetail() {
         {/* Image carousel — fully visible */}
         <div className="relative h-[280px] w-full overflow-hidden bg-muted sm:h-[380px] lg:h-[460px]">
           {currentImg ? (
-            <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              aria-label="View full size image"
+              className="block h-full w-full cursor-zoom-in"
+            >
+              <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
+            </button>
           ) : (
             <div className="court-pattern h-full w-full" />
           )}
+
 
           {hasImages && images.length > 1 && (
             <>
@@ -250,7 +260,49 @@ function VenueDetail() {
         </div>
       )}
       </div>
+
+      {lightboxOpen && currentImg && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightboxOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            onClick={() => setLightboxOpen(false)}
+            aria-label="Close"
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {hasImages && images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); prev(); }}
+                aria-label="Previous image"
+                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 sm:left-6"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); next(); }}
+                aria-label="Next image"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 sm:right-6"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+          <img
+            src={currentImg}
+            alt={venue?.name ?? "Venue"}
+            className="max-h-full max-w-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </main>
+
 
   );
 }
