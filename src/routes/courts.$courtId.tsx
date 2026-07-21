@@ -18,6 +18,7 @@ type Court = {
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
+  coming_soon: boolean | null;
   sports: { name: string } | null;
   venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null } | null;
 };
@@ -60,7 +61,7 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, sports(name), venues(name, address, timezone, latitude, longitude)")
         .eq("id", Number(courtId))
         .maybeSingle();
 
@@ -176,6 +177,18 @@ function CourtBooking() {
         </div>
       </header>
 
+      {court.coming_soon && (
+        <section className="mt-6 rounded-2xl border-2 border-amber-500/40 bg-amber-500/10 p-6 text-center">
+          <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+            Coming soon
+          </span>
+          <h2 className="mt-3 text-xl font-bold">This court isn't open for booking yet</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The venue owner is finishing setup. Check back soon — you'll be able to book slots here as soon as it goes live.
+          </p>
+        </section>
+      )}
+
       {(court.images?.length ?? 0) > 0 && (
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           {court.images!.map((src, i) => (
@@ -251,6 +264,7 @@ function CourtBooking() {
         </section>
       )}
 
+      {!court.coming_soon && (
       <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Pick a time</h2>
@@ -358,6 +372,7 @@ function CourtBooking() {
 
         <p className="mt-2 text-xs text-muted-foreground">Payment will be handled at the venue for now.</p>
       </section>
+      )}
     </main>
   );
 }

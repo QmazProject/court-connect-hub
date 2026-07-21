@@ -18,6 +18,7 @@ type Court = {
   images: string[] | null;
   blocked_hours: Record<string, number[]> | null;
   blocked_dates: Record<string, number[]> | null;
+  coming_soon: boolean | null;
   sports: { name: string } | null;
 };
 
@@ -300,6 +301,11 @@ function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }
           <span className="rounded-full bg-secondary px-2 py-1 font-medium">{court.sports?.name}</span>
           <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
         </div>
+        {court.coming_soon && (
+          <span className="mt-2 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">
+            Coming soon
+          </span>
+        )}
         <h3 className="mt-2 font-semibold">{court.name}</h3>
         {court.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{court.description}</p>}
         {(court.amenities?.length ?? 0) > 0 && (
@@ -524,6 +530,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   const [rate, setRate] = useState("25");
   const [sportId, setSportId] = useState<string>("");
   const [isIndoor, setIsIndoor] = useState(false);
+  const [comingSoon, setComingSoon] = useState(false);
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState("");
@@ -539,6 +546,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
+        coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
         images: parseList(images),
@@ -547,7 +555,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setDescription(""); setAmenities(""); setImages(""); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages(""); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -579,7 +587,14 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
           <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
           Indoor court
         </label>
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
+          Coming soon
+        </label>
       </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Tick "Coming soon" if this court isn't open yet — players will see a badge and won't be able to book until you untick it.
+      </p>
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
@@ -600,6 +615,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
+  const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState((court.images ?? []).join("\n"));
@@ -611,6 +627,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
+        coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
         images: parseList(images),
@@ -629,6 +646,10 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         <label className="flex items-end gap-2 pb-2 text-sm">
           <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
           Indoor court
+        </label>
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
+          Coming soon
         </label>
       </div>
       <div className="mt-3 grid gap-3">
