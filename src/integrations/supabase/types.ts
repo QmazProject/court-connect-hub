@@ -192,7 +192,9 @@ export type Database = {
       venues: {
         Row: {
           address: string
+          description: string | null
           id: number
+          images: string[]
           latitude: number | null
           longitude: number | null
           name: string
@@ -200,7 +202,9 @@ export type Database = {
         }
         Insert: {
           address: string
+          description?: string | null
           id?: never
+          images?: string[]
           latitude?: number | null
           longitude?: number | null
           name: string
@@ -208,7 +212,9 @@ export type Database = {
         }
         Update: {
           address?: string
+          description?: string | null
           id?: never
+          images?: string[]
           latitude?: number | null
           longitude?: number | null
           name?: string

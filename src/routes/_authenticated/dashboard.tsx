@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
 type Sport = { id: number; name: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
