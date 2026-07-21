@@ -257,7 +257,7 @@ function CourtBooking() {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <button
               type="button"
-              onClick={() => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() - 1); setDate(d.toISOString().slice(0, 10)); setSelected([]); setErr(null); }}
+              onClick={() => { setDate(shiftISO(date, -1)); setSelected([]); setErr(null); }}
               className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
               aria-label="Previous day"
             >← Prev</button>
@@ -268,7 +268,7 @@ function CourtBooking() {
             >Today</button>
             <button
               type="button"
-              onClick={() => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + 1); setDate(d.toISOString().slice(0, 10)); setSelected([]); setErr(null); }}
+              onClick={() => { setDate(shiftISO(date, 1)); setSelected([]); setErr(null); }}
               className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
               aria-label="Next day"
             >Next →</button>
