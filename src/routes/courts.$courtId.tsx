@@ -264,6 +264,7 @@ function CourtBooking() {
         </section>
       )}
 
+      {!court.coming_soon && (
       <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Pick a time</h2>
