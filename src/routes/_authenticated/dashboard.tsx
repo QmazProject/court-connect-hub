@@ -353,7 +353,9 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
   };
 
   // --- Per-date state
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const localISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const shiftDate = (iso: string, days: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + days); return localISO(d); };
+  const [selectedDate, setSelectedDate] = useState<string>(localISO(new Date()));
   const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() => {
     const map: Record<string, Set<number>> = {};
     for (const [date, hrs] of Object.entries(court.blocked_dates ?? {})) map[date] = new Set(hrs);
