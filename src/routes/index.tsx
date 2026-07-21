@@ -207,7 +207,7 @@ function Landing() {
                   aria-label="Filters"
                   onClick={() => { setFilterOpen((v) => !v); setVenueFocus(true); }}
                   className={
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition " +
+                    "edge-glow flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition " +
                     (hasFilters || filterOpen
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-muted-foreground hover:border-primary hover:text-primary")
@@ -219,7 +219,7 @@ function Landing() {
                   type="button"
                   onClick={requestNearby}
                   className={
-                    "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition " +
+                    "edge-glow flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition " +
                     (nearby
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border text-muted-foreground hover:border-primary hover:text-primary")
