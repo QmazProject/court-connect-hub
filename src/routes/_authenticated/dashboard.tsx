@@ -551,13 +551,13 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
-        images: parseList(images),
+        images,
       });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages(""); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -600,7 +600,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
-        <Textarea label="Image URLs (one per line)" value={images} onChange={setImages} placeholder="https://…/court-1.jpg&#10;https://…/court-2.jpg" />
+        <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
