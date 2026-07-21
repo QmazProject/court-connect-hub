@@ -620,7 +620,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
   const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
-  const [images, setImages] = useState((court.images ?? []).join("\n"));
+  const [images, setImages] = useState<string[]>(court.images ?? []);
   const [err, setErr] = useState<string | null>(null);
 
   const mut = useMutation({
@@ -632,7 +632,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
-        images: parseList(images),
+        images,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -657,7 +657,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
-        <Textarea label="Image URLs (one per line)" value={images} onChange={setImages} />
+        <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
