@@ -41,6 +41,8 @@ function VenueDetail() {
   const { sport } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
   const [imgIdx, setImgIdx] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
