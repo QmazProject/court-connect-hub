@@ -530,6 +530,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   const [rate, setRate] = useState("25");
   const [sportId, setSportId] = useState<string>("");
   const [isIndoor, setIsIndoor] = useState(false);
+  const [comingSoon, setComingSoon] = useState(false);
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState("");
@@ -545,6 +546,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
+        coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
         images: parseList(images),
@@ -553,7 +555,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setDescription(""); setAmenities(""); setImages(""); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages(""); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
