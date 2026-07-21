@@ -423,8 +423,8 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         description: description || null,
         amenities: parseList(amenities),
         images: parseList(images),
-        operating_hours: { mon: "08:00-22:00", tue: "08:00-22:00", wed: "08:00-22:00", thu: "08:00-22:00", fri: "08:00-22:00", sat: "08:00-22:00", sun: "08:00-22:00" },
       });
+
       if (error) throw error;
     },
     onSuccess: () => {
