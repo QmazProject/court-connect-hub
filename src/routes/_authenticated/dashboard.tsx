@@ -214,12 +214,13 @@ function VenueSection({ venue }: { venue: Venue }) {
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm">
-      <header className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-        <div>
-          <h2 className="text-xl font-bold">{venue.name}</h2>
-          <p className="text-sm text-muted-foreground">{venue.address} · {venue.timezone}</p>
+      <header className="flex flex-col gap-3 border-b border-border p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <VenueEditor venue={venue} courtsCount={courtsQ.data?.length ?? 0} />
+          </div>
+          <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
         </div>
-        <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
       </header>
       <div className="p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
