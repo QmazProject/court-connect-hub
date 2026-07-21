@@ -27,6 +27,12 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function fmtHour(h: number) {
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:00 ${period}`;
+}
+
 
 function CourtBooking() {
   const { courtId } = Route.useParams();
@@ -286,7 +292,7 @@ function CourtBooking() {
                 title={label}
                 className={"flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " + stateClass}
               >
-                <span className={disabled ? "line-through" : ""}>{String(h).padStart(2, "0")}:00</span>
+                <span className={"text-xs leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
                 {label && <span className="mt-0.5 text-[10px] uppercase tracking-wide">{label}</span>}
               </button>
             );
@@ -299,7 +305,7 @@ function CourtBooking() {
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <div className="text-sm text-muted-foreground">
             {selected.length > 0
-              ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> ({selected.map((h) => String(h).padStart(2, "0") + ":00").join(", ")}) · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
+              ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> ({selected.map((h) => `${fmtHour(h)}–${fmtHour((h + 1) % 24)}`).join(", ")}) · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
               : "Choose one or more available hours above."}
           </div>
           <div className="flex gap-2">
