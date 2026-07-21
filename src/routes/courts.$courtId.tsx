@@ -33,8 +33,9 @@ function CourtBooking() {
   const router = useRouter();
   const qc = useQueryClient();
   const [date, setDate] = useState(todayISO());
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
   const [err, setErr] = useState<string | null>(null);
+
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
