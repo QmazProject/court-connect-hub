@@ -184,17 +184,25 @@ function VenueSection({ venue }: { venue: Venue }) {
   });
 
   const courtIds = (courtsQ.data ?? []).map((c) => c.id);
+  const [bookingDate, setBookingDate] = useState<string>("");
   const bookingsQ = useQuery({
-    queryKey: ["venue-bookings", venue.id, courtIds.join(",")],
+    queryKey: ["venue-bookings", venue.id, courtIds.join(","), bookingDate || "upcoming"],
     enabled: courtIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("bookings")
         .select("id, court_id, start_time, end_time, status")
         .in("court_id", courtIds)
-        .gte("end_time", new Date().toISOString())
         .order("start_time", { ascending: true })
-        .limit(50);
+        .limit(100);
+      if (bookingDate) {
+        const from = new Date(`${bookingDate}T00:00:00`).toISOString();
+        const to = new Date(`${bookingDate}T23:59:59`).toISOString();
+        q = q.gte("start_time", from).lte("start_time", to);
+      } else {
+        q = q.gte("end_time", new Date().toISOString());
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data as { id: number; court_id: number; start_time: string; end_time: string; status: string }[];
     },
