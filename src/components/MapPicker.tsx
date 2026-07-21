@@ -178,6 +178,41 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
           <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">✕</button>
         </div>
 
+        <div className="border-b border-border px-4 py-2">
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search a place, street, or landmark…"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm outline-none focus:border-primary"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => { setQuery(""); setResults([]); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-muted-foreground hover:bg-secondary"
+                aria-label="Clear"
+              >✕</button>
+            )}
+            {(results.length > 0 || searching) && (
+              <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
+                {searching && <li className="px-3 py-2 text-xs text-muted-foreground">Searching…</li>}
+                {results.map((r, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => { flyTo(Number(r.lat), Number(r.lon)); setResults([]); setQuery(r.display_name.split(",")[0]); }}
+                      className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
+                    >
+                      {r.display_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
         <div ref={containerRef} className="flex-1" style={{ minHeight: 240 }} />
 
         <div className="space-y-2 border-t border-border bg-secondary/30 px-4 py-3">
@@ -190,10 +225,24 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
             >
               {locBusy ? "Locating…" : "📍 Use my location"}
             </button>
-            <span className="font-mono text-muted-foreground">
-              {pos ? `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}` : "No pin yet"}
-            </span>
+            {pos ? (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${pos.lat},${pos.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-md border border-border bg-background px-2 py-1 font-medium hover:border-primary hover:text-primary"
+              >
+                View on Google Maps ↗
+              </a>
+            ) : (
+              <span className="font-mono text-muted-foreground">No pin yet</span>
+            )}
           </div>
+          {pos && (
+            <p className="font-mono text-[11px] text-muted-foreground">
+              📍 {pos.lat.toFixed(6)}, {pos.lng.toFixed(6)}
+            </p>
+          )}
           {err && <p className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
           <div className="flex gap-2">
             <button
