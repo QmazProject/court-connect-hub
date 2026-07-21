@@ -53,16 +53,17 @@ function Landing() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, sports!inner(name, slug), venues(name, address)")
+        .select("id, name, hourly_rate, is_indoor, venue_id, sports!inner(name, slug), venues(id, name, address)")
         .order("id", { ascending: false })
-        .limit(48);
+        .limit(200);
       if (sport) q = q.eq("sports.slug", sport);
       const { data, error } = await q;
       if (error) throw error;
-      return data as unknown as CourtRow[];
+      return data as unknown as (CourtRow & { venue_id: number; venues: { id: number; name: string; address: string } | null })[];
     },
     enabled: !!sport,
   });
+
 
   // Sport picker view
   if (!sport) {
@@ -168,35 +169,58 @@ function Landing() {
           ))}
         </div>
       ) : courts && courts.length > 0 ? (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courts.map((c) => (
-            <Link
-              key={c.id}
-              to="/courts/$courtId"
-              params={{ courtId: String(c.id) }}
-              className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md"
-            >
-              <div className="court-pattern h-32" />
-              <div className="p-5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
-                    {c.sports?.name ?? "Sport"}
-                  </span>
-                  <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
-                </div>
-                <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
-                <p className="text-sm text-muted-foreground">{c.venues?.name} · {c.venues?.address}</p>
-                <div className="mt-4 flex items-baseline justify-between">
-                  <div>
-                    <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
-                    <span className="text-sm text-muted-foreground"> / hour</span>
-                  </div>
-                  <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        (() => {
+          const grouped = new Map<number, { venue: { id: number; name: string; address: string }; courts: typeof courts }>();
+          for (const c of courts) {
+            if (!c.venues) continue;
+            const v = c.venues;
+            const g = grouped.get(v.id) ?? { venue: v, courts: [] as typeof courts };
+            g.courts.push(c);
+            grouped.set(v.id, g);
+          }
+          const venues = Array.from(grouped.values());
+          return (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {venues.map(({ venue, courts: vCourts }) => {
+                const minRate = Math.min(...vCourts.map((c) => Number(c.hourly_rate)));
+                const indoor = vCourts.some((c) => c.is_indoor);
+                const outdoor = vCourts.some((c) => !c.is_indoor);
+                return (
+                  <Link
+                    key={venue.id}
+                    to="/venues/$venueId"
+                    params={{ venueId: String(venue.id) }}
+                    search={{ sport }}
+                    className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md"
+                  >
+                    <div className="court-pattern h-32" />
+                    <div className="p-5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="rounded-full bg-primary/15 px-2 py-1 font-semibold text-primary">
+                          {vCourts.length} {vCourts.length === 1 ? "court" : "courts"}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {indoor && outdoor ? "Indoor & Outdoor" : indoor ? "Indoor" : "Outdoor"}
+                        </span>
+                      </div>
+                      <h3 className="mt-3 text-lg font-semibold">{venue.name}</h3>
+                      <p className="text-sm text-muted-foreground">{venue.address}</p>
+                      <div className="mt-4 flex items-baseline justify-between">
+                        <div>
+                          <span className="text-xs text-muted-foreground">From </span>
+                          <span className="text-2xl font-bold text-primary">₱{minRate.toFixed(0)}</span>
+                          <span className="text-sm text-muted-foreground"> / hour</span>
+                        </div>
+                        <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">View courts →</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })()
+
       ) : (
         <div className="mt-8 rounded-2xl border border-dashed border-border p-12 text-center">
           <p className="text-muted-foreground">No {activeSport?.name.toLowerCase() ?? ""} courts listed yet.</p>
