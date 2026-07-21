@@ -97,14 +97,29 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [locBusy, setLocBusy] = useState(false);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { setErr("Geolocation not supported on this device."); return; }
+    setLocBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setLat(pos.coords.latitude.toFixed(6)); setLng(pos.coords.longitude.toFixed(6)); setLocBusy(false); },
+      (e) => { setErr(e.message); setLocBusy(false); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const mut = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("venues").insert({ name, address, timezone });
+      const latitude = lat ? Number(lat) : null;
+      const longitude = lng ? Number(lng) : null;
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude, longitude });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setErr(null); setOpen(!!compact ? false : false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(""); setLng(""); setErr(null); setOpen(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -117,14 +132,32 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
       <h2 className="text-xl font-bold">{compact ? "New venue" : "Create your first venue"}</h2>
       <p className="mt-1 text-sm text-muted-foreground">A venue holds one or more courts.</p>
       <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="mt-4 grid gap-3 sm:grid-cols-2">
         <Input label="Venue name" value={name} onChange={setName} required />
         <Input label="Address" value={address} onChange={setAddress} required />
         <Input label="Timezone" value={timezone} onChange={setTimezone} required />
-        <div className="flex items-end gap-2">
+        <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-secondary/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Map location</span>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={useMyLocation} disabled={locBusy} className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary disabled:opacity-60">
+                {locBusy ? "Locating…" : "📍 Use my location"}
+              </button>
+              <a href="https://www.google.com/maps" target="_blank" rel="noreferrer" className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary">
+                Find on Google Maps ↗
+              </a>
+            </div>
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <Input label="Latitude" value={lat} onChange={setLat} />
+            <Input label="Longitude" value={lng} onChange={setLng} />
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Tip: on Google Maps, right-click the exact spot and click the coordinates to copy them.</p>
+        </div>
+        <div className="sm:col-span-2 flex flex-wrap gap-2">
           <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
             {mut.isPending ? "Creating…" : "Create venue"}
           </button>
