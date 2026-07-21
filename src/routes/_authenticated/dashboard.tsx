@@ -587,7 +587,14 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
           <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
           Indoor court
         </label>
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
+          Coming soon
+        </label>
       </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Tick "Coming soon" if this court isn't open yet — players will see a badge and won't be able to book until you untick it.
+      </p>
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
