@@ -80,8 +80,13 @@
   background-position: center;
 }
 
+@property --edge-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
 @keyframes edge-run {
-  to { transform: rotate(1turn); }
+  to { --edge-angle: 360deg; }
 }
 @keyframes edge-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(9, 230, 210, 0.55); }
@@ -96,9 +101,9 @@
   content: "";
   position: absolute;
   inset: -1.5px;
-  border-radius: 9999px;
+  border-radius: inherit;
   padding: 1.5px;
-  background: conic-gradient(from 0deg, transparent 0deg, #09e6d2 70deg, #22d3ee 140deg, transparent 220deg, transparent 360deg);
+  background: conic-gradient(from var(--edge-angle), transparent 0deg, #09e6d2 70deg, #22d3ee 140deg, transparent 220deg, transparent 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask-composite: exclude;
@@ -107,3 +112,4 @@
   z-index: 0;
 }
 .edge-glow > * { position: relative; z-index: 1; }
+
