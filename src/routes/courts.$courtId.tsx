@@ -24,8 +24,19 @@ type Court = {
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
+function toISODate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return toISODate(new Date());
+}
+function shiftISO(iso: string, days: number) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
 }
 
 function fmtHour(h: number) {
