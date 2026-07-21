@@ -167,6 +167,40 @@ function Landing() {
     );
   };
 
+  // All existing venues (shown below the sport picker)
+  const { data: allVenues, isLoading: venuesLoading } = useQuery({
+    queryKey: ["venues", "all-landing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("venues")
+        .select("id, name, address, courts(id, hourly_rate, sports(slug, name))")
+        .order("name")
+        .limit(100);
+      if (error) throw error;
+      type Row = {
+        id: number;
+        name: string;
+        address: string;
+        courts: { id: number; hourly_rate: number; sports: { slug: string; name: string } | null }[];
+      };
+      return (data as unknown as Row[]).map((v) => {
+        const rates = v.courts?.map((c) => Number(c.hourly_rate)) ?? [];
+        const sportSet = new Map<string, string>();
+        v.courts?.forEach((c) => c.sports && sportSet.set(c.sports.slug, c.sports.name));
+        return {
+          id: v.id,
+          name: v.name,
+          address: v.address,
+          courtCount: v.courts?.length ?? 0,
+          minRate: rates.length ? Math.min(...rates) : null,
+          sports: Array.from(sportSet.values()),
+        };
+      });
+    },
+    enabled: !sport,
+  });
+
+
   // Sport picker view
   if (!sport) {
     return (
@@ -378,7 +412,89 @@ function Landing() {
               ))}
             </div>
 
+            <div className="mt-16 text-left">
+              <div className="mb-5 flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+                    Existing venues
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Browse every court facility already on CourtHub.
+                  </p>
+                </div>
+                {allVenues && (
+                  <span className="hidden shrink-0 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground sm:inline-block">
+                    {allVenues.length} {allVenues.length === 1 ? "venue" : "venues"}
+                  </span>
+                )}
+              </div>
+
+              {venuesLoading ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
+                  ))}
+                </div>
+              ) : allVenues && allVenues.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {allVenues.map((v) => (
+                    <Link
+                      key={v.id}
+                      to="/venues/$venueId"
+                      params={{ venueId: String(v.id) }}
+                      search={{}}
+                      className="group flex flex-col rounded-2xl border border-border bg-card p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lg"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-display text-lg font-semibold group-hover:text-primary">
+                            {v.name}
+                          </div>
+                          <div className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span className="line-clamp-2">{v.address}</span>
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                          {v.courtCount} {v.courtCount === 1 ? "court" : "courts"}
+                        </span>
+                      </div>
+
+                      {v.sports.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {v.sports.slice(0, 4).map((s) => (
+                            <span key={s} className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              {s}
+                            </span>
+                          ))}
+                          {v.sports.length > 4 && (
+                            <span className="text-[11px] text-muted-foreground">+{v.sports.length - 4}</span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                        <span className="text-xs text-muted-foreground">Tap to view courts</span>
+                        {v.minRate != null ? (
+                          <span className="text-sm font-semibold text-primary">
+                            From ₱{v.minRate.toFixed(0)}/hr
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No courts yet</span>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+                  No venues have been created yet.
+                </div>
+              )}
+            </div>
+
             <div className="mt-12 flex flex-wrap justify-center gap-3">
+
               <Link
                 to="/auth"
                 search={{ mode: "signup", as: "player" }}
