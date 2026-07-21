@@ -111,7 +111,7 @@ function Header() {
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Link to="/" className="flex items-center gap-2 font-display text-xl font-bold tracking-tight">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">C</span>
+          <img src={chLogo.url} alt="CourtHub logo" className="h-9 w-9 rounded-full object-contain" />
           CourtHub
         </Link>
         <nav className="flex items-center gap-2">
