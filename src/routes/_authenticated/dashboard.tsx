@@ -16,8 +16,15 @@ type Court = {
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
+  blocked_hours: Record<string, number[]> | null;
   sports: { name: string } | null;
 };
+
+const DAYS: { key: string; label: string }[] = [
+  { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
+  { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
+];
+
 
 function Dashboard() {
   const { user } = Route.useRouteContext() as { user: { id: string; email?: string } };
