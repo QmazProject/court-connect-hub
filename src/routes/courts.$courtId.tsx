@@ -110,9 +110,9 @@ function CourtBooking() {
 
   const court = courtQ.data;
   const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
-  const hours = parseHours(court.operating_hours?.[dow]);
-  const slots: number[] = hours ? Array.from({ length: hours[1] - hours[0] }, (_, i) => hours[0] + i) : [];
-  const isBusy = (hour: number) => {
+  const blocked = new Set<number>(court.blocked_hours?.[dow] ?? []);
+  const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
+  const isBooked = (hour: number) => {
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
     const slotEnd = slotStart + 60 * 60 * 1000;
     return (busyQ.data ?? []).some((b) => {
@@ -121,6 +121,8 @@ function CourtBooking() {
       return bs < slotEnd && be > slotStart;
     });
   };
+  const isBlocked = (hour: number) => blocked.has(hour);
+
   const isPast = (hour: number) => {
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
     return slotStart < Date.now();
