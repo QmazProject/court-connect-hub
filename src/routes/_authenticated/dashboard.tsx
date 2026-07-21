@@ -301,6 +301,11 @@ function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }
           <span className="rounded-full bg-secondary px-2 py-1 font-medium">{court.sports?.name}</span>
           <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
         </div>
+        {court.coming_soon && (
+          <span className="mt-2 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">
+            Coming soon
+          </span>
+        )}
         <h3 className="mt-2 font-semibold">{court.name}</h3>
         {court.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{court.description}</p>}
         {(court.amenities?.length ?? 0) > 0 && (
