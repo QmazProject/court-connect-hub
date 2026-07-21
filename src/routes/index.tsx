@@ -66,6 +66,34 @@ function Landing() {
   });
 
 
+  // Venue search (always available on landing)
+  const [venueQuery, setVenueQuery] = useState("");
+  const [venueFocus, setVenueFocus] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setVenueFocus(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+  const { data: venueMatches } = useQuery({
+    queryKey: ["venue-search", venueQuery.trim().toLowerCase()],
+    queryFn: async () => {
+      const term = venueQuery.trim();
+      if (!term) return [] as { id: number; name: string; address: string }[];
+      const { data, error } = await supabase
+        .from("venues")
+        .select("id, name, address")
+        .ilike("name", `%${term}%`)
+        .order("name")
+        .limit(8);
+      if (error) throw error;
+      return data as { id: number; name: string; address: string }[];
+    },
+    enabled: venueQuery.trim().length > 0,
+  });
+
   // Sport picker view
   if (!sport) {
     return (
@@ -73,9 +101,51 @@ function Landing() {
         <section className="relative overflow-hidden border-b border-border/60">
           <div className="court-pattern absolute inset-0 opacity-[0.08]" aria-hidden />
           <div className="relative mx-auto max-w-5xl px-6 py-20 text-center md:py-28">
-            <span className="inline-flex items-center rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
-              Play more · Manage less
+            <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+              Dedicated Court Facility
             </span>
+            <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground md:text-lg">
+              Book premium courts in seconds — real-time availability, transparent pricing, zero hassle.
+            </p>
+
+            <div ref={searchRef} className="relative mx-auto mt-6 max-w-xl">
+              <div className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-3 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                <span className="text-muted-foreground" aria-hidden>🔍</span>
+                <input
+                  type="text"
+                  value={venueQuery}
+                  onChange={(e) => setVenueQuery(e.target.value)}
+                  onFocus={() => setVenueFocus(true)}
+                  placeholder="Tap to find a venue you want"
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              {venueFocus && venueQuery.trim() && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-border bg-card text-left shadow-lg">
+                  {venueMatches && venueMatches.length > 0 ? (
+                    venueMatches.map((v) => (
+                      <Link
+                        key={v.id}
+                        to="/venues/$venueId"
+                        params={{ venueId: String(v.id) }}
+                        search={{}}
+                        className="block border-b border-border/60 px-4 py-3 last:border-b-0 hover:bg-secondary"
+                        onClick={() => setVenueFocus(false)}
+                      >
+                        <div className="text-sm font-semibold">{v.name}</div>
+                        <div className="text-xs text-muted-foreground">{v.address}</div>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">No venues match "{venueQuery}".</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-10 inline-flex items-center rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
+              Play more · Manage less
+            </div>
             <h1 className="mt-5 text-5xl font-bold leading-[1.05] md:text-6xl">
               What are you <span className="text-primary">playing today?</span>
             </h1>
