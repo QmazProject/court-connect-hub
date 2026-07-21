@@ -102,16 +102,33 @@ function Landing() {
   const hasFilters = !!(filterSport || filterCity.trim() || minPrice || maxPrice);
   const searchActive = venueQuery.trim().length > 0 || hasFilters || !!nearby;
 
-  const { data: venueMatches } = useQuery({
+  // Debounce text/number inputs so filter feels smooth without refetching each keystroke
+  const [dQuery, setDQuery] = useState(venueQuery);
+  const [dCity, setDCity] = useState(filterCity);
+  const [dMin, setDMin] = useState(minPrice);
+  const [dMax, setDMax] = useState(maxPrice);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDQuery(venueQuery);
+      setDCity(filterCity);
+      setDMin(minPrice);
+      setDMax(maxPrice);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [venueQuery, filterCity, minPrice, maxPrice]);
+
+  const { data: venueMatches, isFetching: matchesFetching } = useQuery({
     queryKey: [
       "venue-search",
-      venueQuery.trim().toLowerCase(),
+      dQuery.trim().toLowerCase(),
       filterSport,
-      filterCity.trim().toLowerCase(),
-      minPrice,
-      maxPrice,
+      dCity.trim().toLowerCase(),
+      dMin,
+      dMax,
       nearby ? `${nearby.lat.toFixed(3)},${nearby.lng.toFixed(3)}` : "",
     ],
+    placeholderData: (prev) => prev,
+
     queryFn: async () => {
       const term = venueQuery.trim();
       let q = supabase
