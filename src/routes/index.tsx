@@ -101,12 +101,22 @@ function Landing() {
         <section className="relative overflow-hidden border-b border-border/60">
           <div className="court-pattern absolute inset-0 opacity-[0.08]" aria-hidden />
           <div className="relative mx-auto max-w-5xl px-6 py-20 text-center md:py-28">
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              Dedicated Court Facility
-            </span>
-            <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground md:text-lg">
-              Book premium courts in seconds — real-time availability, transparent pricing, zero hassle.
-            </p>
+            <div className="flex flex-col items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_theme(colors.primary)]" />
+                Premium Sports Hub
+              </span>
+              <h2 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
+                <span className="bg-gradient-to-r from-primary via-primary to-foreground bg-clip-text text-transparent">
+                  Dedicated Court
+                </span>{" "}
+                <span className="text-foreground">Facility</span>
+              </h2>
+              <p className="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg">
+                Book premium courts in seconds — real-time availability, transparent pricing, zero hassle.
+              </p>
+            </div>
+
 
             <div ref={searchRef} className="relative mx-auto mt-6 max-w-xl">
               <div className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-3 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
