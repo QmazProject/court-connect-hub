@@ -13,6 +13,7 @@ type Court = {
   hourly_rate: number;
   is_indoor: boolean;
   operating_hours: Record<string, string>;
+  blocked_hours: Record<string, number[]> | null;
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
@@ -26,12 +27,6 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function parseHours(spec: string | undefined): [number, number] | null {
-  if (!spec) return null;
-  const m = spec.match(/^(\d{1,2}):\d{2}\s*-\s*(\d{1,2}):\d{2}$/);
-  if (!m) return null;
-  return [Number(m[1]), Number(m[2])];
-}
 
 function CourtBooking() {
   const { courtId } = Route.useParams();
