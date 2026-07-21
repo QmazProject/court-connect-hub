@@ -252,6 +252,8 @@ function VenueDetail() {
           <p className="text-muted-foreground">No courts available at this venue{sport ? " for the selected sport" : ""}.</p>
         </div>
       )}
+      </div>
     </main>
+
   );
 }
