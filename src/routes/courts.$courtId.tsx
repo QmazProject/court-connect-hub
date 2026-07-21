@@ -192,6 +192,31 @@ function CourtBooking() {
         </section>
       )}
 
+      {court.venues?.latitude != null && court.venues?.longitude != null && (
+        <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 p-4 sm:p-6">
+            <div>
+              <h2 className="text-lg font-semibold">Location</h2>
+              <p className="text-sm text-muted-foreground">{court.venues.address}</p>
+            </div>
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${court.venues.latitude},${court.venues.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              Get directions ↗
+            </a>
+          </div>
+          <iframe
+            title={`${court.venues.name} map`}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${court.venues.longitude - 0.005},${court.venues.latitude - 0.005},${court.venues.longitude + 0.005},${court.venues.latitude + 0.005}&layer=mapnik&marker=${court.venues.latitude},${court.venues.longitude}`}
+            className="h-64 w-full sm:h-80"
+            loading="lazy"
+          />
+        </section>
+      )}
+
       <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Pick a time</h2>
