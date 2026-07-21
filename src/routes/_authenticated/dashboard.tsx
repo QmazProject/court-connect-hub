@@ -535,7 +535,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   const [comingSoon, setComingSoon] = useState(false);
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
-  const [images, setImages] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open);
