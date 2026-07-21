@@ -167,6 +167,40 @@ function Landing() {
     );
   };
 
+  // All existing venues (shown below the sport picker)
+  const { data: allVenues, isLoading: venuesLoading } = useQuery({
+    queryKey: ["venues", "all-landing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("venues")
+        .select("id, name, address, courts(id, hourly_rate, sports(slug, name))")
+        .order("name")
+        .limit(100);
+      if (error) throw error;
+      type Row = {
+        id: number;
+        name: string;
+        address: string;
+        courts: { id: number; hourly_rate: number; sports: { slug: string; name: string } | null }[];
+      };
+      return (data as unknown as Row[]).map((v) => {
+        const rates = v.courts?.map((c) => Number(c.hourly_rate)) ?? [];
+        const sportSet = new Map<string, string>();
+        v.courts?.forEach((c) => c.sports && sportSet.set(c.sports.slug, c.sports.name));
+        return {
+          id: v.id,
+          name: v.name,
+          address: v.address,
+          courtCount: v.courts?.length ?? 0,
+          minRate: rates.length ? Math.min(...rates) : null,
+          sports: Array.from(sportSet.values()),
+        };
+      });
+    },
+    enabled: !sport,
+  });
+
+
   // Sport picker view
   if (!sport) {
     return (
