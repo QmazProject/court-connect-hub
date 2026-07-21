@@ -249,11 +249,11 @@ function CourtBooking() {
         <p className="mt-2 text-xs text-muted-foreground">Tap multiple hours to book them together.</p>
 
         <div className="mt-3 flex flex-wrap gap-3 text-xs">
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-border bg-background" /> Available</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-primary" /> Selected</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-destructive/40 bg-destructive/15" /> Booked</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-yellow-500/60 bg-yellow-300" /> Selected</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-red-500/50 bg-red-300" /> Booked</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-amber-400/60 bg-amber-200/60" /> Unavailable</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-border bg-muted" /> Past</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-orange-500/50 bg-orange-300" /> Past</span>
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
@@ -265,14 +265,14 @@ function CourtBooking() {
             const active = selected.includes(h);
             const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
             const stateClass = active
-              ? "border-primary bg-primary text-primary-foreground"
+              ? "border-yellow-500 bg-yellow-300 text-yellow-950"
               : booked
-                ? "cursor-not-allowed border-destructive/40 bg-destructive/15 text-destructive"
+                ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
                 : blockedSlot
                   ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
                   : past
-                    ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
-                    : "border-border bg-background hover:border-primary hover:text-primary";
+                    ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
+                    : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
             return (
               <button
                 key={h}
