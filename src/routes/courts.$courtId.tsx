@@ -41,9 +41,10 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
         .eq("id", Number(courtId))
         .maybeSingle();
+
       if (error) throw error;
       return data as unknown as Court | null;
     },
