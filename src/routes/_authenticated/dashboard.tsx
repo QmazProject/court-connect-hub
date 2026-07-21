@@ -354,22 +354,27 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
                 <button type="button" onClick={() => setAllDay(d.key, true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all</button>
               </div>
             </div>
-            <div className="mt-2 grid grid-cols-6 gap-1 sm:grid-cols-8 md:grid-cols-12">
+            <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4">
               {Array.from({ length: 24 }, (_, h) => h).map((h) => {
                 const isBlocked = blocked[d.key].has(h);
+                const fmt = (x: number) => {
+                  const p = x < 12 ? "AM" : "PM";
+                  const h12 = x % 12 === 0 ? 12 : x % 12;
+                  return `${h12}:00 ${p}`;
+                };
                 return (
                   <button
                     key={h}
                     type="button"
                     onClick={() => toggle(d.key, h)}
                     className={
-                      "rounded px-1 py-1 text-[10px] font-medium transition " +
+                      "rounded px-1.5 py-1 text-[10px] font-medium leading-tight transition " +
                       (isBlocked
                         ? "bg-destructive/20 text-destructive line-through"
                         : "bg-primary/10 text-primary hover:bg-primary/20")
                     }
                   >
-                    {String(h).padStart(2, "0")}
+                    {fmt(h)} – {fmt((h + 1) % 24)}
                   </button>
                 );
               })}
