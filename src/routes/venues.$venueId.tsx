@@ -112,48 +112,72 @@ function VenueDetail() {
         </div>
       ) : courts.length > 0 ? (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courts.map((c) => (
-            <Link
-              key={c.id}
-              to="/courts/$courtId"
-              params={{ courtId: String(c.id) }}
-              className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md"
-            >
-              {c.images && c.images.length > 0 ? (
-                <img src={c.images[0]} alt={c.name} className="h-32 w-full object-cover" />
-              ) : (
-                <div className="court-pattern h-32" />
-              )}
-              <div className="p-5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
-                    {c.sports?.name ?? "Sport"}
-                  </span>
-                  <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
+          {courts.map((c) => {
+            const soon = !!c.coming_soon;
+            const inner = (
+              <>
+                <div className="relative">
+                  {c.images && c.images.length > 0 ? (
+                    <img src={c.images[0]} alt={c.name} className={`h-32 w-full object-cover ${soon ? "opacity-70" : ""}`} />
+                  ) : (
+                    <div className={`court-pattern h-32 ${soon ? "opacity-70" : ""}`} />
+                  )}
+                  {soon && (
+                    <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
+                      Coming soon
+                    </span>
+                  )}
                 </div>
-                <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
-                {c.description && (
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
-                )}
-                {c.amenities && c.amenities.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {c.amenities.slice(0, 3).map((a) => (
-                      <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {a}
-                      </span>
-                    ))}
+                <div className="p-5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
+                      {c.sports?.name ?? "Sport"}
+                    </span>
+                    <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
                   </div>
-                )}
-                <div className="mt-4 flex items-baseline justify-between">
-                  <div>
-                    <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
-                    <span className="text-sm text-muted-foreground"> / hour</span>
+                  <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
+                  {c.description && (
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
+                  )}
+                  {c.amenities && c.amenities.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {c.amenities.slice(0, 3).map((a) => (
+                        <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <div>
+                      <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
+                      <span className="text-sm text-muted-foreground"> / hour</span>
+                    </div>
+                    {soon ? (
+                      <span className="text-xs font-semibold text-amber-600">Opening soon</span>
+                    ) : (
+                      <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
+                    )}
                   </div>
-                  <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
                 </div>
+              </>
+            );
+            const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition";
+            return soon ? (
+              <div key={c.id} className={`${baseCls} cursor-not-allowed`} aria-disabled>
+                {inner}
               </div>
-            </Link>
-          ))}
+            ) : (
+              <Link
+                key={c.id}
+                to="/courts/$courtId"
+                params={{ courtId: String(c.id) }}
+                className={`${baseCls} hover:shadow-md`}
+              >
+                {inner}
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <div className="mt-4 rounded-2xl border border-dashed border-border p-12 text-center">
