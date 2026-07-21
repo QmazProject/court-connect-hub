@@ -143,7 +143,7 @@ function CourtBooking() {
             <p className="text-sm text-muted-foreground">{court.venues?.name} · {court.venues?.address}</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold text-primary">${Number(court.hourly_rate).toFixed(0)}</div>
+            <div className="text-3xl font-bold text-primary">₱{Number(court.hourly_rate).toFixed(0)}</div>
             <div className="text-xs text-muted-foreground">per hour</div>
           </div>
         </div>
@@ -199,7 +199,7 @@ function CourtBooking() {
         <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
           <div className="text-sm text-muted-foreground">
             {selected !== null
-              ? <>Selected: <span className="font-semibold text-foreground">{String(selected).padStart(2, "0")}:00 – {String(selected + 1).padStart(2, "0")}:00</span> · Total <span className="font-semibold text-foreground">${Number(court.hourly_rate).toFixed(0)}</span></>
+              ? <>Selected: <span className="font-semibold text-foreground">{String(selected).padStart(2, "0")}:00 – {String(selected + 1).padStart(2, "0")}:00</span> · Total <span className="font-semibold text-foreground">₱{Number(court.hourly_rate).toFixed(0)}</span></>
               : "Choose an available hour above."}
           </div>
           <button

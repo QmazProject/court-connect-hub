@@ -181,7 +181,7 @@ function VenueSection({ venue }: { venue: Venue }) {
                 <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
               </div>
               <h3 className="mt-2 font-semibold">{c.name}</h3>
-              <div className="mt-2 text-primary"><span className="text-lg font-bold">${Number(c.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
+              <div className="mt-2 text-primary"><span className="text-lg font-bold">₱{Number(c.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
             </div>
           ))}
           <AddCourt venueId={venue.id} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
@@ -265,7 +265,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
       className="col-span-full rounded-xl border border-border bg-secondary/30 p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input label="Court name" value={name} onChange={setName} required />
-        <Input label="Hourly rate ($)" value={rate} onChange={setRate} type="number" required />
+        <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Sport</span>
           <select value={sportId} onChange={(e) => setSportId(e.target.value)} required
