@@ -102,28 +102,46 @@ function Landing() {
   const hasFilters = !!(filterSport || filterCity.trim() || minPrice || maxPrice);
   const searchActive = venueQuery.trim().length > 0 || hasFilters || !!nearby;
 
-  const { data: venueMatches } = useQuery({
+  // Debounce text/number inputs so filter feels smooth without refetching each keystroke
+  const [dQuery, setDQuery] = useState(venueQuery);
+  const [dCity, setDCity] = useState(filterCity);
+  const [dMin, setDMin] = useState(minPrice);
+  const [dMax, setDMax] = useState(maxPrice);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDQuery(venueQuery);
+      setDCity(filterCity);
+      setDMin(minPrice);
+      setDMax(maxPrice);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [venueQuery, filterCity, minPrice, maxPrice]);
+
+  const { data: venueMatches, isFetching: matchesFetching } = useQuery({
     queryKey: [
       "venue-search",
-      venueQuery.trim().toLowerCase(),
+      dQuery.trim().toLowerCase(),
       filterSport,
-      filterCity.trim().toLowerCase(),
-      minPrice,
-      maxPrice,
+      dCity.trim().toLowerCase(),
+      dMin,
+      dMax,
       nearby ? `${nearby.lat.toFixed(3)},${nearby.lng.toFixed(3)}` : "",
     ],
+    placeholderData: (prev) => prev,
+
     queryFn: async () => {
-      const term = venueQuery.trim();
+      const term = dQuery.trim();
       let q = supabase
         .from("venues")
         .select("id, name, address, latitude, longitude, courts!inner(id, hourly_rate, sports!inner(slug, name))")
         .order("name")
         .limit(50);
       if (term) q = q.ilike("name", `%${term}%`);
-      if (filterCity.trim()) q = q.ilike("address", `%${filterCity.trim()}%`);
+      if (dCity.trim()) q = q.ilike("address", `%${dCity.trim()}%`);
       if (filterSport) q = q.eq("courts.sports.slug", filterSport);
-      if (minPrice) q = q.gte("courts.hourly_rate", Number(minPrice));
-      if (maxPrice) q = q.lte("courts.hourly_rate", Number(maxPrice));
+      if (dMin) q = q.gte("courts.hourly_rate", Number(dMin));
+      if (dMax) q = q.lte("courts.hourly_rate", Number(dMax));
+
       const { data, error } = await q;
       if (error) throw error;
       type Row = { id: number; name: string; address: string; latitude: number | null; longitude: number | null; courts: { id: number; hourly_rate: number; sports: { slug: string; name: string } | null }[] };
@@ -333,15 +351,6 @@ function Landing() {
                       />
                     </label>
                   </div>
-                  <div className="mt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setFilterOpen(false)}
-                      className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                    >
-                      Apply
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -370,6 +379,9 @@ function Landing() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {searchActive && matchesFetching && (
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-r-transparent" aria-label="Updating" />
+                  )}
                   {searchActive && (
                     <button
                       type="button"
@@ -381,7 +393,7 @@ function Landing() {
                         setMaxPrice("");
                         setNearby(null);
                       }}
-                      className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary"
+                      className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
                     >
                       Reset
                     </button>
@@ -393,6 +405,7 @@ function Landing() {
                     </span>
                   )}
                 </div>
+
               </div>
 
               {(searchActive ? false : venuesLoading) ? (
