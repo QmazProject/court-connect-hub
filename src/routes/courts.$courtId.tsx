@@ -13,6 +13,7 @@ type Court = {
   hourly_rate: number;
   is_indoor: boolean;
   operating_hours: Record<string, string>;
+  blocked_hours: Record<string, number[]> | null;
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
@@ -26,12 +27,6 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function parseHours(spec: string | undefined): [number, number] | null {
-  if (!spec) return null;
-  const m = spec.match(/^(\d{1,2}):\d{2}\s*-\s*(\d{1,2}):\d{2}$/);
-  if (!m) return null;
-  return [Number(m[1]), Number(m[2])];
-}
 
 function CourtBooking() {
   const { courtId } = Route.useParams();
@@ -46,9 +41,10 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
         .eq("id", Number(courtId))
         .maybeSingle();
+
       if (error) throw error;
       return data as unknown as Court | null;
     },
@@ -115,9 +111,9 @@ function CourtBooking() {
 
   const court = courtQ.data;
   const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
-  const hours = parseHours(court.operating_hours?.[dow]);
-  const slots: number[] = hours ? Array.from({ length: hours[1] - hours[0] }, (_, i) => hours[0] + i) : [];
-  const isBusy = (hour: number) => {
+  const blocked = new Set<number>(court.blocked_hours?.[dow] ?? []);
+  const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
+  const isBooked = (hour: number) => {
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
     const slotEnd = slotStart + 60 * 60 * 1000;
     return (busyQ.data ?? []).some((b) => {
@@ -126,6 +122,8 @@ function CourtBooking() {
       return bs < slotEnd && be > slotStart;
     });
   };
+  const isBlocked = (hour: number) => blocked.has(hour);
+
   const isPast = (hour: number) => {
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
     return slotStart < Date.now();
@@ -242,35 +240,36 @@ function CourtBooking() {
           </label>
         </div>
 
-        {slots.length === 0 ? (
-          <p className="mt-6 rounded-lg bg-muted p-4 text-sm text-muted-foreground">Closed on this day.</p>
-        ) : (
-          <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {slots.map((h) => {
-              const busy = isBusy(h);
-              const past = isPast(h);
-              const disabled = busy || past;
-              const active = selected === h;
-              return (
-                <button
-                  key={h}
-                  disabled={disabled}
-                  onClick={() => setSelected(h)}
-                  className={
-                    "rounded-lg border px-3 py-2 text-sm font-medium transition " +
-                    (disabled
-                      ? "cursor-not-allowed border-border bg-muted text-muted-foreground line-through"
-                      : active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background hover:border-primary hover:text-primary")
-                  }
-                >
-                  {String(h).padStart(2, "0")}:00
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+          {slots.map((h) => {
+            const booked = isBooked(h);
+            const blockedSlot = isBlocked(h);
+            const past = isPast(h);
+            const disabled = booked || blockedSlot || past;
+            const active = selected === h;
+            const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
+            return (
+              <button
+                key={h}
+                disabled={disabled}
+                onClick={() => setSelected(h)}
+                title={label}
+                className={
+                  "flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " +
+                  (disabled
+                    ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                    : active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:border-primary hover:text-primary")
+                }
+              >
+                <span className={disabled ? "line-through" : ""}>{String(h).padStart(2, "0")}:00</span>
+                {label && <span className="mt-0.5 text-[10px] uppercase tracking-wide">{label}</span>}
+              </button>
+            );
+          })}
+        </div>
+
 
         {err && <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
