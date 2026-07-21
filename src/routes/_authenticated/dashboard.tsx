@@ -184,17 +184,25 @@ function VenueSection({ venue }: { venue: Venue }) {
   });
 
   const courtIds = (courtsQ.data ?? []).map((c) => c.id);
+  const [bookingDate, setBookingDate] = useState<string>("");
   const bookingsQ = useQuery({
-    queryKey: ["venue-bookings", venue.id, courtIds.join(",")],
+    queryKey: ["venue-bookings", venue.id, courtIds.join(","), bookingDate || "upcoming"],
     enabled: courtIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("bookings")
         .select("id, court_id, start_time, end_time, status")
         .in("court_id", courtIds)
-        .gte("end_time", new Date().toISOString())
         .order("start_time", { ascending: true })
-        .limit(50);
+        .limit(100);
+      if (bookingDate) {
+        const from = new Date(`${bookingDate}T00:00:00`).toISOString();
+        const to = new Date(`${bookingDate}T23:59:59`).toISOString();
+        q = q.gte("start_time", from).lte("start_time", to);
+      } else {
+        q = q.gte("end_time", new Date().toISOString());
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data as { id: number; court_id: number; start_time: string; end_time: string; status: string }[];
     },
@@ -221,11 +229,28 @@ function VenueSection({ venue }: { venue: Venue }) {
 
 
         <div className="mt-8">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Upcoming bookings</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {bookingDate ? `Bookings on ${new Date(`${bookingDate}T00:00:00`).toLocaleDateString()}` : "Upcoming bookings"}
+            </h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={bookingDate}
+                onChange={(e) => setBookingDate(e.target.value)}
+                className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs"
+              />
+              {bookingDate && (
+                <button onClick={() => setBookingDate("")} className="rounded-lg border border-border px-2.5 py-1.5 text-xs hover:border-primary hover:text-primary">
+                  Show upcoming
+                </button>
+              )}
+            </div>
+          </div>
           {courtIds.length === 0 ? null : bookingsQ.isLoading ? (
             <div className="mt-3 h-16 animate-pulse rounded-lg bg-muted" />
           ) : (bookingsQ.data?.length ?? 0) === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">No upcoming bookings yet.</p>
+            <p className="mt-3 text-sm text-muted-foreground">{bookingDate ? "No bookings on this date." : "No upcoming bookings yet."}</p>
           ) : (
             <ul className="mt-3 divide-y divide-border rounded-xl border border-border">
               {bookingsQ.data!.map((b) => {
@@ -307,6 +332,11 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
   const [blocked, setBlocked] = useState(initial);
   const [err, setErr] = useState<string | null>(null);
 
+  const [previewDate, setPreviewDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const previewDow = (() => {
+    const js = new Date(`${previewDate}T00:00:00`).getDay(); // 0=Sun..6=Sat
+    return DAYS[(js + 6) % 7].key; // map to mon..sun order
+  })();
   const toggle = (day: string, hour: number) => {
     setBlocked((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
@@ -334,7 +364,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold">Availability · {court.name}</h3>
-          <p className="text-xs text-muted-foreground">Open 24/7 by default. Tap an hour to mark it unavailable for players.</p>
+          <p className="text-xs text-muted-foreground">Open 24/7 by default. Tap an hour to mark it unavailable for players. Rules repeat weekly.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
@@ -344,9 +374,20 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
         </div>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background p-2 text-xs">
+        <span className="text-muted-foreground">Jump to date:</span>
+        <button type="button" onClick={() => { const d = new Date(`${previewDate}T00:00:00`); d.setDate(d.getDate() - 1); setPreviewDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
+        <input type="date" value={previewDate} onChange={(e) => setPreviewDate(e.target.value)} className="rounded border border-input bg-background px-2 py-1" />
+        <button type="button" onClick={() => { const d = new Date(`${previewDate}T00:00:00`); d.setDate(d.getDate() + 1); setPreviewDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">→</button>
+        <span className="text-muted-foreground">
+          → editing <span className="font-semibold text-foreground">{DAYS.find((d) => d.key === previewDow)?.label}</span> (weekly)
+        </span>
+      </div>
+
       <div className="mt-4 space-y-3">
         {DAYS.map((d) => (
-          <div key={d.key} className="rounded-lg border border-border bg-background p-3">
+          <div key={d.key} className={"rounded-lg border bg-background p-3 " + (d.key === previewDow ? "border-primary ring-1 ring-primary/40" : "border-border")}>
+
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">{d.label}</span>
               <div className="flex gap-1 text-[10px]">
