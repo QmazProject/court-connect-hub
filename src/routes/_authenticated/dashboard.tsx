@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
 type Sport = { id: number; name: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
@@ -214,12 +214,13 @@ function VenueSection({ venue }: { venue: Venue }) {
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm">
-      <header className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-        <div>
-          <h2 className="text-xl font-bold">{venue.name}</h2>
-          <p className="text-sm text-muted-foreground">{venue.address} · {venue.timezone}</p>
+      <header className="flex flex-col gap-3 border-b border-border p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <VenueEditor venue={venue} courtsCount={courtsQ.data?.length ?? 0} />
+          </div>
+          <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
         </div>
-        <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
       </header>
       <div className="p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -761,6 +762,128 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
         saving={mut.isPending}
         title={`Pin ${venue.name}`}
       />
+    </div>
+  );
+}
+
+function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [name, setName] = useState(venue.name);
+  const [address, setAddress] = useState(venue.address);
+  const [description, setDescription] = useState(venue.description ?? "");
+  const [imagesText, setImagesText] = useState((venue.images ?? []).join("\n"));
+  const [err, setErr] = useState<string | null>(null);
+  const [delErr, setDelErr] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const images = imagesText.split("\n").map((s) => s.trim()).filter(Boolean);
+      const { error } = await supabase
+        .from("venues")
+        .update({ name, address, description: description || null, images })
+        .eq("id", venue.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { setEditing(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const del = useMutation({
+    mutationFn: async () => {
+      // Guard: block delete if any booking exists on any court of this venue
+      const { data: courts, error: cErr } = await supabase.from("courts").select("id").eq("venue_id", venue.id);
+      if (cErr) throw cErr;
+      const courtIds = (courts ?? []).map((c) => c.id);
+      if (courtIds.length > 0) {
+        const { count, error: bErr } = await supabase
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .in("court_id", courtIds);
+        if (bErr) throw bErr;
+        if ((count ?? 0) > 0) {
+          throw new Error("This venue has existing bookings and cannot be deleted.");
+        }
+        const { error: dcErr } = await supabase.from("courts").delete().in("id", courtIds);
+        if (dcErr) throw dcErr;
+      }
+      const { error } = await supabase.from("venues").delete().eq("id", venue.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onError: (e: Error) => setDelErr(e.message),
+  });
+
+  if (editing) {
+    return (
+      <div className="rounded-xl border border-border bg-secondary/20 p-3 sm:p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="Venue name" value={name} onChange={setName} required />
+          <Input label="Address" value={address} onChange={setAddress} required />
+          <label className="block sm:col-span-2">
+            <span className="text-xs font-medium text-muted-foreground">Description</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Tell players what makes this venue great."
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="text-xs font-medium text-muted-foreground">Image URLs (one per line)</span>
+            <textarea
+              value={imagesText}
+              onChange={(e) => setImagesText(e.target.value)}
+              rows={3}
+              placeholder="https://…/photo1.jpg"
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+        </div>
+        {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={() => save.mutate()} disabled={save.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+            {save.isPending ? "Saving…" : "Save changes"}
+          </button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImagesText((venue.images ?? []).join("\n")); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-0">
+      <h2 className="text-xl font-bold">{venue.name}</h2>
+      <p className="text-sm text-muted-foreground">{venue.address} · {venue.timezone}</p>
+      {venue.description && <p className="mt-1 text-sm text-muted-foreground">{venue.description}</p>}
+      {(venue.images?.length ?? 0) > 0 && (
+        <div className="mt-2 flex gap-2 overflow-x-auto">
+          {venue.images!.slice(0, 4).map((src, i) => (
+            <img key={i} src={src} alt={`${venue.name} ${i + 1}`} className="h-16 w-24 flex-none rounded-md object-cover" loading="lazy" />
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={() => setEditing(true)} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary">
+          ✎ Edit venue
+        </button>
+        {!confirmDel ? (
+          <button onClick={() => { setConfirmDel(true); setDelErr(null); }} className="rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10">
+            Delete venue
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1">
+            <span className="text-xs">Delete "{venue.name}"{courtsCount > 0 ? ` and its ${courtsCount} court${courtsCount === 1 ? "" : "s"}` : ""}?</span>
+            <button onClick={() => del.mutate()} disabled={del.isPending} className="rounded-md bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+              {del.isPending ? "Deleting…" : "Confirm"}
+            </button>
+            <button onClick={() => setConfirmDel(false)} className="rounded-md border border-border bg-background px-2 py-0.5 text-xs">Cancel</button>
+          </div>
+        )}
+      </div>
+      {delErr && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{delErr}</p>}
     </div>
   );
 }
