@@ -332,6 +332,11 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
   const [blocked, setBlocked] = useState(initial);
   const [err, setErr] = useState<string | null>(null);
 
+  const [previewDate, setPreviewDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const previewDow = (() => {
+    const js = new Date(`${previewDate}T00:00:00`).getDay(); // 0=Sun..6=Sat
+    return DAYS[(js + 6) % 7].key; // map to mon..sun order
+  })();
   const toggle = (day: string, hour: number) => {
     setBlocked((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
