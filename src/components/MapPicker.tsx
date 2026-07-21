@@ -19,6 +19,50 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   );
   const [locBusy, setLocBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
+  const [searching, setSearching] = useState(false);
+
+  // Debounced Nominatim search
+  useEffect(() => {
+    if (!open) return;
+    const q = query.trim();
+    if (q.length < 3) { setResults([]); return; }
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(q)}`,
+          { signal: ctrl.signal, headers: { Accept: "application/json" } }
+        );
+        if (res.ok) setResults(await res.json());
+      } catch { /* aborted */ }
+      finally { setSearching(false); }
+    }, 400);
+    return () => { ctrl.abort(); clearTimeout(t); };
+  }, [query, open]);
+
+  const flyTo = async (lat: number, lng: number, zoom = 16) => {
+    setPos({ lat, lng });
+    const L = (await import("leaflet")).default ?? (await import("leaflet"));
+    if (!mapRef.current) return;
+    mapRef.current.setView([lat, lng], zoom);
+    if (markerRef.current) markerRef.current.setLatLng([lat, lng]);
+    else {
+      const icon = L.icon({
+        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        iconSize: [25, 41], iconAnchor: [12, 41],
+      });
+      markerRef.current = L.marker([lat, lng], { icon, draggable: true }).addTo(mapRef.current);
+      markerRef.current.on("dragend", () => {
+        const p = markerRef.current.getLatLng();
+        setPos({ lat: p.lat, lng: p.lng });
+      });
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
