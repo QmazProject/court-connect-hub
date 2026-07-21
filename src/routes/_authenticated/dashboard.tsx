@@ -332,6 +332,11 @@ function fmtHour(x: number) {
   const h12 = x % 12 === 0 ? 12 : x % 12;
   return `${h12}:00 ${p}`;
 }
+function fmtHourShort(x: number) {
+  const p = x < 12 ? "AM" : "PM";
+  const h12 = x % 12 === 0 ? 12 : x % 12;
+  return `${h12}${p}`;
+}
 
 function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
   const [mode, setMode] = useState<"weekly" | "date">("weekly");
