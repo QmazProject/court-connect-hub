@@ -229,11 +229,28 @@ function VenueSection({ venue }: { venue: Venue }) {
 
 
         <div className="mt-8">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Upcoming bookings</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {bookingDate ? `Bookings on ${new Date(`${bookingDate}T00:00:00`).toLocaleDateString()}` : "Upcoming bookings"}
+            </h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={bookingDate}
+                onChange={(e) => setBookingDate(e.target.value)}
+                className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs"
+              />
+              {bookingDate && (
+                <button onClick={() => setBookingDate("")} className="rounded-lg border border-border px-2.5 py-1.5 text-xs hover:border-primary hover:text-primary">
+                  Show upcoming
+                </button>
+              )}
+            </div>
+          </div>
           {courtIds.length === 0 ? null : bookingsQ.isLoading ? (
             <div className="mt-3 h-16 animate-pulse rounded-lg bg-muted" />
           ) : (bookingsQ.data?.length ?? 0) === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">No upcoming bookings yet.</p>
+            <p className="mt-3 text-sm text-muted-foreground">{bookingDate ? "No bookings on this date." : "No upcoming bookings yet."}</p>
           ) : (
             <ul className="mt-3 divide-y divide-border rounded-xl border border-border">
               {bookingsQ.data!.map((b) => {
