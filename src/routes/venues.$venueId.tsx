@@ -114,7 +114,7 @@ function VenueDetail() {
         )}
 
         {/* Foreground content */}
-        <div className="relative z-[1] px-5 py-6 sm:px-8 sm:py-10">
+        <div className="relative z-[1] mx-auto max-w-6xl px-5 py-6 sm:px-6 sm:py-10">
           <button
             onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
             className="text-sm text-muted-foreground hover:text-foreground"
