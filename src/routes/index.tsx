@@ -352,49 +352,124 @@ function Landing() {
                 </div>
               )}
 
-              {venueFocus && !filterOpen && searchActive && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-border bg-card text-left shadow-lg">
-                  {nearby && (
-                    <div className="flex items-center justify-between border-b border-border/60 bg-primary/5 px-4 py-2 text-xs">
-                      <span className="font-semibold text-primary">Showing venues near you</span>
-                      <button onClick={() => setNearby(null)} className="text-muted-foreground hover:text-foreground">Clear</button>
-                    </div>
+            </div>
+
+            {/* Unified venue list: search/filter/nearby results OR all existing venues */}
+            <div className="mx-auto mt-8 max-w-5xl text-left">
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-xl font-bold tracking-tight md:text-2xl">
+                    {searchActive ? "Search results" : "Existing venues"}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground md:text-sm">
+                    {searchActive
+                      ? nearby
+                        ? "Sorted by distance from you."
+                        : "Matching your search and filters."
+                      : "Browse every court facility on CourtHub."}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {searchActive && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVenueQuery("");
+                        setFilterSport("");
+                        setFilterCity("");
+                        setMinPrice("");
+                        setMaxPrice("");
+                        setNearby(null);
+                      }}
+                      className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary"
+                    >
+                      Reset
+                    </button>
                   )}
-                  {venueMatches && venueMatches.length > 0 ? (
-                    venueMatches.map((v) => (
+                  {(searchActive ? venueMatches : allVenues) && (
+                    <span className="hidden rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground sm:inline-block">
+                      {(searchActive ? venueMatches! : allVenues!).length}{" "}
+                      {(searchActive ? venueMatches! : allVenues!).length === 1 ? "venue" : "venues"}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {(searchActive ? false : venuesLoading) ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
+                  ))}
+                </div>
+              ) : (() => {
+                const list = searchActive ? venueMatches : allVenues;
+                if (!list || list.length === 0) {
+                  return (
+                    <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+                      {searchActive ? "No venues match your search." : "No venues have been created yet."}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {list.map((v: any) => (
                       <Link
                         key={v.id}
                         to="/venues/$venueId"
                         params={{ venueId: String(v.id) }}
                         search={{}}
-                        className="block border-b border-border/60 px-4 py-3 last:border-b-0 hover:bg-secondary"
-                        onClick={() => setVenueFocus(false)}
+                        className="group flex flex-col rounded-2xl border border-border bg-card p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lg"
                       >
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold">{v.name}</div>
-                            <div className="truncate text-xs text-muted-foreground">{v.address}</div>
+                            <div className="truncate font-display text-lg font-semibold group-hover:text-primary">
+                              {v.name}
+                            </div>
+                            <div className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              <span className="line-clamp-2">{v.address}</span>
+                            </div>
                           </div>
-                          <div className="shrink-0 text-right text-xs">
-                            {v.minRate != null && (
-                              <div className="font-semibold text-primary">From ₱{v.minRate.toFixed(0)}/hr</div>
-                            )}
-                            {v.distanceKm != null && (
-                              <div className="text-muted-foreground">{v.distanceKm.toFixed(1)} km away</div>
+                          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                            {v.courtCount} {v.courtCount === 1 ? "court" : "courts"}
+                          </span>
+                        </div>
+
+                        {v.sports?.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {v.sports.slice(0, 4).map((s: string) => (
+                              <span key={s} className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                {s}
+                              </span>
+                            ))}
+                            {v.sports.length > 4 && (
+                              <span className="text-[11px] text-muted-foreground">+{v.sports.length - 4}</span>
                             )}
                           </div>
+                        )}
+
+                        <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                          {v.distanceKm != null ? (
+                            <span className="text-xs font-medium text-primary">{v.distanceKm.toFixed(1)} km away</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Tap to view courts</span>
+                          )}
+                          {v.minRate != null ? (
+                            <span className="text-sm font-semibold text-primary">
+                              From ₱{v.minRate.toFixed(0)}/hr
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No courts yet</span>
+                          )}
                         </div>
                       </Link>
-                    ))
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-muted-foreground">No venues match your search.</div>
-                  )}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
-
-            <div className="mt-10 inline-flex items-center rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
+            <div className="mt-14 inline-flex items-center rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
               Play more · Manage less
             </div>
             <h1 className="mt-5 text-5xl font-bold leading-[1.05] md:text-6xl">
@@ -422,86 +497,6 @@ function Landing() {
               ))}
             </div>
 
-            <div className="mt-16 text-left">
-              <div className="mb-5 flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-                    Existing venues
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Browse every court facility already on CourtHub.
-                  </p>
-                </div>
-                {allVenues && (
-                  <span className="hidden shrink-0 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground sm:inline-block">
-                    {allVenues.length} {allVenues.length === 1 ? "venue" : "venues"}
-                  </span>
-                )}
-              </div>
-
-              {venuesLoading ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
-                  ))}
-                </div>
-              ) : allVenues && allVenues.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {allVenues.map((v) => (
-                    <Link
-                      key={v.id}
-                      to="/venues/$venueId"
-                      params={{ venueId: String(v.id) }}
-                      search={{}}
-                      className="group flex flex-col rounded-2xl border border-border bg-card p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lg"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-display text-lg font-semibold group-hover:text-primary">
-                            {v.name}
-                          </div>
-                          <div className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            <span className="line-clamp-2">{v.address}</span>
-                          </div>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                          {v.courtCount} {v.courtCount === 1 ? "court" : "courts"}
-                        </span>
-                      </div>
-
-                      {v.sports.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {v.sports.slice(0, 4).map((s) => (
-                            <span key={s} className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                              {s}
-                            </span>
-                          ))}
-                          {v.sports.length > 4 && (
-                            <span className="text-[11px] text-muted-foreground">+{v.sports.length - 4}</span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
-                        <span className="text-xs text-muted-foreground">Tap to view courts</span>
-                        {v.minRate != null ? (
-                          <span className="text-sm font-semibold text-primary">
-                            From ₱{v.minRate.toFixed(0)}/hr
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No courts yet</span>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-                  No venues have been created yet.
-                </div>
-              )}
-            </div>
 
             <div className="mt-12 flex flex-wrap justify-center gap-3">
 
