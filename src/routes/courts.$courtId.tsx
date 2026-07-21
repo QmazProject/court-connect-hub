@@ -372,6 +372,7 @@ function CourtBooking() {
 
         <p className="mt-2 text-xs text-muted-foreground">Payment will be handled at the venue for now.</p>
       </section>
+      )}
     </main>
   );
 }
