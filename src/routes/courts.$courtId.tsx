@@ -239,35 +239,36 @@ function CourtBooking() {
           </label>
         </div>
 
-        {slots.length === 0 ? (
-          <p className="mt-6 rounded-lg bg-muted p-4 text-sm text-muted-foreground">Closed on this day.</p>
-        ) : (
-          <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {slots.map((h) => {
-              const busy = isBusy(h);
-              const past = isPast(h);
-              const disabled = busy || past;
-              const active = selected === h;
-              return (
-                <button
-                  key={h}
-                  disabled={disabled}
-                  onClick={() => setSelected(h)}
-                  className={
-                    "rounded-lg border px-3 py-2 text-sm font-medium transition " +
-                    (disabled
-                      ? "cursor-not-allowed border-border bg-muted text-muted-foreground line-through"
-                      : active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background hover:border-primary hover:text-primary")
-                  }
-                >
-                  {String(h).padStart(2, "0")}:00
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+          {slots.map((h) => {
+            const booked = isBooked(h);
+            const blockedSlot = isBlocked(h);
+            const past = isPast(h);
+            const disabled = booked || blockedSlot || past;
+            const active = selected === h;
+            const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
+            return (
+              <button
+                key={h}
+                disabled={disabled}
+                onClick={() => setSelected(h)}
+                title={label}
+                className={
+                  "flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " +
+                  (disabled
+                    ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                    : active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:border-primary hover:text-primary")
+                }
+              >
+                <span className={disabled ? "line-through" : ""}>{String(h).padStart(2, "0")}:00</span>
+                {label && <span className="mt-0.5 text-[10px] uppercase tracking-wide">{label}</span>}
+              </button>
+            );
+          })}
+        </div>
+
 
         {err && <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
