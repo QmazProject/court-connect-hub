@@ -177,6 +177,18 @@ function CourtBooking() {
         </div>
       </header>
 
+      {court.coming_soon && (
+        <section className="mt-6 rounded-2xl border-2 border-amber-500/40 bg-amber-500/10 p-6 text-center">
+          <span className="inline-block rounded-full bg-amber-500 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+            Coming soon
+          </span>
+          <h2 className="mt-3 text-xl font-bold">This court isn't open for booking yet</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The venue owner is finishing setup. Check back soon — you'll be able to book slots here as soon as it goes live.
+          </p>
+        </section>
+      )}
+
       {(court.images?.length ?? 0) > 0 && (
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           {court.images!.map((src, i) => (
