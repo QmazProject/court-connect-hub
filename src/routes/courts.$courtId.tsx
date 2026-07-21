@@ -14,6 +14,7 @@ type Court = {
   is_indoor: boolean;
   operating_hours: Record<string, string>;
   blocked_hours: Record<string, number[]> | null;
+  blocked_dates: Record<string, number[]> | null;
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
@@ -48,7 +49,7 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, sports(name), venues(name, address, timezone, latitude, longitude)")
         .eq("id", Number(courtId))
         .maybeSingle();
 
@@ -123,7 +124,9 @@ function CourtBooking() {
 
   const court = courtQ.data;
   const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
-  const blocked = new Set<number>(court.blocked_hours?.[dow] ?? []);
+  // Per-date override takes priority: if the date has its own entry (even empty), use it; otherwise fall back to the weekly rule.
+  const dateOverride = court.blocked_dates?.[date];
+  const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
   const isBooked = (hour: number) => {
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();

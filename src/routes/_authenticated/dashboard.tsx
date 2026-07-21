@@ -17,6 +17,7 @@ type Court = {
   amenities: string[] | null;
   images: string[] | null;
   blocked_hours: Record<string, number[]> | null;
+  blocked_dates: Record<string, number[]> | null;
   sports: { name: string } | null;
 };
 
@@ -326,33 +327,65 @@ function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }
   );
 }
 
+function fmtHour(x: number) {
+  const p = x < 12 ? "AM" : "PM";
+  const h12 = x % 12 === 0 ? 12 : x % 12;
+  return `${h12}:00 ${p}`;
+}
+
 function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
-  const initial: Record<string, Set<number>> = {};
-  for (const d of DAYS) initial[d.key] = new Set(court.blocked_hours?.[d.key] ?? []);
-  const [blocked, setBlocked] = useState(initial);
+  const [mode, setMode] = useState<"weekly" | "date">("weekly");
   const [err, setErr] = useState<string | null>(null);
 
-  const [previewDate, setPreviewDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const previewDow = (() => {
-    const js = new Date(`${previewDate}T00:00:00`).getDay(); // 0=Sun..6=Sat
-    return DAYS[(js + 6) % 7].key; // map to mon..sun order
-  })();
-  const toggle = (day: string, hour: number) => {
-    setBlocked((prev) => {
+  // --- Weekly state
+  const initialWeekly: Record<string, Set<number>> = {};
+  for (const d of DAYS) initialWeekly[d.key] = new Set(court.blocked_hours?.[d.key] ?? []);
+  const [weekly, setWeekly] = useState(initialWeekly);
+  const toggleWeekly = (day: string, hour: number) => {
+    setWeekly((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
       if (next[day].has(hour)) next[day].delete(hour); else next[day].add(hour);
       return next;
     });
   };
-  const setAllDay = (day: string, block: boolean) => {
-    setBlocked((prev) => ({ ...prev, [day]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
+  const setAllDayWeekly = (day: string, block: boolean) => {
+    setWeekly((prev) => ({ ...prev, [day]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
+  };
+
+  // --- Per-date state
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() => {
+    const map: Record<string, Set<number>> = {};
+    for (const [date, hrs] of Object.entries(court.blocked_dates ?? {})) map[date] = new Set(hrs);
+    return map;
+  });
+  const hasOverride = Object.prototype.hasOwnProperty.call(dateBlocks, selectedDate);
+  const currentDateSet = dateBlocks[selectedDate] ?? new Set<number>();
+  const toggleDate = (hour: number) => {
+    setDateBlocks((prev) => {
+      const set = new Set(prev[selectedDate] ?? []);
+      if (set.has(hour)) set.delete(hour); else set.add(hour);
+      return { ...prev, [selectedDate]: set };
+    });
+  };
+  const setAllForDate = (block: boolean) => {
+    setDateBlocks((prev) => ({ ...prev, [selectedDate]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
+  };
+  const clearOverride = () => {
+    setDateBlocks((prev) => {
+      const next = { ...prev };
+      delete next[selectedDate];
+      return next;
+    });
   };
 
   const mut = useMutation({
     mutationFn: async () => {
-      const payload: Record<string, number[]> = {};
-      for (const d of DAYS) payload[d.key] = Array.from(blocked[d.key]).sort((a, b) => a - b);
-      const { error } = await supabase.from("courts").update({ blocked_hours: payload }).eq("id", court.id);
+      const weeklyPayload: Record<string, number[]> = {};
+      for (const d of DAYS) weeklyPayload[d.key] = Array.from(weekly[d.key]).sort((a, b) => a - b);
+      const datesPayload: Record<string, number[]> = {};
+      for (const [date, set] of Object.entries(dateBlocks)) datesPayload[date] = Array.from(set).sort((a, b) => a - b);
+      const { error } = await supabase.from("courts").update({ blocked_hours: weeklyPayload, blocked_dates: datesPayload }).eq("id", court.id);
       if (error) throw error;
     },
     onSuccess: onDone,
@@ -364,7 +397,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold">Availability · {court.name}</h3>
-          <p className="text-xs text-muted-foreground">Open 24/7 by default. Tap an hour to mark it unavailable for players. Rules repeat weekly.</p>
+          <p className="text-xs text-muted-foreground">Weekly rules repeat every week. Specific-date overrides apply to that date only and do NOT inherit weekly blocks.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
@@ -374,59 +407,92 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background p-2 text-xs">
-        <span className="text-muted-foreground">Jump to date:</span>
-        <button type="button" onClick={() => { const d = new Date(`${previewDate}T00:00:00`); d.setDate(d.getDate() - 1); setPreviewDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
-        <input type="date" value={previewDate} onChange={(e) => setPreviewDate(e.target.value)} className="rounded border border-input bg-background px-2 py-1" />
-        <button type="button" onClick={() => { const d = new Date(`${previewDate}T00:00:00`); d.setDate(d.getDate() + 1); setPreviewDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">→</button>
-        <span className="text-muted-foreground">
-          → editing <span className="font-semibold text-foreground">{DAYS.find((d) => d.key === previewDow)?.label}</span> (weekly)
-        </span>
+      <div className="mt-3 inline-flex rounded-lg border border-border bg-background p-0.5 text-xs">
+        <button type="button" onClick={() => setMode("weekly")} className={"rounded-md px-3 py-1.5 font-semibold " + (mode === "weekly" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Weekly pattern</button>
+        <button type="button" onClick={() => setMode("date")} className={"rounded-md px-3 py-1.5 font-semibold " + (mode === "date" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Specific date</button>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {DAYS.map((d) => (
-          <div key={d.key} className={"rounded-lg border bg-background p-3 " + (d.key === previewDow ? "border-primary ring-1 ring-primary/40" : "border-border")}>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">{d.label}</span>
-              <div className="flex gap-1 text-[10px]">
-                <button type="button" onClick={() => setAllDay(d.key, false)} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Open all</button>
-                <button type="button" onClick={() => setAllDay(d.key, true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all</button>
+      {mode === "weekly" ? (
+        <div className="mt-4 space-y-3">
+          {DAYS.map((d) => (
+            <div key={d.key} className="rounded-lg border border-border bg-background p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">{d.label}</span>
+                <div className="flex gap-1 text-[10px]">
+                  <button type="button" onClick={() => setAllDayWeekly(d.key, false)} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Open all</button>
+                  <button type="button" onClick={() => setAllDayWeekly(d.key, true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all</button>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4">
+                {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+                  const isBlocked = weekly[d.key].has(h);
+                  return (
+                    <button key={h} type="button" onClick={() => toggleWeekly(d.key, h)}
+                      className={"rounded px-1.5 py-1 text-[10px] font-medium leading-tight transition " + (isBlocked ? "bg-destructive/20 text-destructive line-through" : "bg-primary/10 text-primary hover:bg-primary/20")}>
+                      {fmtHour(h)} – {fmtHour((h + 1) % 24)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4">
-              {Array.from({ length: 24 }, (_, h) => h).map((h) => {
-                const isBlocked = blocked[d.key].has(h);
-                const fmt = (x: number) => {
-                  const p = x < 12 ? "AM" : "PM";
-                  const h12 = x % 12 === 0 ? 12 : x % 12;
-                  return `${h12}:00 ${p}`;
-                };
-                return (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => toggle(d.key, h)}
-                    className={
-                      "rounded px-1.5 py-1 text-[10px] font-medium leading-tight transition " +
-                      (isBlocked
-                        ? "bg-destructive/20 text-destructive line-through"
-                        : "bg-primary/10 text-primary hover:bg-primary/20")
-                    }
-                  >
-                    {fmt(h)} – {fmt((h + 1) % 24)}
-                  </button>
-                );
-              })}
-            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-border bg-background p-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Date:</span>
+            <button type="button" onClick={() => { const d = new Date(`${selectedDate}T00:00:00`); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="rounded border border-input bg-background px-2 py-1" />
+            <button type="button" onClick={() => { const d = new Date(`${selectedDate}T00:00:00`); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">→</button>
+            <span className={"ml-2 rounded-full px-2 py-0.5 " + (hasOverride ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+              {hasOverride ? "Override active (weekly ignored)" : "No override · weekly applies"}
+            </span>
           </div>
-        ))}
-      </div>
+
+          <div className="mt-3 flex flex-wrap gap-1 text-[10px]">
+            <button type="button" onClick={() => setAllForDate(false)} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Open all day</button>
+            <button type="button" onClick={() => setAllForDate(true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all day</button>
+            {hasOverride && (
+              <button type="button" onClick={clearOverride} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Remove override (use weekly)</button>
+            )}
+          </div>
+
+          <p className="mt-2 text-[11px] text-muted-foreground">Tapping any hour creates a fresh override for this date starting empty — weekly blocked hours do NOT carry over.</p>
+
+          <div className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4">
+            {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+              const isBlocked = currentDateSet.has(h);
+              return (
+                <button key={h} type="button" onClick={() => toggleDate(h)}
+                  className={"rounded px-1.5 py-1 text-[10px] font-medium leading-tight transition " + (isBlocked ? "bg-destructive/20 text-destructive line-through" : "bg-primary/10 text-primary hover:bg-primary/20")}>
+                  {fmtHour(h)} – {fmtHour((h + 1) % 24)}
+                </button>
+              );
+            })}
+          </div>
+
+          {Object.keys(dateBlocks).length > 0 && (
+            <div className="mt-4 border-t border-border pt-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Existing overrides</div>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {Object.entries(dateBlocks).sort(([a], [b]) => a.localeCompare(b)).map(([date, set]) => (
+                  <li key={date}>
+                    <button type="button" onClick={() => setSelectedDate(date)} className={"rounded-full border px-2 py-0.5 text-[11px] " + (date === selectedDate ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary hover:text-primary")}>
+                      {new Date(`${date}T00:00:00`).toLocaleDateString()} · {set.size} hr{set.size === 1 ? "" : "s"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
     </div>
   );
 }
+
 
 
 function useSportsQuery(enabled: boolean) {
