@@ -379,6 +379,9 @@ function Landing() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {searchActive && matchesFetching && (
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-r-transparent" aria-label="Updating" />
+                  )}
                   {searchActive && (
                     <button
                       type="button"
@@ -390,7 +393,7 @@ function Landing() {
                         setMaxPrice("");
                         setNearby(null);
                       }}
-                      className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary"
+                      className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
                     >
                       Reset
                     </button>
@@ -402,6 +405,7 @@ function Landing() {
                     </span>
                   )}
                 </div>
+
               </div>
 
               {(searchActive ? false : venuesLoading) ? (
