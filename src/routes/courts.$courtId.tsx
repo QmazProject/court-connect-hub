@@ -69,34 +69,39 @@ function CourtBooking() {
   });
 
   const bookMut = useMutation({
-    mutationFn: async (hour: number) => {
+    mutationFn: async (hours: number[]) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Please sign in to book a court.");
-      const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
-      const end = new Date(start.getTime() + 60 * 60 * 1000);
-      const { error } = await supabase.from("bookings").insert({
-        court_id: Number(courtId),
-        user_id: userData.user.id,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        status: "confirmed",
+      const sorted = [...hours].sort((a, b) => a - b);
+      const rows = sorted.map((hour) => {
+        const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        return {
+          court_id: Number(courtId),
+          user_id: userData.user!.id,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          status: "confirmed",
+        };
       });
+      const { error } = await supabase.from("bookings").insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
-      setSelected(null);
+      setSelected([]);
       setErr(null);
       qc.invalidateQueries({ queryKey: ["busy", courtId, date] });
     },
     onError: (e: Error) => {
       if (/exclusion|overlap|conflict/i.test(e.message)) {
-        setErr("That hour was just taken. Pick another slot.");
+        setErr("One of those hours was just taken. Pick another slot.");
         qc.invalidateQueries({ queryKey: ["busy", courtId, date] });
       } else {
         setErr(e.message);
       }
     },
   });
+
 
   if (courtQ.isLoading) {
     return <main className="mx-auto max-w-4xl px-6 py-10"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></main>;
