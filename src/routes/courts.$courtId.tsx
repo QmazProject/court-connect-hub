@@ -305,7 +305,7 @@ function CourtBooking() {
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <div className="text-sm text-muted-foreground">
             {selected.length > 0
-              ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> ({selected.map((h) => String(h).padStart(2, "0") + ":00").join(", ")}) · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
+              ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> ({selected.map((h) => `${fmtHour(h)}–${fmtHour((h + 1) % 24)}`).join(", ")}) · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
               : "Choose one or more available hours above."}
           </div>
           <div className="flex gap-2">
