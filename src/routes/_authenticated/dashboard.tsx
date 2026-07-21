@@ -435,7 +435,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
                   const isBlocked = weekly[d.key].has(h);
                   return (
                     <button key={h} type="button" onClick={() => toggleWeekly(d.key, h)}
-                      className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-primary hover:bg-primary/20")}>
+                      className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
                       {fmtHour(h)} – {fmtHour((h + 1) % 24)}
                     </button>
                   );
@@ -471,7 +471,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
               const isBlocked = currentDateSet.has(h);
               return (
                 <button key={h} type="button" onClick={() => toggleDate(h)}
-                  className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-primary hover:bg-primary/20")}>
+                  className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
                   {fmtHour(h)} – {fmtHour((h + 1) % 24)}
                 </button>
               );
