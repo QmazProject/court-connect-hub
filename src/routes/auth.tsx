@@ -28,6 +28,7 @@ function AuthPage() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signupSuccess, setSignupSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -57,7 +58,7 @@ function AuthPage() {
       if (mode === "signup") {
         if (!role) throw new Error("Please choose an account type.");
         if (!pwStrong) throw new Error("Password does not meet the requirements.");
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email, password,
           options: {
             emailRedirectTo: window.location.origin,
@@ -65,6 +66,11 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        // If email confirmation is required, session will be null
+        if (!data.session) {
+          setSignupSuccess(email);
+          return;
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -84,7 +90,37 @@ function AuthPage() {
   return (
     <main className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-md place-items-center px-6 py-12">
       <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-sm">
-        {mode === "signup" && step === "role" ? (
+        {signupSuccess ? (
+          <div className="text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-3xl">
+              📧
+            </div>
+            <h1 className="text-2xl font-bold">Check your email</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              We've sent a confirmation link to{" "}
+              <span className="font-medium text-foreground">{signupSuccess}</span>.
+              Click the link in the email to activate your {role} account, then sign in.
+            </p>
+            <div className="mt-4 rounded-lg bg-secondary/50 p-3 text-left text-xs text-muted-foreground">
+              <p className="font-semibold text-foreground">Didn't get it?</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                <li>Check your spam or junk folder</li>
+                <li>Make sure the email address is correct</li>
+                <li>Wait a minute and refresh your inbox</li>
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSignupSuccess(null);
+                switchMode("signin");
+              }}
+              className="mt-6 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+            >
+              Go to sign in
+            </button>
+          </div>
+        ) : mode === "signup" && step === "role" ? (
           <RoleStep
             role={role}
             setRole={setRole}
