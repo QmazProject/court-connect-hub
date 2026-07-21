@@ -80,8 +80,9 @@ function VenueDetail() {
   const next = () => setImgIdx((i) => i + 1);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <section className="relative overflow-hidden rounded-3xl">
+    <main className="pb-8 sm:pb-12">
+      <section className="relative overflow-hidden">
+
         {/* Background image / carousel */}
         <div className="absolute inset-0">
           {currentImg ? (
