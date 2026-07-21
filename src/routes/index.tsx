@@ -121,7 +121,7 @@ function Landing() {
 
             <div ref={searchRef} className="relative mx-auto mt-6 max-w-xl">
               <div className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-3 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-                <span className="text-muted-foreground" aria-hidden>🔍</span>
+                <Search className="h-4 w-4 text-primary" aria-hidden />
                 <input
                   type="text"
                   value={venueQuery}
