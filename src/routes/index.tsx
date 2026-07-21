@@ -207,7 +207,7 @@ function Landing() {
                   aria-label="Filters"
                   onClick={() => { setFilterOpen((v) => !v); setVenueFocus(true); }}
                   className={
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition " +
+                    "edge-glow flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition " +
                     (hasFilters || filterOpen
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-muted-foreground hover:border-primary hover:text-primary")
