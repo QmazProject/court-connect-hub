@@ -13,6 +13,9 @@ type Court = {
   hourly_rate: number;
   is_indoor: boolean;
   operating_hours: Record<string, string>;
+  description: string | null;
+  amenities: string[] | null;
+  images: string[] | null;
   sports: { name: string } | null;
   venues: { name: string; address: string; timezone: string } | null;
 };
