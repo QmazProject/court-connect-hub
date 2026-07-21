@@ -79,30 +79,93 @@ function Landing() {
   // Venue search (always available on landing)
   const [venueQuery, setVenueQuery] = useState("");
   const [venueFocus, setVenueFocus] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterSport, setFilterSport] = useState<string>("");
+  const [filterCity, setFilterCity] = useState("");
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
+  const [nearby, setNearby] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setVenueFocus(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setVenueFocus(false);
+        setFilterOpen(false);
+      }
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  const hasFilters = !!(filterSport || filterCity.trim() || minPrice || maxPrice);
+  const searchActive = venueQuery.trim().length > 0 || hasFilters || !!nearby;
+
   const { data: venueMatches } = useQuery({
-    queryKey: ["venue-search", venueQuery.trim().toLowerCase()],
+    queryKey: [
+      "venue-search",
+      venueQuery.trim().toLowerCase(),
+      filterSport,
+      filterCity.trim().toLowerCase(),
+      minPrice,
+      maxPrice,
+      nearby ? `${nearby.lat.toFixed(3)},${nearby.lng.toFixed(3)}` : "",
+    ],
     queryFn: async () => {
       const term = venueQuery.trim();
-      if (!term) return [] as { id: number; name: string; address: string }[];
-      const { data, error } = await supabase
+      let q = supabase
         .from("venues")
-        .select("id, name, address")
-        .ilike("name", `%${term}%`)
+        .select("id, name, address, latitude, longitude, courts!inner(hourly_rate, sports!inner(slug))")
         .order("name")
-        .limit(8);
+        .limit(50);
+      if (term) q = q.ilike("name", `%${term}%`);
+      if (filterCity.trim()) q = q.ilike("address", `%${filterCity.trim()}%`);
+      if (filterSport) q = q.eq("courts.sports.slug", filterSport);
+      if (minPrice) q = q.gte("courts.hourly_rate", Number(minPrice));
+      if (maxPrice) q = q.lte("courts.hourly_rate", Number(maxPrice));
+      const { data, error } = await q;
       if (error) throw error;
-      return data as { id: number; name: string; address: string }[];
+      type Row = { id: number; name: string; address: string; latitude: number | null; longitude: number | null; courts: { hourly_rate: number }[] };
+      let rows = (data as unknown as Row[]) ?? [];
+      if (nearby) {
+        rows = rows
+          .filter((r) => r.latitude != null && r.longitude != null)
+          .map((r) => ({ ...r, _d: haversineKm(nearby, { lat: r.latitude as number, lng: r.longitude as number }) }))
+          .sort((a: any, b: any) => a._d - b._d) as any;
+      }
+      return rows.slice(0, 8).map((r) => {
+        const rates = r.courts?.map((c) => Number(c.hourly_rate)) ?? [];
+        const min = rates.length ? Math.min(...rates) : null;
+        const dist = nearby && r.latitude != null && r.longitude != null
+          ? haversineKm(nearby, { lat: r.latitude as number, lng: r.longitude as number })
+          : null;
+        return { id: r.id, name: r.name, address: r.address, minRate: min, distanceKm: dist };
+      });
     },
-    enabled: venueQuery.trim().length > 0,
+    enabled: searchActive,
   });
+
+  const requestNearby = () => {
+    if (!("geolocation" in navigator)) {
+      setNearbyError("Location not supported on this device.");
+      return;
+    }
+    setNearbyLoading(true);
+    setNearbyError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNearby({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setNearbyLoading(false);
+        setVenueFocus(true);
+      },
+      (err) => {
+        setNearbyError(err.message || "Please allow location access.");
+        setNearbyLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // Sport picker view
   if (!sport) {
