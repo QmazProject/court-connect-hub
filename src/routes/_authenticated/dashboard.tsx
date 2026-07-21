@@ -443,9 +443,9 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
         <div className="mt-4 rounded-lg border border-border bg-background p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground">Date:</span>
-            <button type="button" onClick={() => { const d = new Date(`${selectedDate}T00:00:00`); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
+            <button type="button" onClick={() => setSelectedDate(shiftDate(selectedDate, -1))} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="rounded border border-input bg-background px-2 py-1" />
-            <button type="button" onClick={() => { const d = new Date(`${selectedDate}T00:00:00`); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().slice(0, 10)); }} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">→</button>
+            <button type="button" onClick={() => setSelectedDate(shiftDate(selectedDate, 1))} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">→</button>
             <span className={"ml-2 rounded-full px-2 py-0.5 " + (hasOverride ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
               {hasOverride ? "Override active (weekly ignored)" : "No override · weekly applies"}
             </span>
