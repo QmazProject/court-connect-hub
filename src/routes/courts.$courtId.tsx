@@ -240,16 +240,31 @@ function CourtBooking() {
       <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Pick a time</h2>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Date</span>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() - 1); setDate(d.toISOString().slice(0, 10)); setSelected([]); setErr(null); }}
+              className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
+              aria-label="Previous day"
+            >← Prev</button>
+            <button
+              type="button"
+              onClick={() => { setDate(todayISO()); setSelected([]); setErr(null); }}
+              className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
+            >Today</button>
+            <button
+              type="button"
+              onClick={() => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + 1); setDate(d.toISOString().slice(0, 10)); setSelected([]); setErr(null); }}
+              className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
+              aria-label="Next day"
+            >Next →</button>
             <input
               type="date"
               value={date}
-              min={todayISO()}
               onChange={(e) => { setDate(e.target.value); setSelected([]); setErr(null); }}
               className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
             />
-          </label>
+          </div>
         </div>
 
         <p className="mt-2 text-xs text-muted-foreground">Tap multiple hours to book them together.</p>
