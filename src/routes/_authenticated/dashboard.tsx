@@ -18,6 +18,7 @@ type Court = {
   images: string[] | null;
   blocked_hours: Record<string, number[]> | null;
   blocked_dates: Record<string, number[]> | null;
+  coming_soon: boolean | null;
   sports: { name: string } | null;
 };
 
