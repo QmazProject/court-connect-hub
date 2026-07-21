@@ -54,8 +54,11 @@ export type Database = {
       }
       courts: {
         Row: {
+          amenities: string[]
+          description: string | null
           hourly_rate: number
           id: number
+          images: string[]
           is_indoor: boolean
           name: string
           operating_hours: Json
@@ -63,8 +66,11 @@ export type Database = {
           venue_id: number
         }
         Insert: {
+          amenities?: string[]
+          description?: string | null
           hourly_rate: number
           id?: never
+          images?: string[]
           is_indoor?: boolean
           name: string
           operating_hours?: Json
@@ -72,8 +78,11 @@ export type Database = {
           venue_id: number
         }
         Update: {
+          amenities?: string[]
+          description?: string | null
           hourly_rate?: number
           id?: never
+          images?: string[]
           is_indoor?: boolean
           name?: string
           operating_hours?: Json
