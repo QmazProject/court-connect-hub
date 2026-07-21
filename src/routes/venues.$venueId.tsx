@@ -81,40 +81,52 @@ function VenueDetail() {
 
   return (
     <main className="pb-8 sm:pb-12">
-      <section className="relative overflow-hidden">
-
-        {/* Background image / carousel */}
-        <div className="absolute inset-0">
+      <section className="relative">
+        {/* Image carousel — fully visible */}
+        <div className="relative h-[280px] w-full overflow-hidden bg-muted sm:h-[380px] lg:h-[460px]">
           {currentImg ? (
             <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
           ) : (
             <div className="court-pattern h-full w-full" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
+
+          {hasImages && images.length > 1 && (
+            <>
+              <button
+                onClick={prev}
+                aria-label="Previous image"
+                className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2.5 text-foreground shadow-lg backdrop-blur transition hover:bg-background sm:left-5 sm:p-3"
+              >
+                <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+              </button>
+              <button
+                onClick={next}
+                aria-label="Next image"
+                className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2.5 text-foreground shadow-lg backdrop-blur transition hover:bg-background sm:right-5 sm:p-3"
+              >
+                <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+              </button>
+
+              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1.5">
+                {images.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setImgIdx(i)}
+                    aria-label={`Go to image ${i + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === ((imgIdx % images.length) + images.length) % images.length
+                        ? "w-6 bg-primary"
+                        : "w-1.5 bg-white/60 hover:bg-white/80"
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Prev / Next arrows — half-hidden on the edges, behind content */}
-        {hasImages && images.length > 1 && (
-          <>
-            <button
-              onClick={prev}
-              aria-label="Previous image"
-              className="absolute left-0 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background/80 p-3 text-foreground shadow-lg backdrop-blur transition hover:bg-background sm:p-4"
-            >
-              <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-            </button>
-            <button
-              onClick={next}
-              aria-label="Next image"
-              className="absolute right-0 top-1/2 z-10 translate-x-1/2 -translate-y-1/2 rounded-full bg-background/80 p-3 text-foreground shadow-lg backdrop-blur transition hover:bg-background sm:p-4"
-            >
-              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-            </button>
-          </>
-        )}
-
-        {/* Foreground content */}
-        <div className="relative z-[1] mx-auto max-w-6xl px-5 py-6 sm:px-6 sm:py-10">
+        {/* Header content below the image */}
+        <div className="mx-auto max-w-6xl px-5 pt-6 sm:px-6 sm:pt-8">
           <button
             onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
             className="text-sm text-muted-foreground hover:text-foreground"
@@ -141,28 +153,13 @@ function VenueDetail() {
                   View on Google Maps →
                 </a>
               )}
-              {hasImages && images.length > 1 && (
-                <div className="mt-4 flex gap-1.5">
-                  {images.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setImgIdx(i)}
-                      aria-label={`Go to image ${i + 1}`}
-                      className={`h-1.5 rounded-full transition-all ${
-                        i === ((imgIdx % images.length) + images.length) % images.length
-                          ? "w-6 bg-primary"
-                          : "w-1.5 bg-foreground/30 hover:bg-foreground/50"
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
           ) : (
             <p className="mt-6 text-muted-foreground">Venue not found.</p>
           )}
         </div>
       </section>
+
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <h2 className="mt-8 text-xl font-bold">
