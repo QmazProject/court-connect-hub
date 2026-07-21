@@ -181,7 +181,7 @@ function VenueSection({ venue }: { venue: Venue }) {
                 <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
               </div>
               <h3 className="mt-2 font-semibold">{c.name}</h3>
-              <div className="mt-2 text-primary"><span className="text-lg font-bold">${Number(c.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
+              <div className="mt-2 text-primary"><span className="text-lg font-bold">₱{Number(c.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
             </div>
           ))}
           <AddCourt venueId={venue.id} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
