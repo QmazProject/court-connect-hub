@@ -199,14 +199,24 @@ function CourtBooking() {
               <h2 className="text-lg font-semibold">Location</h2>
               <p className="text-sm text-muted-foreground">{court.venues.address}</p>
             </div>
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${court.venues.latitude},${court.venues.longitude}`}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
-            >
-              Get directions ↗
-            </a>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${court.venues.latitude},${court.venues.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold hover:border-primary hover:text-primary"
+              >
+                View on Google Maps ↗
+              </a>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${court.venues.latitude},${court.venues.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+              >
+                Get directions ↗
+              </a>
+            </div>
           </div>
           <iframe
             title={`${court.venues.name} map`}
