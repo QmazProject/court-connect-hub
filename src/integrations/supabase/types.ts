@@ -197,6 +197,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_court_bookings: {
+        Args: { _court_id: number; _from: string; _to: string }
+        Returns: {
+          end_time: string
+          start_time: string
+        }[]
+      }
       is_tenant: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
