@@ -28,6 +28,7 @@ type Court = {
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
+  coming_soon: boolean | null;
   sports: { name: string; slug: string } | null;
 };
 
