@@ -30,7 +30,7 @@ const SPORT_ICONS: Record<string, string> = {
   football: "⚽",
   soccer: "⚽",
   volleyball: "🏐",
-  pickleball: "🏓",
+  pickleball: "🥎",
   "table-tennis": "🏓",
   squash: "🎯",
 };
