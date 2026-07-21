@@ -219,7 +219,7 @@ function Landing() {
                   type="button"
                   onClick={requestNearby}
                   className={
-                    "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition " +
+                    "edge-glow flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition " +
                     (nearby
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border text-muted-foreground hover:border-primary hover:text-primary")
