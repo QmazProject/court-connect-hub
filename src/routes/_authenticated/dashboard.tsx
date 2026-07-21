@@ -461,3 +461,90 @@ function Input(props: { label: string; value: string; onChange: (v: string) => v
     </label>
   );
 }
+
+export function osmEmbedUrl(lat: number, lng: number, delta = 0.005) {
+  const bbox = [lng - delta, lat - delta, lng + delta, lat + delta].join(",");
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+}
+
+function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [lat, setLat] = useState(venue.latitude?.toString() ?? "");
+  const [lng, setLng] = useState(venue.longitude?.toString() ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const [locBusy, setLocBusy] = useState(false);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { setErr("Geolocation not supported."); return; }
+    setLocBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setLat(pos.coords.latitude.toFixed(6)); setLng(pos.coords.longitude.toFixed(6)); setLocBusy(false); },
+      (e) => { setErr(e.message); setLocBusy(false); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const latitude = lat ? Number(lat) : null;
+      const longitude = lng ? Number(lng) : null;
+      const { error } = await supabase.from("venues").update({ latitude, longitude }).eq("id", venue.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { setEditing(false); setErr(null); onSaved(); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const hasLoc = venue.latitude != null && venue.longitude != null;
+
+  if (!editing) {
+    return (
+      <div className="w-full sm:w-72">
+        {hasLoc ? (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <iframe
+              title={`${venue.name} map`}
+              src={osmEmbedUrl(venue.latitude!, venue.longitude!)}
+              className="h-32 w-full"
+              loading="lazy"
+            />
+            <div className="flex items-center justify-between gap-2 bg-secondary/40 px-3 py-2 text-xs">
+              <a href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
+                Open in Google Maps ↗
+              </a>
+              <button onClick={() => setEditing(true)} className="rounded-md border border-border bg-background px-2 py-1 font-medium hover:border-primary hover:text-primary">Edit pin</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setEditing(true)} className="w-full rounded-xl border-2 border-dashed border-border px-3 py-4 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary">
+            📍 Add map location
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="w-full space-y-2 rounded-xl border border-border bg-secondary/30 p-3 sm:w-72">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={useMyLocation} disabled={locBusy} className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary disabled:opacity-60">
+          {locBusy ? "Locating…" : "📍 Use my location"}
+        </button>
+        <a href="https://www.google.com/maps" target="_blank" rel="noreferrer" className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary">
+          Google Maps ↗
+        </a>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Input label="Latitude" value={lat} onChange={setLat} />
+        <Input label="Longitude" value={lng} onChange={setLng} />
+      </div>
+      {err && <p className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+      <div className="flex gap-2">
+        <button disabled={mut.isPending} className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+          {mut.isPending ? "Saving…" : "Save pin"}
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1.5 text-xs">Cancel</button>
+      </div>
+    </form>
+  );
+}
