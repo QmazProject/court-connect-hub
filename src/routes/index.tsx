@@ -192,19 +192,130 @@ function Landing() {
 
 
             <div ref={searchRef} className="relative mx-auto mt-6 max-w-xl">
-              <div className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-3 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-                <Search className="h-4 w-4 text-primary" aria-hidden />
+              <div className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 sm:px-5 sm:py-3">
+                <Search className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                 <input
                   type="text"
                   value={venueQuery}
                   onChange={(e) => setVenueQuery(e.target.value)}
                   onFocus={() => setVenueFocus(true)}
                   placeholder="Tap to find a venue you want"
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
+                <button
+                  type="button"
+                  aria-label="Filters"
+                  onClick={() => { setFilterOpen((v) => !v); setVenueFocus(true); }}
+                  className={
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition " +
+                    (hasFilters || filterOpen
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary hover:text-primary")
+                  }
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={requestNearby}
+                  className={
+                    "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition " +
+                    (nearby
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground hover:border-primary hover:text-primary")
+                  }
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{nearbyLoading ? "Locating…" : "Nearby"}</span>
+                </button>
               </div>
-              {venueFocus && venueQuery.trim() && (
+
+              {filterOpen && (
+                <div className="absolute left-0 right-0 top-full z-30 mt-2 rounded-2xl border border-border bg-card p-4 text-left shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold">Filters</div>
+                    <button
+                      type="button"
+                      onClick={() => { setFilterSport(""); setFilterCity(""); setMinPrice(""); setMaxPrice(""); }}
+                      className="text-xs font-semibold text-primary hover:underline"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-muted-foreground">Sport</span>
+                      <select
+                        value={filterSport}
+                        onChange={(e) => setFilterSport(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="">Any sport</option>
+                        {(sports ?? []).map((s) => (
+                          <option key={s.id} value={s.slug}>{s.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-muted-foreground">City / Province</span>
+                      <input
+                        type="text"
+                        value={filterCity}
+                        onChange={(e) => setFilterCity(e.target.value)}
+                        placeholder="e.g. Cebu, Makati"
+                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-muted-foreground">Min price (₱/hr)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                        placeholder="0"
+                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-muted-foreground">Max price (₱/hr)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                        placeholder="Any"
+                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setFilterOpen(false)}
+                      className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {nearbyError && (
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <span>{nearbyError}</span>
+                  <button onClick={() => setNearbyError(null)} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
+
+              {venueFocus && !filterOpen && searchActive && (
                 <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-border bg-card text-left shadow-lg">
+                  {nearby && (
+                    <div className="flex items-center justify-between border-b border-border/60 bg-primary/5 px-4 py-2 text-xs">
+                      <span className="font-semibold text-primary">Showing venues near you</span>
+                      <button onClick={() => setNearby(null)} className="text-muted-foreground hover:text-foreground">Clear</button>
+                    </div>
+                  )}
                   {venueMatches && venueMatches.length > 0 ? (
                     venueMatches.map((v) => (
                       <Link
@@ -215,16 +326,29 @@ function Landing() {
                         className="block border-b border-border/60 px-4 py-3 last:border-b-0 hover:bg-secondary"
                         onClick={() => setVenueFocus(false)}
                       >
-                        <div className="text-sm font-semibold">{v.name}</div>
-                        <div className="text-xs text-muted-foreground">{v.address}</div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold">{v.name}</div>
+                            <div className="truncate text-xs text-muted-foreground">{v.address}</div>
+                          </div>
+                          <div className="shrink-0 text-right text-xs">
+                            {v.minRate != null && (
+                              <div className="font-semibold text-primary">From ₱{v.minRate.toFixed(0)}/hr</div>
+                            )}
+                            {v.distanceKm != null && (
+                              <div className="text-muted-foreground">{v.distanceKm.toFixed(1)} km away</div>
+                            )}
+                          </div>
+                        </div>
                       </Link>
                     ))
                   ) : (
-                    <div className="px-4 py-3 text-sm text-muted-foreground">No venues match "{venueQuery}".</div>
+                    <div className="px-4 py-3 text-sm text-muted-foreground">No venues match your search.</div>
                   )}
                 </div>
               )}
             </div>
+
 
             <div className="mt-10 inline-flex items-center rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
               Play more · Manage less
