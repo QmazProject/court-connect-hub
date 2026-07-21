@@ -178,17 +178,11 @@ function VenueSection({ venue }: { venue: Venue }) {
       <div className="p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(courtsQ.data ?? []).map((c) => (
-            <div key={c.id} className="rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="rounded-full bg-secondary px-2 py-1 font-medium">{c.sports?.name}</span>
-                <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
-              </div>
-              <h3 className="mt-2 font-semibold">{c.name}</h3>
-              <div className="mt-2 text-primary"><span className="text-lg font-bold">₱{Number(c.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
-            </div>
+            <CourtCard key={c.id} court={c} onChanged={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
           ))}
           <AddCourt venueId={venue.id} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
         </div>
+
 
         <div className="mt-8">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Upcoming bookings</h3>
