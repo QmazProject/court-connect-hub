@@ -110,7 +110,7 @@ function Landing() {
                   <p className="text-sm text-muted-foreground">{c.venues?.name} · {c.venues?.address}</p>
                   <div className="mt-4 flex items-baseline justify-between">
                     <div>
-                      <span className="text-2xl font-bold text-primary">${Number(c.hourly_rate).toFixed(0)}</span>
+                      <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
                       <span className="text-sm text-muted-foreground"> / hour</span>
                     </div>
                     <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
