@@ -130,17 +130,18 @@ function Landing() {
     placeholderData: (prev) => prev,
 
     queryFn: async () => {
-      const term = venueQuery.trim();
+      const term = dQuery.trim();
       let q = supabase
         .from("venues")
         .select("id, name, address, latitude, longitude, courts!inner(id, hourly_rate, sports!inner(slug, name))")
         .order("name")
         .limit(50);
       if (term) q = q.ilike("name", `%${term}%`);
-      if (filterCity.trim()) q = q.ilike("address", `%${filterCity.trim()}%`);
+      if (dCity.trim()) q = q.ilike("address", `%${dCity.trim()}%`);
       if (filterSport) q = q.eq("courts.sports.slug", filterSport);
-      if (minPrice) q = q.gte("courts.hourly_rate", Number(minPrice));
-      if (maxPrice) q = q.lte("courts.hourly_rate", Number(maxPrice));
+      if (dMin) q = q.gte("courts.hourly_rate", Number(dMin));
+      if (dMax) q = q.lte("courts.hourly_rate", Number(dMax));
+
       const { data, error } = await q;
       if (error) throw error;
       type Row = { id: number; name: string; address: string; latitude: number | null; longitude: number | null; courts: { id: number; hourly_rate: number; sports: { slug: string; name: string } | null }[] };
