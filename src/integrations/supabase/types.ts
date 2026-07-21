@@ -184,18 +184,24 @@ export type Database = {
         Row: {
           address: string
           id: number
+          latitude: number | null
+          longitude: number | null
           name: string
           timezone: string
         }
         Insert: {
           address: string
           id?: never
+          latitude?: number | null
+          longitude?: number | null
           name: string
           timezone?: string
         }
         Update: {
           address?: string
           id?: never
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           timezone?: string
         }
