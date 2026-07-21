@@ -55,6 +55,7 @@ export type Database = {
       courts: {
         Row: {
           amenities: string[]
+          blocked_dates: Json
           blocked_hours: Json
           description: string | null
           hourly_rate: number
@@ -68,6 +69,7 @@ export type Database = {
         }
         Insert: {
           amenities?: string[]
+          blocked_dates?: Json
           blocked_hours?: Json
           description?: string | null
           hourly_rate: number
@@ -81,6 +83,7 @@ export type Database = {
         }
         Update: {
           amenities?: string[]
+          blocked_dates?: Json
           blocked_hours?: Json
           description?: string | null
           hourly_rate?: number

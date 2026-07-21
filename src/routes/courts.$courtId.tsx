@@ -14,6 +14,7 @@ type Court = {
   is_indoor: boolean;
   operating_hours: Record<string, string>;
   blocked_hours: Record<string, number[]> | null;
+  blocked_dates: Record<string, number[]> | null;
   description: string | null;
   amenities: string[] | null;
   images: string[] | null;
