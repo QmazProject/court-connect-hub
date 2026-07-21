@@ -425,13 +425,13 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
                   <button type="button" onClick={() => setAllDayWeekly(d.key, true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all</button>
                 </div>
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4">
+              <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4">
                 {Array.from({ length: 24 }, (_, h) => h).map((h) => {
                   const isBlocked = weekly[d.key].has(h);
                   return (
                     <button key={h} type="button" onClick={() => toggleWeekly(d.key, h)}
-                      className={"rounded px-1.5 py-1 text-[10px] font-medium leading-tight transition " + (isBlocked ? "bg-destructive/20 text-destructive line-through" : "bg-primary/10 text-primary hover:bg-primary/20")}>
-                      {fmtHour(h)} – {fmtHour((h + 1) % 24)}
+                      className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-primary hover:bg-primary/20")}>
+                      {fmtHourShort(h)}–{fmtHourShort((h + 1) % 24)}
                     </button>
                   );
                 })}
