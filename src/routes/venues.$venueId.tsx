@@ -80,8 +80,9 @@ function VenueDetail() {
   const next = () => setImgIdx((i) => i + 1);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <section className="relative overflow-hidden rounded-3xl">
+    <main className="pb-8 sm:pb-12">
+      <section className="relative overflow-hidden">
+
         {/* Background image / carousel */}
         <div className="absolute inset-0">
           {currentImg ? (
@@ -113,7 +114,7 @@ function VenueDetail() {
         )}
 
         {/* Foreground content */}
-        <div className="relative z-[1] px-5 py-6 sm:px-8 sm:py-10">
+        <div className="relative z-[1] mx-auto max-w-6xl px-5 py-6 sm:px-6 sm:py-10">
           <button
             onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
             className="text-sm text-muted-foreground hover:text-foreground"
@@ -163,10 +164,12 @@ function VenueDetail() {
         </div>
       </section>
 
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <h2 className="mt-8 text-xl font-bold">
         {sport ? "Courts for this sport" : "All courts"}{" "}
         <span className="text-muted-foreground">({courts.length})</span>
       </h2>
+
 
 
       {courtsQ.isLoading ? (
@@ -249,6 +252,8 @@ function VenueDetail() {
           <p className="text-muted-foreground">No courts available at this venue{sport ? " for the selected sport" : ""}.</p>
         </div>
       )}
+      </div>
     </main>
+
   );
 }
