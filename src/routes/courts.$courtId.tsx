@@ -27,6 +27,12 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function fmtHour(h: number) {
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:00 ${period}`;
+}
+
 
 function CourtBooking() {
   const { courtId } = Route.useParams();
