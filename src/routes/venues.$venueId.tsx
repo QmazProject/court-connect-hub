@@ -1,5 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,6 +20,8 @@ type Venue = {
   address: string;
   latitude: number | null;
   longitude: number | null;
+  description: string | null;
+  images: string[] | null;
 };
 
 type Court = {
@@ -36,13 +40,14 @@ function VenueDetail() {
   const { venueId } = Route.useParams();
   const { sport } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
+  const [imgIdx, setImgIdx] = useState(0);
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("venues")
-        .select("id, name, address, latitude, longitude")
+        .select("id, name, address, latitude, longitude, description, images")
         .eq("id", Number(venueId))
         .maybeSingle();
       if (error) throw error;
@@ -68,41 +73,101 @@ function VenueDetail() {
 
   const venue = venueQ.data;
   const courts = courtsQ.data ?? [];
+  const images = venue?.images ?? [];
+  const hasImages = images.length > 0;
+  const currentImg = hasImages ? images[((imgIdx % images.length) + images.length) % images.length] : null;
+  const prev = () => setImgIdx((i) => i - 1);
+  const next = () => setImgIdx((i) => i + 1);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <button
-        onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Back to venues
-      </button>
+      <section className="relative overflow-hidden rounded-3xl">
+        {/* Background image / carousel */}
+        <div className="absolute inset-0">
+          {currentImg ? (
+            <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
+          ) : (
+            <div className="court-pattern h-full w-full" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
+        </div>
 
-      {venueQ.isLoading ? (
-        <div className="mt-6 h-24 animate-pulse rounded-2xl bg-muted" />
-      ) : venue ? (
-        <div className="mt-4">
-          <h1 className="text-3xl font-bold sm:text-4xl">{venue.name}</h1>
-          <p className="mt-1 text-muted-foreground">{venue.address}</p>
-          {venue.latitude != null && venue.longitude != null && (
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        {/* Prev / Next arrows — half-hidden on the edges, behind content */}
+        {hasImages && images.length > 1 && (
+          <>
+            <button
+              onClick={prev}
+              aria-label="Previous image"
+              className="absolute left-0 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background/80 p-3 text-foreground shadow-lg backdrop-blur transition hover:bg-background sm:p-4"
             >
-              View on Google Maps →
-            </a>
+              <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+            </button>
+            <button
+              onClick={next}
+              aria-label="Next image"
+              className="absolute right-0 top-1/2 z-10 translate-x-1/2 -translate-y-1/2 rounded-full bg-background/80 p-3 text-foreground shadow-lg backdrop-blur transition hover:bg-background sm:p-4"
+            >
+              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+            </button>
+          </>
+        )}
+
+        {/* Foreground content */}
+        <div className="relative z-[1] px-5 py-6 sm:px-8 sm:py-10">
+          <button
+            onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← Back to venues
+          </button>
+
+          {venueQ.isLoading ? (
+            <div className="mt-6 h-24 animate-pulse rounded-2xl bg-muted" />
+          ) : venue ? (
+            <div className="mt-4">
+              <h1 className="text-3xl font-bold sm:text-4xl">{venue.name}</h1>
+              <p className="mt-1 text-muted-foreground">{venue.address}</p>
+              {venue.description && (
+                <p className="mt-3 max-w-2xl text-sm text-foreground/80">{venue.description}</p>
+              )}
+              {venue.latitude != null && venue.longitude != null && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                >
+                  View on Google Maps →
+                </a>
+              )}
+              {hasImages && images.length > 1 && (
+                <div className="mt-4 flex gap-1.5">
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setImgIdx(i)}
+                      aria-label={`Go to image ${i + 1}`}
+                      className={`h-1.5 rounded-full transition-all ${
+                        i === ((imgIdx % images.length) + images.length) % images.length
+                          ? "w-6 bg-primary"
+                          : "w-1.5 bg-foreground/30 hover:bg-foreground/50"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="mt-6 text-muted-foreground">Venue not found.</p>
           )}
         </div>
-      ) : (
-        <p className="mt-6 text-muted-foreground">Venue not found.</p>
-      )}
+      </section>
 
       <h2 className="mt-8 text-xl font-bold">
         {sport ? "Courts for this sport" : "All courts"}{" "}
         <span className="text-muted-foreground">({courts.length})</span>
       </h2>
+
 
       {courtsQ.isLoading ? (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
