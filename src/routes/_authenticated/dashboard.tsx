@@ -774,13 +774,12 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [name, setName] = useState(venue.name);
   const [address, setAddress] = useState(venue.address);
   const [description, setDescription] = useState(venue.description ?? "");
-  const [imagesText, setImagesText] = useState((venue.images ?? []).join("\n"));
+  const [images, setImages] = useState<string[]>(venue.images ?? []);
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
 
   const save = useMutation({
     mutationFn: async () => {
-      const images = imagesText.split("\n").map((s) => s.trim()).filter(Boolean);
       const { error } = await supabase
         .from("venues")
         .update({ name, address, description: description || null, images })
@@ -832,23 +831,16 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
-          <label className="block sm:col-span-2">
-            <span className="text-xs font-medium text-muted-foreground">Image URLs (one per line)</span>
-            <textarea
-              value={imagesText}
-              onChange={(e) => setImagesText(e.target.value)}
-              rows={3}
-              placeholder="https://…/photo1.jpg"
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
+          <div className="sm:col-span-2">
+            <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
+          </div>
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={() => save.mutate()} disabled={save.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImagesText((venue.images ?? []).join("\n")); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
       </div>
     );
