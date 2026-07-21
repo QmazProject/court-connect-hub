@@ -248,6 +248,14 @@ function CourtBooking() {
 
         <p className="mt-2 text-xs text-muted-foreground">Tap multiple hours to book them together.</p>
 
+        <div className="mt-3 flex flex-wrap gap-3 text-xs">
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-border bg-background" /> Available</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-primary" /> Selected</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-destructive/40 bg-destructive/15" /> Booked</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-amber-400/60 bg-amber-200/60" /> Unavailable</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-border bg-muted" /> Past</span>
+        </div>
+
         <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {slots.map((h) => {
             const booked = isBooked(h);
@@ -256,6 +264,15 @@ function CourtBooking() {
             const disabled = booked || blockedSlot || past;
             const active = selected.includes(h);
             const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
+            const stateClass = active
+              ? "border-primary bg-primary text-primary-foreground"
+              : booked
+                ? "cursor-not-allowed border-destructive/40 bg-destructive/15 text-destructive"
+                : blockedSlot
+                  ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
+                  : past
+                    ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                    : "border-border bg-background hover:border-primary hover:text-primary";
             return (
               <button
                 key={h}
@@ -267,14 +284,7 @@ function CourtBooking() {
                   );
                 }}
                 title={label}
-                className={
-                  "flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " +
-                  (disabled
-                    ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
-                    : active
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background hover:border-primary hover:text-primary")
-                }
+                className={"flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " + stateClass}
               >
                 <span className={disabled ? "line-through" : ""}>{String(h).padStart(2, "0")}:00</span>
                 {label && <span className="mt-0.5 text-[10px] uppercase tracking-wide">{label}</span>}
