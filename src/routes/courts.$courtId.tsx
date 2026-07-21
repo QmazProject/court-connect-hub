@@ -124,7 +124,9 @@ function CourtBooking() {
 
   const court = courtQ.data;
   const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
-  const blocked = new Set<number>(court.blocked_hours?.[dow] ?? []);
+  // Per-date override takes priority: if the date has its own entry (even empty), use it; otherwise fall back to the weekly rule.
+  const dateOverride = court.blocked_dates?.[date];
+  const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
   const isBooked = (hour: number) => {
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
