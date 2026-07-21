@@ -57,6 +57,7 @@ export type Database = {
           amenities: string[]
           blocked_dates: Json
           blocked_hours: Json
+          coming_soon: boolean
           description: string | null
           hourly_rate: number
           id: number
@@ -71,6 +72,7 @@ export type Database = {
           amenities?: string[]
           blocked_dates?: Json
           blocked_hours?: Json
+          coming_soon?: boolean
           description?: string | null
           hourly_rate: number
           id?: never
@@ -85,6 +87,7 @@ export type Database = {
           amenities?: string[]
           blocked_dates?: Json
           blocked_hours?: Json
+          coming_soon?: boolean
           description?: string | null
           hourly_rate?: number
           id?: never
