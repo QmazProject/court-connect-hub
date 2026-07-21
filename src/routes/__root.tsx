@@ -10,7 +10,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import chLogo from "@/assets/courthub-logo.png.asset.json";
+import chLogo from "@/assets/CHicon.png.asset.json";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -110,8 +110,9 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link to="/" className="flex items-center" aria-label="CourtHub home">
-          <img src={chLogo.url} alt="CourtHub" className="h-12 w-auto object-contain" />
+        <Link to="/" className="flex items-center gap-2 font-display text-xl font-bold tracking-tight">
+          <img src={chLogo.url} alt="CourtHub logo" className="h-9 w-9 rounded-full object-contain" />
+          CourtHub
         </Link>
         <nav className="flex items-center gap-2">
           {session ? (
