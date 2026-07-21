@@ -143,7 +143,7 @@ function CourtBooking() {
             <p className="text-sm text-muted-foreground">{court.venues?.name} · {court.venues?.address}</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold text-primary">${Number(court.hourly_rate).toFixed(0)}</div>
+            <div className="text-3xl font-bold text-primary">₱{Number(court.hourly_rate).toFixed(0)}</div>
             <div className="text-xs text-muted-foreground">per hour</div>
           </div>
         </div>
