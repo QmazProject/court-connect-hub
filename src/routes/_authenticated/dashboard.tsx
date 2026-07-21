@@ -615,6 +615,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
+  const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState((court.images ?? []).join("\n"));
@@ -626,6 +627,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
+        coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
         images: parseList(images),
@@ -644,6 +646,10 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         <label className="flex items-end gap-2 pb-2 text-sm">
           <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
           Indoor court
+        </label>
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
+          Coming soon
         </label>
       </div>
       <div className="mt-3 grid gap-3">
