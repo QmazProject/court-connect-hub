@@ -87,10 +87,18 @@ function VenueDetail() {
         {/* Image carousel — fully visible */}
         <div className="relative h-[280px] w-full overflow-hidden bg-muted sm:h-[380px] lg:h-[460px]">
           {currentImg ? (
-            <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              aria-label="View full size image"
+              className="block h-full w-full cursor-zoom-in"
+            >
+              <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
+            </button>
           ) : (
             <div className="court-pattern h-full w-full" />
           )}
+
 
           {hasImages && images.length > 1 && (
             <>
