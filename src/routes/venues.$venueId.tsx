@@ -55,8 +55,9 @@ function VenueDetail() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, description, amenities, images, sports!inner(name, slug)")
+        .select("id, name, hourly_rate, is_indoor, description, amenities, images, coming_soon, sports!inner(name, slug)")
         .eq("venue_id", Number(venueId))
+        .order("coming_soon", { ascending: true })
         .order("id");
       if (sport) q = q.eq("sports.slug", sport);
       const { data, error } = await q;
