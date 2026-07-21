@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
+import { ImageUploader } from "@/components/ImageUploader";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -534,7 +535,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   const [comingSoon, setComingSoon] = useState(false);
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
-  const [images, setImages] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open);
@@ -550,13 +551,13 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
-        images: parseList(images),
+        images,
       });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages(""); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -599,7 +600,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
-        <Textarea label="Image URLs (one per line)" value={images} onChange={setImages} placeholder="https://…/court-1.jpg&#10;https://…/court-2.jpg" />
+        <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
@@ -619,7 +620,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
   const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
-  const [images, setImages] = useState((court.images ?? []).join("\n"));
+  const [images, setImages] = useState<string[]>(court.images ?? []);
   const [err, setErr] = useState<string | null>(null);
 
   const mut = useMutation({
@@ -631,7 +632,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         coming_soon: comingSoon,
         description: description || null,
         amenities: parseList(amenities),
-        images: parseList(images),
+        images,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -656,7 +657,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
-        <Textarea label="Image URLs (one per line)" value={images} onChange={setImages} />
+        <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
@@ -773,13 +774,12 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [name, setName] = useState(venue.name);
   const [address, setAddress] = useState(venue.address);
   const [description, setDescription] = useState(venue.description ?? "");
-  const [imagesText, setImagesText] = useState((venue.images ?? []).join("\n"));
+  const [images, setImages] = useState<string[]>(venue.images ?? []);
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
 
   const save = useMutation({
     mutationFn: async () => {
-      const images = imagesText.split("\n").map((s) => s.trim()).filter(Boolean);
       const { error } = await supabase
         .from("venues")
         .update({ name, address, description: description || null, images })
@@ -831,23 +831,16 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
-          <label className="block sm:col-span-2">
-            <span className="text-xs font-medium text-muted-foreground">Image URLs (one per line)</span>
-            <textarea
-              value={imagesText}
-              onChange={(e) => setImagesText(e.target.value)}
-              rows={3}
-              placeholder="https://…/photo1.jpg"
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
+          <div className="sm:col-span-2">
+            <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
+          </div>
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={() => save.mutate()} disabled={save.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImagesText((venue.images ?? []).join("\n")); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
       </div>
     );
