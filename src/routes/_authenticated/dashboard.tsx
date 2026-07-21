@@ -253,10 +253,15 @@ function VenueSection({ venue }: { venue: Venue }) {
 
 function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
+  const [managingHours, setManagingHours] = useState(false);
   if (editing) {
     return <EditCourt court={court} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
   }
+  if (managingHours) {
+    return <AvailabilityEditor court={court} onDone={() => { setManagingHours(false); onChanged(); }} onCancel={() => setManagingHours(false)} />;
+  }
   const cover = court.images?.[0];
+  const totalBlocked = Object.values(court.blocked_hours ?? {}).reduce((s, arr) => s + (arr?.length ?? 0), 0);
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       {cover ? (
@@ -281,12 +286,102 @@ function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }
         )}
         <div className="mt-3 flex items-center justify-between">
           <div className="text-primary"><span className="text-lg font-bold">₱{Number(court.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
-          <button onClick={() => setEditing(true)} className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary">Edit details</button>
+        </div>
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          Open 24/7 · <span className="font-medium text-foreground">{totalBlocked}</span> hr{totalBlocked === 1 ? "" : "s"} blocked / week
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={() => setManagingHours(true)} className="flex-1 rounded-md bg-primary/10 px-2 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20">
+            Manage availability
+          </button>
+          <button onClick={() => setEditing(true)} className="rounded-md border border-border px-2 py-1.5 text-xs font-medium hover:border-primary hover:text-primary">Edit details</button>
         </div>
       </div>
     </div>
   );
 }
+
+function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
+  const initial: Record<string, Set<number>> = {};
+  for (const d of DAYS) initial[d.key] = new Set(court.blocked_hours?.[d.key] ?? []);
+  const [blocked, setBlocked] = useState(initial);
+  const [err, setErr] = useState<string | null>(null);
+
+  const toggle = (day: string, hour: number) => {
+    setBlocked((prev) => {
+      const next = { ...prev, [day]: new Set(prev[day]) };
+      if (next[day].has(hour)) next[day].delete(hour); else next[day].add(hour);
+      return next;
+    });
+  };
+  const setAllDay = (day: string, block: boolean) => {
+    setBlocked((prev) => ({ ...prev, [day]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
+  };
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const payload: Record<string, number[]> = {};
+      for (const d of DAYS) payload[d.key] = Array.from(blocked[d.key]).sort((a, b) => a - b);
+      const { error } = await supabase.from("courts").update({ blocked_hours: payload }).eq("id", court.id);
+      if (error) throw error;
+    },
+    onSuccess: onDone,
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  return (
+    <div className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="font-semibold">Availability · {court.name}</h3>
+          <p className="text-xs text-muted-foreground">Open 24/7 by default. Tap an hour to mark it unavailable for players.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => mut.mutate()} disabled={mut.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+            {mut.isPending ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {DAYS.map((d) => (
+          <div key={d.key} className="rounded-lg border border-border bg-background p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">{d.label}</span>
+              <div className="flex gap-1 text-[10px]">
+                <button type="button" onClick={() => setAllDay(d.key, false)} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Open all</button>
+                <button type="button" onClick={() => setAllDay(d.key, true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all</button>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-6 gap-1 sm:grid-cols-8 md:grid-cols-12">
+              {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+                const isBlocked = blocked[d.key].has(h);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => toggle(d.key, h)}
+                    className={
+                      "rounded px-1 py-1 text-[10px] font-medium transition " +
+                      (isBlocked
+                        ? "bg-destructive/20 text-destructive line-through"
+                        : "bg-primary/10 text-primary hover:bg-primary/20")
+                    }
+                  >
+                    {String(h).padStart(2, "0")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+    </div>
+  );
+}
+
 
 function useSportsQuery(enabled: boolean) {
   return useQuery({
