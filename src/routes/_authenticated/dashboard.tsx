@@ -12,6 +12,9 @@ type Sport = { id: number; name: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
   sport_id: number; venue_id: number;
+  description: string | null;
+  amenities: string[] | null;
+  images: string[] | null;
   sports: { name: string } | null;
 };
 
