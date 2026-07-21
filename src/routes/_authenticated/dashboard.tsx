@@ -265,7 +265,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
       className="col-span-full rounded-xl border border-border bg-secondary/30 p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input label="Court name" value={name} onChange={setName} required />
-        <Input label="Hourly rate ($)" value={rate} onChange={setRate} type="number" required />
+        <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Sport</span>
           <select value={sportId} onChange={(e) => setSportId(e.target.value)} required
