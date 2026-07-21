@@ -333,15 +333,6 @@ function Landing() {
                       />
                     </label>
                   </div>
-                  <div className="mt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setFilterOpen(false)}
-                      className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                    >
-                      Apply
-                    </button>
-                  </div>
                 </div>
               )}
 
