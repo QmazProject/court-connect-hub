@@ -812,7 +812,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
     mutationFn: async () => {
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images })
+        .update({ name, address, description: description || null, images, timezone })
         .eq("id", venue.id);
       if (error) throw error;
     },
