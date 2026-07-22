@@ -51,6 +51,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const readyRef = useRef(false);
   const activeRef = useRef<{ id: number | null; lat: number; lng: number } | null>(null);
   const rezoomingRef = useRef(false);
+  const userInteractedRef = useRef(false);
   const [view, setView] = useState<"street" | "satellite">("street");
 
 
@@ -130,17 +131,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
       // Deselect on background click
       map.on("click", () => onSelectVenue(null));
 
-      // If the user zooms out past the scatter threshold, deselect the venue
-      // so the courts collapse back into a single venue pin and the right-side
-      // list re-adapts to show all venues.
-      map.on("zoomend", () => {
-        const a = activeRef.current;
-        if (!a || a.id == null) return;
-        if (rezoomingRef.current) return;
-        if (map.getZoom() < 17) {
-          onSelectVenue(null);
-        }
+      // Track user-initiated map interactions so we don't auto-refit their view.
+      map.on("zoomstart", (e: any) => {
+        if (!rezoomingRef.current) userInteractedRef.current = true;
       });
+      map.on("dragstart", () => { userInteractedRef.current = true; });
     })();
     return () => {
       cancelled = true;
@@ -245,8 +240,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           m.on("click", (e: any) => { e.originalEvent?.stopPropagation?.(); onOpenCourt(c.id); });
         });
 
-        // Zoom in to venue
+        // Zoom in to venue (user-driven selection, safe to move the view)
+        rezoomingRef.current = true;
         mapRef.current.flyTo([vLat, vLng], 18, { duration: 0.6 });
+        setTimeout(() => { rezoomingRef.current = false; userInteractedRef.current = false; }, 700);
       } else {
         activeRef.current = null;
         // Show all venue pins
@@ -267,14 +264,19 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           });
           m.on("click", (e: any) => {
             e.originalEvent?.stopPropagation?.();
+            userInteractedRef.current = false;
             onSelectVenue(v.id);
           });
         });
 
-        // Fit bounds
-        const bounds = L.latLngBounds(pinned.map((v) => [v.latitude as number, v.longitude as number]));
-        if (nearby) bounds.extend([nearby.lat, nearby.lng]);
-        mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        // Only auto-fit if the user hasn't manually panned/zoomed yet.
+        if (!userInteractedRef.current) {
+          const bounds = L.latLngBounds(pinned.map((v) => [v.latitude as number, v.longitude as number]));
+          if (nearby) bounds.extend([nearby.lat, nearby.lng]);
+          rezoomingRef.current = true;
+          mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+          setTimeout(() => { rezoomingRef.current = false; }, 300);
+        }
       }
     })();
   }, [venues, activeVenueId, onSelectVenue, onOpenCourt, nearby]);
