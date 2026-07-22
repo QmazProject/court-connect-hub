@@ -21,6 +21,7 @@ type Props = {
   onOpenCourt: (courtId: number) => void;
   nearby: { lat: number; lng: number } | null;
   radiusKm?: number | null;
+  radiusHasMatches?: boolean;
 };
 
 // Spread court markers evenly around a venue on a small circle.
