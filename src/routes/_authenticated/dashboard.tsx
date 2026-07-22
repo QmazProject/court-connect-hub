@@ -647,7 +647,7 @@ function parseList(input: string): string[] {
   return input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
 }
 
-function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => void }) {
+function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEmoji: string | null; onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("25");
@@ -657,9 +657,13 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open);
+
+  const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
+  const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -673,12 +677,13 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         description: description || null,
         amenities: parseList(amenities),
         images,
+        map_emoji: mapEmoji,
       });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -722,6 +727,15 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
         <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
+        <div className="rounded-xl border border-border bg-background p-3">
+          <EmojiPicker
+            label="Court map emoji"
+            value={mapEmoji}
+            fallback={fallbackEmoji}
+            onChange={setMapEmoji}
+            hint="Falls back to the venue emoji, then the sport default."
+          />
+        </div>
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
@@ -734,7 +748,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   );
 }
 
-function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
+function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venueEmoji: string | null; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
@@ -742,7 +756,10 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState<string[]>(court.images ?? []);
+  const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
   const [err, setErr] = useState<string | null>(null);
+
+  const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -754,6 +771,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         description: description || null,
         amenities: parseList(amenities),
         images,
+        map_emoji: mapEmoji,
       }).eq("id", court.id);
       if (error) throw error;
     },
