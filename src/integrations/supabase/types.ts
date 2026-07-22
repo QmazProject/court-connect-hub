@@ -63,6 +63,7 @@ export type Database = {
           id: number
           images: string[]
           is_indoor: boolean
+          map_emoji: string | null
           name: string
           operating_hours: Json
           sport_id: number
@@ -78,6 +79,7 @@ export type Database = {
           id?: never
           images?: string[]
           is_indoor?: boolean
+          map_emoji?: string | null
           name: string
           operating_hours?: Json
           sport_id: number
@@ -93,6 +95,7 @@ export type Database = {
           id?: never
           images?: string[]
           is_indoor?: boolean
+          map_emoji?: string | null
           name?: string
           operating_hours?: Json
           sport_id?: number
@@ -227,6 +230,7 @@ export type Database = {
           images: string[]
           latitude: number | null
           longitude: number | null
+          map_emoji: string | null
           name: string
           timezone: string
         }
@@ -237,6 +241,7 @@ export type Database = {
           images?: string[]
           latitude?: number | null
           longitude?: number | null
+          map_emoji?: string | null
           name: string
           timezone?: string
         }
@@ -247,6 +252,7 @@ export type Database = {
           images?: string[]
           latitude?: number | null
           longitude?: number | null
+          map_emoji?: string | null
           name?: string
           timezone?: string
         }
