@@ -184,7 +184,6 @@ function Landing() {
 
   const [showNearestPeek, setShowNearestPeek] = useState(false);
   useEffect(() => { if (!nearbyEmpty) setShowNearestPeek(false); }, [nearbyEmpty]);
-  }, [venues, nearby, radiusKm, nationwide]);
 
   const requestNearby = () => {
     if (!("geolocation" in navigator)) { setNearbyError("Location not supported on this device."); return; }
