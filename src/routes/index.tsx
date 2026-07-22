@@ -159,9 +159,9 @@ function Landing() {
     },
   });
 
-  const { list: sortedVenues, fallback: nearbyFallback } = useMemo(() => {
-    if (!venues) return { list: [], fallback: null as null | "nationwide" | "nearest" };
-    if (!nearby) return { list: venues, fallback: null };
+  const { list: sortedVenues, empty: nearbyEmpty, nearestSuggestion } = useMemo(() => {
+    if (!venues) return { list: [], empty: false, nearestSuggestion: [] as MapVenue[] };
+    if (!nearby) return { list: venues, empty: false, nearestSuggestion: [] };
 
     const withDistance = venues
       .map((v) => ({
@@ -175,15 +175,15 @@ function Landing() {
       .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
 
     if (nationwide) {
-      return { list: withDistance, fallback: "nationwide" as const };
+      return { list: withDistance, empty: false, nearestSuggestion: [] };
     }
 
     const inRadius = withDistance.filter((v) => (v.distanceKm ?? 0) <= radiusKm);
-    if (inRadius.length > 0) return { list: inRadius, fallback: null };
-
-    // No venues within the chosen radius — auto-fallback to the 5 nearest
-    return { list: withDistance.slice(0, 5), fallback: "nearest" as const };
+    return { list: inRadius, empty: inRadius.length === 0, nearestSuggestion: withDistance.slice(0, 5) };
   }, [venues, nearby, radiusKm, nationwide]);
+
+  const [showNearestPeek, setShowNearestPeek] = useState(false);
+  useEffect(() => { if (!nearbyEmpty) setShowNearestPeek(false); }, [nearbyEmpty]);
 
   const requestNearby = () => {
     if (!("geolocation" in navigator)) { setNearbyError("Location not supported on this device."); return; }
@@ -202,7 +202,8 @@ function Landing() {
     if (sport) navigate({ search: {} });
   };
 
-  const activeVenue = activeVenueId != null ? sortedVenues.find((v) => v.id === activeVenueId) : null;
+  const displayVenues = showNearestPeek && nearbyEmpty ? nearestSuggestion : sortedVenues;
+  const activeVenue = activeVenueId != null ? displayVenues.find((v) => v.id === activeVenueId) : null;
 
   // Auto-scroll list to active venue
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -390,7 +391,7 @@ function Landing() {
                     <input
                       type="range"
                       min={1}
-                      max={25}
+                      max={100}
                       step={1}
                       value={radiusKm}
                       onChange={(e) => setRadiusKm(Number(e.target.value))}
@@ -413,6 +414,19 @@ function Landing() {
                           {km}km
                         </button>
                       ))}
+                      <input
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={radiusKm}
+                        onChange={(e) => {
+                          const n = Number(e.target.value);
+                          if (Number.isFinite(n) && n > 0) setRadiusKm(Math.min(500, Math.max(1, Math.round(n))));
+                        }}
+                        className="w-14 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-semibold text-foreground outline-none focus:border-primary"
+                        aria-label="Custom radius in kilometers"
+                      />
+                      <span className="text-[11px] text-muted-foreground">km</span>
                     </div>
                   </>
                 )}
@@ -433,19 +447,19 @@ function Landing() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => { setNearby(null); setNationwide(false); }}
+                  onClick={() => { setNearby(null); setNationwide(false); setShowNearestPeek(false); }}
                   className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Clear location
                 </button>
               </div>
 
-              {nearbyFallback === "nearest" && (
+              {!nationwide && nearbyEmpty && radiusKm >= 25 && nearestSuggestion.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                   <span className="font-semibold">No venues within {radiusKm} km.</span>
-                  <span>Showing the 5 nearest instead.</span>
-                  <div className="ml-auto flex items-center gap-1">
-                    {[50, 100].map((km) => (
+                  <span>Try a wider search:</span>
+                  <div className="ml-auto flex flex-wrap items-center gap-1">
+                    {[50, 100, 200].filter((km) => km > radiusKm).map((km) => (
                       <button
                         key={km}
                         type="button"
@@ -455,6 +469,13 @@ function Landing() {
                         Expand to {km}km
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setShowNearestPeek((v) => !v)}
+                      className="rounded-full border border-amber-500/50 bg-white/60 px-2 py-0.5 font-semibold text-amber-900 hover:bg-white dark:bg-transparent dark:text-amber-100"
+                    >
+                      {showNearestPeek ? "Hide nearest" : "Show 5 nearest"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => setNationwide(true)}
@@ -482,7 +503,7 @@ function Landing() {
         {/* Map */}
         <div className="relative flex-1 overflow-hidden rounded-l-2xl border border-border">
           <VenueMap
-            venues={sortedVenues}
+            venues={displayVenues}
             activeVenueId={activeVenueId}
             onSelectVenue={setActiveVenueId}
             onOpenVenue={(id) => navigate({ to: "/venues/$venueId", params: { venueId: String(id) }, search: {} })}
@@ -511,7 +532,7 @@ function Landing() {
         {/* Right sidebar (desktop / tablet) */}
         <aside className="hidden w-[380px] shrink-0 border-l border-border bg-background md:flex md:flex-col">
           <VenueList
-            venues={sortedVenues}
+            venues={displayVenues}
             activeVenueId={activeVenueId}
             onSelectVenue={setActiveVenueId}
             activeVenue={activeVenue}
@@ -544,7 +565,7 @@ function Landing() {
               </span>
             </button>
             <VenueList
-              venues={sortedVenues}
+              venues={displayVenues}
               activeVenueId={activeVenueId}
               onSelectVenue={(id) => { setActiveVenueId(id); if (id != null) setSheetExpanded(false); }}
               activeVenue={activeVenue}
