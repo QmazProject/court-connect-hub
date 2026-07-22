@@ -258,6 +258,74 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           🛰️ Satellite
         </button>
       </div>
+      <button
+        type="button"
+        onClick={() => setShowAttrib(true)}
+        aria-label="Map information"
+        title="Map information"
+        className="absolute bottom-3 right-3 z-[500] inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/95 text-sm font-semibold text-foreground shadow hover:bg-secondary"
+      >
+        i
+      </button>
+      {showAttrib && (
+        <div
+          className="absolute inset-0 z-[1000] flex items-end justify-center bg-black/40 p-3 sm:items-center"
+          onClick={() => setShowAttrib(false)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-base font-semibold">Map information</h3>
+              <button
+                type="button"
+                onClick={() => setShowAttrib(false)}
+                className="rounded-md px-2 py-1 text-sm hover:bg-secondary"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div>
+                <div className="font-medium">OpenStreetMap</div>
+                <a
+                  href="https://www.openstreetmap.org/copyright/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  © OpenStreetMap contributors — copyright & license
+                </a>
+              </div>
+              <div>
+                <div className="font-medium">Map data legal notice</div>
+                <p className="text-muted-foreground">
+                  Base map tiles are provided by OpenStreetMap (street view) and Esri World Imagery
+                  (satellite view). Data is contributed by the OSM community and partners including
+                  Microsoft, Esri Community Maps, Google Open Buildings, USGS 3DEP, ESA WorldCover,
+                  Natural Earth, and various municipal open-data programs (Toronto, DC, Austin,
+                  Madrid, Montreal, DVRPC, San Bernardino County, Chicago, Houston-Galveston, and
+                  more).
+                </p>
+                <a
+                  href="https://docs.overturemaps.org/attribution/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  Overture Maps attribution details →
+                </a>
+              </div>
+              <div>
+                <div className="font-medium">Report a map problem</div>
+                <p className="text-muted-foreground">Coming soon.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
