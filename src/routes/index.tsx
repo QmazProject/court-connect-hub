@@ -408,6 +408,18 @@ function Landing() {
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                   <MapPin className="h-3.5 w-3.5" />
                   {nationwide ? "Nationwide · sorted by distance" : `Within ${radiusKm} km`}
+                  <span className="ml-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    {locationMode === "manual" ? "Manual pin" : "GPS"}
+                  </span>
+                  {locationMode === "manual" && (
+                    <button
+                      type="button"
+                      onClick={() => setManualPickerOpen(true)}
+                      className="text-[11px] font-semibold text-primary underline underline-offset-2 hover:opacity-80"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
                 {!nationwide && (
                   <>
