@@ -48,6 +48,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const rezoomingRef = useRef(false);
   const [view, setView] = useState<"street" | "satellite">("street");
   const [showAttrib, setShowAttrib] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
 
 
   // Init map once
@@ -258,29 +259,65 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           🛰️ Satellite
         </button>
       </div>
-      <button
-        type="button"
-        onClick={() => setShowAttrib(true)}
-        aria-label="Map information"
-        title="Map information"
-        className="absolute bottom-3 right-3 z-[500] inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/95 text-sm font-semibold text-foreground shadow hover:bg-secondary"
-      >
-        i
-      </button>
-      {showAttrib && (
+      <div className="absolute bottom-3 right-3 z-[500]">
+        <button
+          type="button"
+          onClick={() => setShowAttrib((s) => !s)}
+          aria-label="Map information"
+          title="Map information"
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/95 text-sm font-semibold shadow hover:bg-secondary ${showAttrib ? "ring-2 ring-primary" : ""}`}
+        >
+          i
+        </button>
+        {showAttrib && (
+          <>
+            <div className="fixed inset-0 z-[600]" onClick={() => setShowAttrib(false)} />
+            <div className="absolute bottom-10 right-0 z-[700] w-64 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+              <button
+                type="button"
+                onClick={() => { setShowAttrib(false); alert("Report a map problem — coming soon."); }}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-secondary"
+              >
+                <span aria-hidden className="text-base">⚠️</span>
+                <span>Report a problem with map</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowAttrib(false); setShowLegal(true); }}
+                className="flex w-full items-center gap-3 border-t border-border px-3 py-2.5 text-left text-sm hover:bg-secondary"
+              >
+                <span aria-hidden className="text-base">📄</span>
+                <span>Map data legal notices</span>
+              </button>
+              <a
+                href="https://www.openstreetmap.org/copyright/"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setShowAttrib(false)}
+                className="flex w-full items-center gap-3 border-t border-border px-3 py-2.5 text-left text-sm hover:bg-secondary"
+              >
+                <span aria-hidden className="text-base">🗺️</span>
+                <span>OpenStreetMap</span>
+              </a>
+              <div className="pointer-events-none absolute -bottom-1.5 right-3 h-3 w-3 rotate-45 border-b border-r border-border bg-background" />
+            </div>
+          </>
+        )}
+      </div>
+      {showLegal && (
         <div
           className="absolute inset-0 z-[1000] flex items-end justify-center bg-black/40 p-3 sm:items-center"
-          onClick={() => setShowAttrib(false)}
+          onClick={() => setShowLegal(false)}
         >
           <div
             className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-background p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-base font-semibold">Map information</h3>
+              <h3 className="text-base font-semibold">Map Data Legal Notices</h3>
               <button
                 type="button"
-                onClick={() => setShowAttrib(false)}
+                onClick={() => setShowLegal(false)}
                 className="rounded-md px-2 py-1 text-sm hover:bg-secondary"
                 aria-label="Close"
               >
@@ -290,37 +327,66 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             <div className="space-y-3 text-sm">
               <div>
                 <div className="font-medium">OpenStreetMap</div>
-                <a
-                  href="https://www.openstreetmap.org/copyright/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  © OpenStreetMap contributors — copyright & license
-                </a>
+                <div className="text-muted-foreground">© OpenStreetMap contributors</div>
+                <a href="https://www.openstreetmap.org/copyright/" target="_blank" rel="noreferrer" className="text-primary hover:underline">openstreetmap.org/copyright</a>
               </div>
               <div>
-                <div className="font-medium">Map data legal notice</div>
-                <p className="text-muted-foreground">
-                  Base map tiles are provided by OpenStreetMap (street view) and Esri World Imagery
-                  (satellite view). Data is contributed by the OSM community and partners including
-                  Microsoft, Esri Community Maps, Google Open Buildings, USGS 3DEP, ESA WorldCover,
-                  Natural Earth, and various municipal open-data programs (Toronto, DC, Austin,
-                  Madrid, Montreal, DVRPC, San Bernardino County, Chicago, Houston-Galveston, and
-                  more).
-                </p>
-                <a
-                  href="https://docs.overturemaps.org/attribution/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Overture Maps attribution details →
-                </a>
+                <div className="font-medium">Overture Maps Foundation</div>
+                <div className="text-muted-foreground">Buildings: © OSM contributors, Microsoft, Esri Community Maps, Google Open Buildings, USGS 3DEP. Transportation: © OSM contributors. Base: © OSM contributors, ESA WorldCover.</div>
+                <a href="https://docs.overturemaps.org/attribution/" target="_blank" rel="noreferrer" className="text-primary hover:underline">docs.overturemaps.org/attribution</a>
               </div>
               <div>
-                <div className="font-medium">Report a map problem</div>
-                <p className="text-muted-foreground">Coming soon.</p>
+                <div className="font-medium">Natural Earth</div>
+                <div className="text-muted-foreground">Made with Natural Earth.</div>
+                <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer" className="text-primary hover:underline">naturalearthdata.com</a>
+              </div>
+              <div>
+                <div className="font-medium">Esri</div>
+                <a href="https://www.esri.com/en-us/legal/requirements/open-source-acknowledgements" target="_blank" rel="noreferrer" className="text-primary hover:underline">Open source acknowledgements</a>
+              </div>
+              <div>
+                <div className="font-medium">City of Toronto</div>
+                <div className="text-muted-foreground">Contains data licensed under Open Government License – Toronto.</div>
+              </div>
+              <div>
+                <div className="font-medium">Open Data DC</div>
+                <div className="text-muted-foreground">© DC GIS for D.C. OCTO. CC BY 4.0.</div>
+              </div>
+              <div>
+                <div className="font-medium">City of Austin, Texas</div>
+                <div className="text-muted-foreground">Public domain / PDDL — data.austintexas.gov</div>
+              </div>
+              <div>
+                <div className="font-medium">Madrid City Council</div>
+                <div className="text-muted-foreground">Public domain data licensed by Madrid City Council.</div>
+              </div>
+              <div>
+                <div className="font-medium">City of Montreal</div>
+                <div className="text-muted-foreground">© City of Montreal — CC BY 4.0.</div>
+              </div>
+              <div>
+                <div className="font-medium">Delaware Valley Regional Planning Commission (DVRPC)</div>
+                <div className="text-muted-foreground">© DVRPC.</div>
+              </div>
+              <div>
+                <div className="font-medium">Canadian Pedestrian Network Database</div>
+                <div className="text-muted-foreground">Open Government Licence – Canada.</div>
+              </div>
+              <div>
+                <div className="font-medium">San Bernardino County</div>
+                <div className="text-muted-foreground">© San Bernardino County — CC BY 4.0.</div>
+              </div>
+              <div>
+                <div className="font-medium">UK Gov Food Safety</div>
+                <a href="https://www.food.gov.uk/terms-and-conditions" target="_blank" rel="noreferrer" className="text-primary hover:underline">Terms & conditions</a>
+              </div>
+              <div>
+                <div className="font-medium">Chicago Data Portal</div>
+                <a href="https://www.chicago.gov/city/en/narr/foia/data_disclaimer.html" target="_blank" rel="noreferrer" className="text-primary hover:underline">Data disclaimer</a>
+              </div>
+              <div>
+                <div className="font-medium">Houston-Galveston Area Council</div>
+                <div className="text-muted-foreground">gishub-h-gac.hub.arcgis.com</div>
               </div>
             </div>
           </div>
