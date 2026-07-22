@@ -193,10 +193,16 @@ function Landing() {
     setNearbyLoading(true);
     setNearbyError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setNearby({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setNearbyLoading(false); },
+      (pos) => { setNearby({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocationMode("gps"); setNearbyLoading(false); },
       (err) => { setNearbyError(err.message || "Please allow location access."); setNearbyLoading(false); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const saveManualLocation = (lat: number, lng: number) => {
+    setNearby({ lat, lng });
+    setLocationMode("manual");
+    setManualPickerOpen(false);
   };
 
   const resetAll = () => {
