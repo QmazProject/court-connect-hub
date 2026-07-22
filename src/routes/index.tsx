@@ -60,6 +60,7 @@ function Landing() {
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [nationwide, setNationwide] = useState<boolean>(false);
 
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
@@ -158,22 +159,31 @@ function Landing() {
     },
   });
 
-  const sortedVenues = useMemo(() => {
-    if (!venues) return [];
-    if (nearby) {
-      return venues
-        .map((v) => ({
-          ...v,
-          distanceKm:
-            v.latitude != null && v.longitude != null
-              ? haversineKm(nearby, { lat: v.latitude as number, lng: v.longitude as number })
-              : null,
-        }))
-        .filter((v) => v.distanceKm != null && v.distanceKm <= radiusKm)
-        .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+  const { list: sortedVenues, fallback: nearbyFallback } = useMemo(() => {
+    if (!venues) return { list: [], fallback: null as null | "nationwide" | "nearest" };
+    if (!nearby) return { list: venues, fallback: null };
+
+    const withDistance = venues
+      .map((v) => ({
+        ...v,
+        distanceKm:
+          v.latitude != null && v.longitude != null
+            ? haversineKm(nearby, { lat: v.latitude as number, lng: v.longitude as number })
+            : null,
+      }))
+      .filter((v) => v.distanceKm != null)
+      .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+
+    if (nationwide) {
+      return { list: withDistance, fallback: "nationwide" as const };
     }
-    return venues;
-  }, [venues, nearby, radiusKm]);
+
+    const inRadius = withDistance.filter((v) => (v.distanceKm ?? 0) <= radiusKm);
+    if (inRadius.length > 0) return { list: inRadius, fallback: null };
+
+    // No venues within the chosen radius — auto-fallback to the 5 nearest
+    return { list: withDistance.slice(0, 5), fallback: "nearest" as const };
+  }, [venues, nearby, radiusKm, nationwide]);
 
   const requestNearby = () => {
     if (!("geolocation" in navigator)) { setNearbyError("Location not supported on this device."); return; }
@@ -188,7 +198,7 @@ function Landing() {
 
   const resetAll = () => {
     setVenueQuery(""); setFilterSport(""); setFilterCity(""); setMinPrice(""); setMaxPrice("");
-    setNearby(null); setActiveVenueId(null);
+    setNearby(null); setNationwide(false); setActiveVenueId(null);
     if (sport) navigate({ search: {} });
   };
 
@@ -369,47 +379,92 @@ function Landing() {
           )}
 
           {nearby && (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
-                <MapPin className="h-3.5 w-3.5" /> Within {radiusKm} km
+            <div className="flex flex-col gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {nationwide ? "Nationwide · sorted by distance" : `Within ${radiusKm} km`}
+                </div>
+                {!nationwide && (
+                  <>
+                    <input
+                      type="range"
+                      min={1}
+                      max={25}
+                      step={1}
+                      value={radiusKm}
+                      onChange={(e) => setRadiusKm(Number(e.target.value))}
+                      className="h-1.5 flex-1 min-w-[140px] cursor-pointer accent-primary"
+                      aria-label="Search radius in kilometers"
+                    />
+                    <div className="flex items-center gap-1">
+                      {[2, 5, 10, 25].map((km) => (
+                        <button
+                          key={km}
+                          type="button"
+                          onClick={() => setRadiusKm(km)}
+                          className={
+                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold transition " +
+                            (radiusKm === km
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+                          }
+                        >
+                          {km}km
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setNationwide((v) => !v)}
+                  className={
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition " +
+                    (nationwide
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+                  }
+                >
+                  🌏 Nationwide
+                </button>
+                <span className="text-[11px] text-muted-foreground">
+                  {sortedVenues.length} {sortedVenues.length === 1 ? "venue" : "venues"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setNearby(null); setNationwide(false); }}
+                  className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                >
+                  Clear location
+                </button>
               </div>
-              <input
-                type="range"
-                min={1}
-                max={25}
-                step={1}
-                value={radiusKm}
-                onChange={(e) => setRadiusKm(Number(e.target.value))}
-                className="h-1.5 flex-1 min-w-[140px] cursor-pointer accent-primary"
-                aria-label="Search radius in kilometers"
-              />
-              <div className="flex items-center gap-1">
-                {[2, 5, 10, 25].map((km) => (
-                  <button
-                    key={km}
-                    type="button"
-                    onClick={() => setRadiusKm(km)}
-                    className={
-                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold transition " +
-                      (radiusKm === km
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
-                    }
-                  >
-                    {km}km
-                  </button>
-                ))}
-              </div>
-              <span className="text-[11px] text-muted-foreground">
-                {sortedVenues.length} {sortedVenues.length === 1 ? "venue" : "venues"} nearby
-              </span>
-              <button
-                type="button"
-                onClick={() => setNearby(null)}
-                className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-              >
-                Clear location
-              </button>
+
+              {nearbyFallback === "nearest" && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                  <span className="font-semibold">No venues within {radiusKm} km.</span>
+                  <span>Showing the 5 nearest instead.</span>
+                  <div className="ml-auto flex items-center gap-1">
+                    {[50, 100].map((km) => (
+                      <button
+                        key={km}
+                        type="button"
+                        onClick={() => setRadiusKm(km)}
+                        className="rounded-full border border-amber-500/50 bg-white/60 px-2 py-0.5 font-semibold text-amber-900 hover:bg-white dark:bg-transparent dark:text-amber-100"
+                      >
+                        Expand to {km}km
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setNationwide(true)}
+                      className="rounded-full border border-primary bg-primary px-2 py-0.5 font-semibold text-primary-foreground hover:opacity-90"
+                    >
+                      Show nationwide
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -433,7 +488,7 @@ function Landing() {
             onOpenVenue={(id) => navigate({ to: "/venues/$venueId", params: { venueId: String(id) }, search: {} })}
             onOpenCourt={(id) => navigate({ to: "/courts/$courtId", params: { courtId: String(id) }, search: {} })}
             nearby={nearby}
-            radiusKm={nearby ? radiusKm : null}
+            radiusKm={nearby && !nationwide && nearbyFallback !== "nearest" ? radiusKm : null}
           />
 
           {activeVenueId != null && (
