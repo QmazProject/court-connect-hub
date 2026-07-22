@@ -63,14 +63,21 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         s.id = "ch-marker-css";
         s.textContent = `
           .ch-marker { background: transparent !important; border: 0 !important; }
-          .ch-pin { position: relative; width: 44px; height: 44px; cursor: pointer; transform: translateY(0); transition: transform .15s ease; }
-          .ch-pin:hover { transform: translateY(-2px); }
-          .ch-pin .body { position:absolute; inset:0; border-radius:9999px; background: hsl(var(--card)); border:2px solid hsl(var(--primary)); box-shadow: 0 6px 20px rgba(0,0,0,.18), 0 0 0 4px rgba(9,230,210,.15); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; color: hsl(var(--primary)); }
-          .ch-pin.active .body { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-          .ch-pin .tip { position:absolute; left:50%; bottom:-6px; width:10px; height:10px; background: hsl(var(--card)); border-right:2px solid hsl(var(--primary)); border-bottom:2px solid hsl(var(--primary)); transform: translateX(-50%) rotate(45deg); }
+          @keyframes ch-bounce { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-6px);} }
+          @keyframes ch-pulse-ring { 0% { transform: scale(0.6); opacity:.7;} 100% { transform: scale(1.7); opacity:0;} }
+          @keyframes ch-wiggle { 0%,100% { transform: rotate(-8deg);} 50% { transform: rotate(8deg);} }
+          .ch-pin { position: relative; width: 52px; height: 52px; cursor: pointer; animation: ch-bounce 1.8s ease-in-out infinite; }
+          .ch-pin::before { content:""; position:absolute; inset:4px; border-radius:9999px; background: hsl(var(--primary)); opacity:.35; animation: ch-pulse-ring 1.8s ease-out infinite; z-index:0; }
+          .ch-pin:hover { animation-play-state: paused; }
+          .ch-pin .body { position:absolute; inset:0; border-radius:9999px; background: hsl(var(--card)); border:2px solid hsl(var(--primary)); box-shadow: 0 8px 22px rgba(0,0,0,.22), 0 0 0 4px rgba(9,230,210,.18); display:flex; align-items:center; justify-content:center; font-size:22px; z-index:1; }
+          .ch-pin .body .emoji { display:inline-block; animation: ch-wiggle 1.6s ease-in-out infinite; transform-origin:center; }
+          .ch-pin .count { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; padding:0 5px; border-radius:9999px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow: 0 2px 6px rgba(0,0,0,.25); z-index:2; }
+          .ch-pin.active .body { background: hsl(var(--primary)); border-color: hsl(var(--primary)); }
+          .ch-pin .tip { position:absolute; left:50%; bottom:-6px; width:10px; height:10px; background: hsl(var(--card)); border-right:2px solid hsl(var(--primary)); border-bottom:2px solid hsl(var(--primary)); transform: translateX(-50%) rotate(45deg); z-index:1; }
           .ch-pin.active .tip { background: hsl(var(--primary)); }
-          .ch-court { width: 34px; height: 34px; }
-          .ch-court .body { background: hsl(var(--card)); color: hsl(var(--foreground)); border-color: hsl(var(--primary)); font-size:12px; }
+          .ch-court { width: 40px; height: 40px; animation: ch-bounce 2.2s ease-in-out infinite; }
+          .ch-court::before { display:none; }
+          .ch-court .body { background: hsl(var(--card)); color: hsl(var(--foreground)); border-color: hsl(var(--primary)); font-size:16px; }
           .ch-me { width:18px; height:18px; border-radius:9999px; background:#3b82f6; border:3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); }
           .ch-popup .leaflet-popup-content-wrapper { border-radius: 14px; padding: 2px; }
           .ch-popup .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
