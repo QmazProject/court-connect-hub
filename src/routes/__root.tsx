@@ -86,7 +86,9 @@ function Header() {
   const [session, setSession] = useState<{ email?: string; role?: string } | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [progress, setProgress] = useState(0);
   const router = useRouter();
+
 
   useEffect(() => {
     let mounted = true;
@@ -117,6 +119,11 @@ function Header() {
       requestAnimationFrame(() => {
         const y = getY();
         setScrolled(y > 8);
+        const max = scroller
+          ? scroller.scrollHeight - scroller.clientHeight
+          : document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
+        setProgress(y < 4 ? 0 : pct);
         const delta = y - lastY;
         if (y < 12) setHidden(false);
         else if (delta > 6) setHidden(true);
@@ -125,6 +132,7 @@ function Header() {
         ticking = false;
       });
     };
+
     onScroll();
     target.addEventListener("scroll", onScroll, { passive: true });
     return () => target.removeEventListener("scroll", onScroll);
@@ -145,7 +153,13 @@ function Header() {
           : "h-16 border-border/60")
       }
     >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.7)] transition-[width,opacity] duration-150 ease-out"
+        style={{ width: `${progress}%`, opacity: progress > 0.5 ? 1 : 0 }}
+      />
       <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6">
+
         <Link to="/" className="flex items-center gap-2 font-display font-bold tracking-tight">
           <img
             src={chLogo.url}
