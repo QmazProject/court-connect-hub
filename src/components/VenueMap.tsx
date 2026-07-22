@@ -149,19 +149,33 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Nearby "me" marker
+  // Nearby "me" marker + radius circle
   useEffect(() => {
     (async () => {
       if (!readyRef.current) return;
       const L = (await import("leaflet")).default ?? (await import("leaflet"));
       if (meRef.current) { mapRef.current.removeLayer(meRef.current); meRef.current = null; }
+      if (circleRef.current) { mapRef.current.removeLayer(circleRef.current); circleRef.current = null; }
       if (nearby) {
         meRef.current = L.marker([nearby.lat, nearby.lng], {
           icon: L.divIcon({ className: "ch-marker", html: `<div class="ch-me"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] }),
         }).addTo(mapRef.current);
+        if (radiusKm && radiusKm > 0) {
+          circleRef.current = L.circle([nearby.lat, nearby.lng], {
+            radius: radiusKm * 1000,
+            color: "#09e6d2",
+            weight: 2,
+            fillColor: "#09e6d2",
+            fillOpacity: 0.08,
+            interactive: false,
+          }).addTo(mapRef.current);
+          if (activeVenueId == null) {
+            mapRef.current.fitBounds(circleRef.current.getBounds(), { padding: [40, 40] });
+          }
+        }
       }
     })();
-  }, [nearby]);
+  }, [nearby, radiusKm, activeVenueId]);
 
   // Render pins whenever venues / active change
   useEffect(() => {
