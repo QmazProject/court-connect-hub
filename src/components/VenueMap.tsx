@@ -39,7 +39,7 @@ function divIcon(L: any, html: string, size = 44, className = "") {
   });
 }
 
-export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, onOpenCourt, nearby }: Props) {
+export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, onOpenCourt, nearby, radiusKm }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
