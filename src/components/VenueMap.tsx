@@ -98,11 +98,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-tip-addr { font-size: 11px; color: #64748b; line-height: 1.2; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
           .ch-tip-rate { font-size: 11px; font-weight: 700; color: #09b8a8; }
           .ch-tip-rate.ch-tip-muted { color: #64748b; font-weight: 600; }
-          @keyframes ch-radius-hue { 0%,100% { stroke: #3b82f6; fill: #3b82f6; } 50% { stroke: #ef4444; fill: #ef4444; } }
-          @keyframes ch-radius-ping { 0% { opacity: .75; stroke-width: 2; } 100% { opacity: 0; stroke-width: 10; } }
-          .ch-radius-base { animation: ch-radius-hue 2.4s ease-in-out infinite; }
-          .ch-radius-ping { animation: ch-radius-hue 2.4s ease-in-out infinite, ch-radius-ping 2s ease-out infinite; transform-origin: center; }
-          .ch-radius-ping-2 { animation-delay: 0s, 1s; }
+          @keyframes ch-signal { 0% { transform: scale(0.05); opacity: .85; } 100% { transform: scale(1); opacity: 0; } }
+          .ch-radius-base { transition: stroke .3s ease, fill .3s ease; }
+          .ch-radius-ping { transform-box: fill-box; transform-origin: center; animation: ch-signal 2.6s ease-out infinite; }
+          .ch-radius-ping-2 { animation-delay: 0.87s; }
+          .ch-radius-ping-3 { animation-delay: 1.73s; }
         `;
 
         document.head.appendChild(s);
