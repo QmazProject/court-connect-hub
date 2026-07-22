@@ -467,6 +467,9 @@ function VenueList({
   activeVenue: (MapVenue & { sports?: string[]; distanceKm?: number | null }) | null | undefined;
   listRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const MAX_VISIBLE = 10;
+  const visibleVenues = venues.slice(0, MAX_VISIBLE);
+  const hiddenCount = Math.max(0, venues.length - MAX_VISIBLE);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-border px-4 py-3">
@@ -476,11 +479,14 @@ function VenueList({
         <div className="text-xs text-muted-foreground">
           {activeVenue
             ? `${activeVenue.courtCount} ${activeVenue.courtCount === 1 ? "court" : "courts"} at this location`
-            : `${venues.length} ${venues.length === 1 ? "result" : "results"}`}
+            : hiddenCount > 0
+              ? `Showing ${visibleVenues.length} of ${venues.length} · refine to see more`
+              : `${venues.length} ${venues.length === 1 ? "result" : "results"}`}
         </div>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div ref={listRef} className="nice-scroll min-h-0 flex-1 overflow-y-auto p-3">
+
         {activeVenue ? (
           <div className="space-y-2">
             <button
@@ -534,7 +540,7 @@ function VenueList({
           </div>
         ) : (
           <div className="space-y-2">
-            {venues.map((v) => {
+            {visibleVenues.map((v) => {
               const pinned = v.latitude != null && v.longitude != null;
               const active = v.id === activeVenueId;
               return (
@@ -590,9 +596,15 @@ function VenueList({
                 </button>
               );
             })}
+            {hiddenCount > 0 && (
+              <div className="rounded-xl border border-dashed border-border bg-background/60 p-3 text-center text-[11px] text-muted-foreground">
+                +{hiddenCount} more {hiddenCount === 1 ? "venue" : "venues"} — use search or filters to narrow down.
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
