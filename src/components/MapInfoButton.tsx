@@ -107,7 +107,7 @@ export function MapInfoButton({ getCenter, className, align = "right" }: Props) 
                 <span aria-hidden className="text-base">🗺️</span>
                 <span>OpenStreetMap</span>
               </a>
-              <div className="pointer-events-none absolute -bottom-1.5 right-3 h-3 w-3 rotate-45 border-b border-r border-border bg-background" />
+              <div className={`pointer-events-none absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-border bg-background ${align === "left" ? "left-3" : "right-3"}`} />
             </div>
           </>
         )}
