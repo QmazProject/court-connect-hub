@@ -91,7 +91,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-me { width:18px; height:18px; border-radius:9999px; background:#3b82f6; border:3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); }
           .ch-popup .leaflet-popup-content-wrapper { border-radius: 14px; padding: 2px; }
           .ch-popup .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
-          .leaflet-tooltip.ch-tip-wrap { background: #ffffff; color: #0f172a; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); padding: 6px 10px; font-family: inherit; white-space: nowrap; max-width: none; pointer-events: none; }
+          .leaflet-tooltip.ch-tip-wrap { background: #ffffff; color: #0f172a; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); padding: 6px 10px; font-family: inherit; white-space: nowrap; max-width: none; pointer-events: auto; }
+          .ch-tip-dir { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#0ea5a3; text-decoration:none; padding:3px 8px; border-radius:9999px; background:rgba(9,230,210,.14); border:1px solid rgba(9,230,210,.4); }
+          .ch-tip-dir:hover { background:rgba(9,230,210,.25); }
+          .ch-dir-btn { display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; font-weight:700; color:#0ea5a3; text-decoration:none; padding:5px 10px; border-radius:9999px; background:rgba(9,230,210,.14); border:1px solid rgba(9,230,210,.4); }
+          .ch-dir-btn:hover { background:rgba(9,230,210,.25); }
           .leaflet-tooltip.ch-tip-wrap::before { border-top-color: #ffffff; }
           .ch-tip { display: inline-flex; align-items: center; gap: 8px; }
           .ch-tip-sep { width: 1px; height: 12px; background: rgba(0,0,0,.12); flex: none; }
