@@ -137,7 +137,19 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
       <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="mt-4 grid gap-3 sm:grid-cols-2">
         <Input label="Venue name" value={name} onChange={setName} required />
         <Input label="Address" value={address} onChange={setAddress} required />
-        <Input label="Timezone" value={timezone} onChange={setTimezone} required />
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Timezone</span>
+          <select
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            {TIMEZONE_OPTIONS.map((tz) => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] text-muted-foreground">Used to display court hours and bookings in the venue's local time.</span>
+        </label>
         <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-secondary/30 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Map location</span>
