@@ -240,8 +240,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           m.on("click", (e: any) => { e.originalEvent?.stopPropagation?.(); onOpenCourt(c.id); });
         });
 
-        // Zoom in to venue
+        // Zoom in to venue (user-driven selection, safe to move the view)
+        rezoomingRef.current = true;
         mapRef.current.flyTo([vLat, vLng], 18, { duration: 0.6 });
+        setTimeout(() => { rezoomingRef.current = false; userInteractedRef.current = false; }, 700);
       } else {
         activeRef.current = null;
         // Show all venue pins
@@ -262,14 +264,19 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           });
           m.on("click", (e: any) => {
             e.originalEvent?.stopPropagation?.();
+            userInteractedRef.current = false;
             onSelectVenue(v.id);
           });
         });
 
-        // Fit bounds
-        const bounds = L.latLngBounds(pinned.map((v) => [v.latitude as number, v.longitude as number]));
-        if (nearby) bounds.extend([nearby.lat, nearby.lng]);
-        mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        // Only auto-fit if the user hasn't manually panned/zoomed yet.
+        if (!userInteractedRef.current) {
+          const bounds = L.latLngBounds(pinned.map((v) => [v.latitude as number, v.longitude as number]));
+          if (nearby) bounds.extend([nearby.lat, nearby.lng]);
+          rezoomingRef.current = true;
+          mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+          setTimeout(() => { rezoomingRef.current = false; }, 300);
+        }
       }
     })();
   }, [venues, activeVenueId, onSelectVenue, onOpenCourt, nearby]);
