@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
+import { EmojiPicker } from "@/components/EmojiPicker";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -55,8 +56,8 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
   return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
 }
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
-type Sport = { id: number; name: string };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null };
+type Sport = { id: number; name: string; slug?: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
   sport_id: number; venue_id: number;
@@ -66,7 +67,8 @@ type Court = {
   blocked_hours: Record<string, number[]> | null;
   blocked_dates: Record<string, number[]> | null;
   coming_soon: boolean | null;
-  sports: { name: string } | null;
+  map_emoji: string | null;
+  sports: { name: string; slug?: string } | null;
 };
 
 const DAYS: { key: string; label: string }[] = [
@@ -159,6 +161,7 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   );
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
@@ -173,10 +176,10 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
       if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng });
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -236,6 +239,15 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
           }}
           title="Pin your venue"
         />
+        <div className="sm:col-span-2 rounded-xl border border-border bg-secondary/20 p-3">
+          <EmojiPicker
+            label="Map emoji (venue pin)"
+            value={mapEmoji}
+            fallback="🎾"
+            onChange={setMapEmoji}
+            hint="Shown on the landing-page map. Individual courts can override this."
+          />
+        </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <strong>Location not supported.</strong> CourtHub is currently available for venues in the <strong>Philippines</strong> only. Please move your pin within the Philippines to continue.
@@ -321,9 +333,9 @@ function VenueSection({ venue }: { venue: Venue }) {
       <div className="p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(courtsQ.data ?? []).map((c) => (
-            <CourtCard key={c.id} court={c} onChanged={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+            <CourtCard key={c.id} court={c} venueEmoji={venue.map_emoji} onChanged={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
           ))}
-          <AddCourt venueId={venue.id} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+          <AddCourt venueId={venue.id} venueEmoji={venue.map_emoji} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
         </div>
 
 
@@ -375,11 +387,11 @@ function VenueSection({ venue }: { venue: Venue }) {
   );
 }
 
-function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }) {
+function CourtCard({ court, venueEmoji, onChanged }: { court: Court; venueEmoji: string | null; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
   const [managingHours, setManagingHours] = useState(false);
   if (editing) {
-    return <EditCourt court={court} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
+    return <EditCourt court={court} venueEmoji={venueEmoji} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
   }
   if (managingHours) {
     return <AvailabilityEditor court={court} onDone={() => { setManagingHours(false); onChanged(); }} onCancel={() => setManagingHours(false)} />;
@@ -609,7 +621,7 @@ function useSportsQuery(enabled: boolean) {
   return useQuery({
     queryKey: ["sports"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("sports").select("id, name").order("name");
+      const { data, error } = await supabase.from("sports").select("id, name, slug").order("name");
       if (error) throw error;
       return data as Sport[];
     },
@@ -617,11 +629,25 @@ function useSportsQuery(enabled: boolean) {
   });
 }
 
+export function sportEmoji(slug?: string | null): string {
+  switch (slug) {
+    case "pickleball": return "🥎";
+    case "tennis": return "🎾";
+    case "basketball": return "🏀";
+    case "table-tennis": return "🏓";
+    case "badminton": return "🏸";
+    case "volleyball": return "🏐";
+    case "football":
+    case "soccer": return "⚽";
+    default: return "🏟️";
+  }
+}
+
 function parseList(input: string): string[] {
   return input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
 }
 
-function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => void }) {
+function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEmoji: string | null; onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("25");
@@ -631,9 +657,13 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open);
+
+  const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
+  const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -647,12 +677,13 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         description: description || null,
         amenities: parseList(amenities),
         images,
+        map_emoji: mapEmoji,
       });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -696,6 +727,15 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
         <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
+        <div className="rounded-xl border border-border bg-background p-3">
+          <EmojiPicker
+            label="Court map emoji"
+            value={mapEmoji}
+            fallback={fallbackEmoji}
+            onChange={setMapEmoji}
+            hint="Falls back to the venue emoji, then the sport default."
+          />
+        </div>
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
@@ -708,7 +748,7 @@ function AddCourt({ venueId, onCreated }: { venueId: number; onCreated: () => vo
   );
 }
 
-function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
+function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venueEmoji: string | null; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
@@ -716,7 +756,10 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState<string[]>(court.images ?? []);
+  const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
   const [err, setErr] = useState<string | null>(null);
+
+  const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -728,6 +771,7 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         description: description || null,
         amenities: parseList(amenities),
         images,
+        map_emoji: mapEmoji,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -753,6 +797,15 @@ function EditCourt({ court, onDone, onCancel }: { court: Court; onDone: () => vo
         <Textarea label="Description" value={description} onChange={setDescription} />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
         <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
+        <div className="rounded-xl border border-border bg-background p-3">
+          <EmojiPicker
+            label="Court map emoji"
+            value={mapEmoji}
+            fallback={fallbackEmoji}
+            onChange={setMapEmoji}
+            hint="Falls back to the venue emoji, then the sport default."
+          />
+        </div>
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
@@ -871,6 +924,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [description, setDescription] = useState(venue.description ?? "");
   const [images, setImages] = useState<string[]>(venue.images ?? []);
   const [timezone, setTimezone] = useState(venue.timezone || "Asia/Manila");
+  const [mapEmoji, setMapEmoji] = useState<string | null>(venue.map_emoji ?? null);
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
@@ -883,7 +937,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji })
         .eq("id", venue.id);
       if (error) throw error;
     },
@@ -966,13 +1020,22 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
           <div className="sm:col-span-2">
             <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
           </div>
+          <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
+            <EmojiPicker
+              label="Map emoji (venue pin)"
+              value={mapEmoji}
+              fallback="🎾"
+              onChange={setMapEmoji}
+              hint="Shown on the landing-page map. Individual courts can override this."
+            />
+          </div>
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setTzConfirmed(false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
       </div>
     );

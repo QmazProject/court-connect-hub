@@ -95,11 +95,11 @@ function Landing() {
       const term = dQuery.trim();
       const usesCourtFilter = !!(filterSport || dMin || dMax);
       const courtsSelect = usesCourtFilter
-        ? "courts!inner(id, name, hourly_rate, sports!inner(slug, name))"
-        : "courts(id, name, hourly_rate, sports(slug, name))";
+        ? "courts!inner(id, name, hourly_rate, map_emoji, sports!inner(slug, name))"
+        : "courts(id, name, hourly_rate, map_emoji, sports(slug, name))";
       let q = supabase
         .from("venues")
-        .select(`id, name, address, latitude, longitude, ${courtsSelect}`)
+        .select(`id, name, address, latitude, longitude, map_emoji, ${courtsSelect}`)
         .order("name")
         .limit(100);
       if (term) q = q.ilike("name", `%${term}%`);
@@ -116,7 +116,21 @@ function Landing() {
         address: string;
         latitude: number | null;
         longitude: number | null;
-        courts: { id: number; name: string; hourly_rate: number; sports: { slug: string; name: string } | null }[];
+        map_emoji: string | null;
+        courts: { id: number; name: string; hourly_rate: number; map_emoji: string | null; sports: { slug: string; name: string } | null }[];
+      };
+      const sportDefault = (slug?: string | null) => {
+        switch (slug) {
+          case "pickleball": return "🥎";
+          case "tennis": return "🎾";
+          case "basketball": return "🏀";
+          case "table-tennis": return "🏓";
+          case "badminton": return "🏸";
+          case "volleyball": return "🏐";
+          case "football":
+          case "soccer": return "⚽";
+          default: return null;
+        }
       };
       return (data as unknown as Row[]).map<MapVenue & { sports: string[]; distanceKm: number | null }>((v) => {
         const rates = v.courts?.map((c) => Number(c.hourly_rate)) ?? [];
@@ -133,7 +147,13 @@ function Landing() {
           longitude: v.longitude,
           courtCount: v.courts?.length ?? 0,
           minRate: rates.length ? Math.min(...rates) : null,
-          courts: (v.courts ?? []).map((c) => ({ id: c.id, name: c.name, hourly_rate: Number(c.hourly_rate) })),
+          mapEmoji: v.map_emoji ?? null,
+          courts: (v.courts ?? []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            hourly_rate: Number(c.hourly_rate),
+            mapEmoji: c.map_emoji ?? v.map_emoji ?? sportDefault(c.sports?.slug) ?? null,
+          })),
           sports: Array.from(sportSet.values()),
           distanceKm: dist,
         };

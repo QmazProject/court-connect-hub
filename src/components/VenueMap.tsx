@@ -9,7 +9,8 @@ export type MapVenue = {
   longitude: number | null;
   courtCount: number;
   minRate: number | null;
-  courts: { id: number; name: string; hourly_rate: number }[];
+  mapEmoji: string | null;
+  courts: { id: number; name: string; hourly_rate: number; mapEmoji: string | null }[];
 };
 
 type Props = {
@@ -171,7 +172,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         const vLng = active.longitude as number;
         activeRef.current = { id: active.id, lat: vLat, lng: vLng };
 
-        const centerHtml = `<div class="ch-pin active"><div class="arrow"></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
+        const venueEmoji = active.mapEmoji || "🎾";
+        const centerHtml = `<div class="ch-pin active"><div class="arrow"></div><div class="body"><span class="emoji">${venueEmoji}</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
         const centerIcon = divIcon(L, centerHtml);
         const centerMarker = L.marker([vLat, vLng], { icon: centerIcon }).addTo(layer);
         centerMarker.bindPopup(
@@ -187,7 +189,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           // CSS rotation (clockwise from up) so the arrow points from court back to venue
           const rotDeg = (Math.atan2(-Math.cos(angle), -Math.sin(angle)) * 180) / Math.PI;
           const p = courtOffset(vLat, vLng, i, total);
-          const html = `<div class="ch-pin ch-court"><div class="point-wrap" style="transform: rotate(${rotDeg}deg)"><div class="point"></div></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${i + 1}</div></div>`;
+          const courtEmoji = c.mapEmoji || venueEmoji;
+          const html = `<div class="ch-pin ch-court"><div class="point-wrap" style="transform: rotate(${rotDeg}deg)"><div class="point"></div></div><div class="body"><span class="emoji">${courtEmoji}</span></div><div class="count">${i + 1}</div></div>`;
           const m = L.marker([p.lat, p.lng], { icon: divIcon(L, html, 34, "ch-court") }).addTo(layer);
           m.bindPopup(
             `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${c.name}</div><div style="font-size:11px;opacity:.7;">₱${Number(c.hourly_rate).toFixed(0)} / hour</div><div style="margin-top:6px;font-size:11px;color:hsl(var(--primary));font-weight:600;">Tap to book →</div></div>`,
@@ -203,7 +206,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         activeRef.current = null;
         // Show all venue pins
         pinned.forEach((v) => {
-          const html = `<div class="ch-pin"><div class="body"><span class="emoji">🎾</span></div><div class="count">${v.courtCount}</div><div class="tip"></div></div>`;
+          const emoji = v.mapEmoji || "🎾";
+          const html = `<div class="ch-pin"><div class="body"><span class="emoji">${emoji}</span></div><div class="count">${v.courtCount}</div><div class="tip"></div></div>`;
           const m = L.marker([v.latitude as number, v.longitude as number], { icon: divIcon(L, html) }).addTo(layer);
           m.bindPopup(
             `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${v.name}</div><div style="font-size:11px;opacity:.7;">${v.address}</div>${v.minRate != null ? `<div style="margin-top:4px;font-size:12px;color:hsl(var(--primary));font-weight:700;">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>` : ""}</div>`,
