@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type MapVenue = {
   id: number;
@@ -41,7 +41,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
   const meRef = useRef<any>(null);
+  const streetLayerRef = useRef<any>(null);
+  const satelliteLayerRef = useRef<any>(null);
   const readyRef = useRef(false);
+  const [view, setView] = useState<"street" | "satellite">("street");
 
   // Init map once
   useEffect(() => {
@@ -78,10 +81,18 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
 
       const map = L.map(elRef.current, { zoomControl: false }).setView([12.8797, 121.774], 6); // PH center
       L.control.zoom({ position: "topright" }).addTo(map);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      L.control.zoom({ position: "topright" }).addTo(map);
+      const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
-      }).addTo(map);
+      });
+      const satellite = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles © Esri" }
+      );
+      street.addTo(map);
+      streetLayerRef.current = street;
+      satelliteLayerRef.current = satellite;
       mapRef.current = map;
       layerRef.current = L.layerGroup().addTo(map);
       readyRef.current = true;
@@ -189,5 +200,35 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
     void onOpenVenue;
   }, [onOpenVenue]);
 
-  return <div ref={elRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={elRef} className="absolute inset-0" />
+      <div className="absolute left-3 top-3 z-[500] inline-flex overflow-hidden rounded-lg border border-border bg-background shadow">
+        <button
+          type="button"
+          onClick={() => {
+            if (view === "street" || !mapRef.current) return;
+            mapRef.current.removeLayer(satelliteLayerRef.current);
+            streetLayerRef.current.addTo(mapRef.current);
+            setView("street");
+          }}
+          className={`px-3 py-1.5 text-xs font-medium ${view === "street" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}
+        >
+          🗺️ Street
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (view === "satellite" || !mapRef.current) return;
+            mapRef.current.removeLayer(streetLayerRef.current);
+            satelliteLayerRef.current.addTo(mapRef.current);
+            setView("satellite");
+          }}
+          className={`px-3 py-1.5 text-xs font-medium ${view === "satellite" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}
+        >
+          🛰️ Satellite
+        </button>
+      </div>
+    </>
+  );
 }
