@@ -44,6 +44,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
   const meRef = useRef<any>(null);
+  const circleRef = useRef<any>(null);
   const streetLayerRef = useRef<any>(null);
   const satelliteLayerRef = useRef<any>(null);
   const readyRef = useRef(false);
