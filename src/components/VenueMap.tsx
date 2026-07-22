@@ -79,6 +79,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-pin .arrow { position:absolute; left:50%; top:-26px; transform: translateX(-50%); width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-top:14px solid #ef4444; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); animation: ch-arrow-bounce 1.1s ease-in-out infinite; z-index:3; }
           .ch-court { width: 40px; height: 40px; }
           .ch-court .body { background: hsl(var(--card)); color: hsl(var(--foreground)); border-color:#ef4444; font-size:16px; }
+          .ch-court .point-wrap { position:absolute; inset:0; pointer-events:none; z-index:3; }
+          .ch-court .point-wrap .point { position:absolute; left:50%; top:-10px; width:0; height:0; margin-left:-6px; border-left:6px solid transparent; border-right:6px solid transparent; border-bottom:10px solid #ef4444; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
           .ch-me { width:18px; height:18px; border-radius:9999px; background:#3b82f6; border:3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); }
           .ch-popup .leaflet-popup-content-wrapper { border-radius: 14px; padding: 2px; }
           .ch-popup .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
@@ -180,8 +182,12 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
 
         const courts = active.courts;
         courts.forEach((c, i) => {
-          const p = courtOffset(vLat, vLng, i, Math.max(courts.length, 1));
-          const html = `<div class="ch-pin ch-court"><div class="body"><span class="emoji">🎾</span></div><div class="count">${i + 1}</div><div class="tip"></div></div>`;
+          const total = Math.max(courts.length, 1);
+          const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+          // CSS rotation (clockwise from up) so the arrow points from court back to venue
+          const rotDeg = (Math.atan2(-Math.cos(angle), -Math.sin(angle)) * 180) / Math.PI;
+          const p = courtOffset(vLat, vLng, i, total);
+          const html = `<div class="ch-pin ch-court"><div class="point-wrap" style="transform: rotate(${rotDeg}deg)"><div class="point"></div></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${i + 1}</div><div class="tip"></div></div>`;
           const m = L.marker([p.lat, p.lng], { icon: divIcon(L, html, 34, "ch-court") }).addTo(layer);
           m.bindPopup(
             `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${c.name}</div><div style="font-size:11px;opacity:.7;">₱${Number(c.hourly_rate).toFixed(0)} / hour</div><div style="margin-top:6px;font-size:11px;color:hsl(var(--primary));font-weight:600;">Tap to book →</div></div>`,
