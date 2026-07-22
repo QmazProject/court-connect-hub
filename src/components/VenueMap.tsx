@@ -196,7 +196,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         }
       }
     })();
-  }, [nearby, radiusKm, activeVenueId]);
+  }, [nearby, radiusKm, radiusHasMatches, activeVenueId]);
 
   // Render pins whenever venues / active change
   useEffect(() => {
