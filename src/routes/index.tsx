@@ -159,9 +159,9 @@ function Landing() {
     },
   });
 
-  const { list: sortedVenues, fallback: nearbyFallback } = useMemo(() => {
-    if (!venues) return { list: [], fallback: null as null | "nationwide" | "nearest" };
-    if (!nearby) return { list: venues, fallback: null };
+  const { list: sortedVenues, empty: nearbyEmpty, nearestSuggestion } = useMemo(() => {
+    if (!venues) return { list: [], empty: false, nearestSuggestion: [] as MapVenue[] };
+    if (!nearby) return { list: venues, empty: false, nearestSuggestion: [] };
 
     const withDistance = venues
       .map((v) => ({
@@ -175,14 +175,15 @@ function Landing() {
       .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
 
     if (nationwide) {
-      return { list: withDistance, fallback: "nationwide" as const };
+      return { list: withDistance, empty: false, nearestSuggestion: [] };
     }
 
     const inRadius = withDistance.filter((v) => (v.distanceKm ?? 0) <= radiusKm);
-    if (inRadius.length > 0) return { list: inRadius, fallback: null };
+    return { list: inRadius, empty: inRadius.length === 0, nearestSuggestion: withDistance.slice(0, 5) };
+  }, [venues, nearby, radiusKm, nationwide]);
 
-    // No venues within the chosen radius — auto-fallback to the 5 nearest
-    return { list: withDistance.slice(0, 5), fallback: "nearest" as const };
+  const [showNearestPeek, setShowNearestPeek] = useState(false);
+  useEffect(() => { if (!nearbyEmpty) setShowNearestPeek(false); }, [nearbyEmpty]);
   }, [venues, nearby, radiusKm, nationwide]);
 
   const requestNearby = () => {
