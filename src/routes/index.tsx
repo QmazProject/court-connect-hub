@@ -313,9 +313,9 @@ function Landing() {
       </div>
 
       {/* MAP + LIST */}
-      <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex h-[calc(100vh-64px)] min-h-[520px] flex-1 overflow-hidden pl-3 sm:pl-6">
         {/* Map */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 overflow-hidden rounded-l-2xl border border-border">
           <VenueMap
             venues={sortedVenues}
             activeVenueId={activeVenueId}
