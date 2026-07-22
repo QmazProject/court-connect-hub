@@ -194,6 +194,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         // Zoom in to venue
         mapRef.current.flyTo([vLat, vLng], 18, { duration: 0.6 });
       } else {
+        activeRef.current = null;
         // Show all venue pins
         pinned.forEach((v) => {
           const html = `<div class="ch-pin"><div class="body"><span class="emoji">🎾</span></div><div class="count">${v.courtCount}</div><div class="tip"></div></div>`;
