@@ -697,9 +697,23 @@ function VenueList({
   const MAX_VISIBLE = 50;
   const visibleVenues = venues.slice(0, MAX_VISIBLE);
   const hiddenCount = Math.max(0, venues.length - MAX_VISIBLE);
+  const [listScrolled, setListScrolled] = useState(false);
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onScroll = () => setListScrolled(el.scrollTop > 40);
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [listRef]);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-border px-4 py-3">
+      <div
+        className={
+          "overflow-hidden border-b border-border transition-all duration-200 " +
+          (listScrolled ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-24 px-4 py-3 opacity-100")
+        }
+      >
         <div className="font-display text-sm font-bold tracking-tight">
           {activeVenue ? activeVenue.name : "Venues on the map"}
         </div>
@@ -713,6 +727,7 @@ function VenueList({
       </div>
 
       <div ref={listRef} className="nice-scroll min-h-0 flex-1 overflow-y-auto p-3">
+
 
         {activeVenue ? (
           <div className="space-y-2">
