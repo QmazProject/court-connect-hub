@@ -68,6 +68,19 @@ function Landing() {
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
+  useEffect(() => {
+    const scroller = document.querySelector("main") as HTMLElement | null;
+    const target: HTMLElement | Window = scroller ?? window;
+    const onScroll = () => {
+      const y = scroller ? scroller.scrollTop : window.scrollY;
+      setHeaderCollapsed(y > 80);
+    };
+    onScroll();
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Debounce inputs
   const [dQuery, setDQuery] = useState(venueQuery);
