@@ -293,6 +293,11 @@ function VenueDetail() {
               </button>
             </>
           )}
+          {hasImages && images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white backdrop-blur">
+              {((imgIdx % images.length) + images.length) % images.length + 1} / {images.length}
+            </div>
+          )}
           <img
             src={currentImg}
             alt={venue?.name ?? "Venue"}
