@@ -44,7 +44,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const streetLayerRef = useRef<any>(null);
   const satelliteLayerRef = useRef<any>(null);
   const readyRef = useRef(false);
+  const activeRef = useRef<{ id: number | null; lat: number; lng: number } | null>(null);
+  const rezoomingRef = useRef(false);
   const [view, setView] = useState<"street" | "satellite">("street");
+
 
   // Init map once
   useEffect(() => {
