@@ -153,7 +153,13 @@ function Header() {
           : "h-16 border-border/60")
       }
     >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.7)] transition-[width,opacity] duration-150 ease-out"
+        style={{ width: `${progress}%`, opacity: progress > 0.5 ? 1 : 0 }}
+      />
       <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6">
+
         <Link to="/" className="flex items-center gap-2 font-display font-bold tracking-tight">
           <img
             src={chLogo.url}
