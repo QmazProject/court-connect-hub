@@ -202,7 +202,8 @@ function Landing() {
   }, [activeVenueId]);
 
   return (
-    <main className="flex min-h-[calc(100vh-64px)] flex-col">
+    <div className="flex h-full min-h-[640px] flex-col">
+
       {/* HERO */}
       <section className="border-b border-border bg-gradient-to-b from-primary/10 via-background to-background">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
