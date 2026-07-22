@@ -230,6 +230,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             e.originalEvent?.stopPropagation?.();
             onSelectVenue(v.id);
           });
+          m.on("click", (e: any) => {
+            e.originalEvent?.stopPropagation?.();
+            onSelectVenue(v.id);
+          });
         });
 
         // Fit bounds
