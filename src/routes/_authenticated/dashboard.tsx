@@ -161,6 +161,7 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   );
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
@@ -175,10 +176,10 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
       if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng });
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
