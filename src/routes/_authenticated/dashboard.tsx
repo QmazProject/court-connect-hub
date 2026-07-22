@@ -9,6 +9,20 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
+const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "Asia/Manila", label: "Philippines — Asia/Manila (PHT, UTC+8)" },
+  { value: "Asia/Singapore", label: "Singapore — Asia/Singapore (UTC+8)" },
+  { value: "Asia/Hong_Kong", label: "Hong Kong — Asia/Hong_Kong (UTC+8)" },
+  { value: "Asia/Kuala_Lumpur", label: "Malaysia — Asia/Kuala_Lumpur (UTC+8)" },
+  { value: "Asia/Jakarta", label: "Indonesia (WIB) — Asia/Jakarta (UTC+7)" },
+  { value: "Asia/Bangkok", label: "Thailand — Asia/Bangkok (UTC+7)" },
+  { value: "Asia/Tokyo", label: "Japan — Asia/Tokyo (UTC+9)" },
+  { value: "Asia/Seoul", label: "South Korea — Asia/Seoul (UTC+9)" },
+  { value: "Asia/Taipei", label: "Taiwan — Asia/Taipei (UTC+8)" },
+  { value: "Australia/Sydney", label: "Australia — Australia/Sydney (UTC+10/11)" },
+  { value: "UTC", label: "UTC" },
+];
+
 type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
 type Sport = { id: number; name: string };
 type Court = {
@@ -107,7 +121,10 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   const [open, setOpen] = useState(!compact);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [timezone, setTimezone] = useState(
+    TIMEZONE_OPTIONS.some((t) => t.value === detectedTz) ? detectedTz : "Asia/Manila"
+  );
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -137,7 +154,19 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
       <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="mt-4 grid gap-3 sm:grid-cols-2">
         <Input label="Venue name" value={name} onChange={setName} required />
         <Input label="Address" value={address} onChange={setAddress} required />
-        <Input label="Timezone" value={timezone} onChange={setTimezone} required />
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Timezone</span>
+          <select
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            {TIMEZONE_OPTIONS.map((tz) => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] text-muted-foreground">Used to display court hours and bookings in the venue's local time.</span>
+        </label>
         <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-secondary/30 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Map location</span>
@@ -775,6 +804,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [address, setAddress] = useState(venue.address);
   const [description, setDescription] = useState(venue.description ?? "");
   const [images, setImages] = useState<string[]>(venue.images ?? []);
+  const [timezone, setTimezone] = useState(venue.timezone || "Asia/Manila");
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
 
@@ -782,7 +812,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
     mutationFn: async () => {
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images })
+        .update({ name, address, description: description || null, images, timezone })
         .eq("id", venue.id);
       if (error) throw error;
     },
@@ -822,6 +852,21 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
           <Input label="Venue name" value={name} onChange={setName} required />
           <Input label="Address" value={address} onChange={setAddress} required />
           <label className="block sm:col-span-2">
+            <span className="text-xs font-medium text-muted-foreground">Timezone</span>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            >
+              {TIMEZONE_OPTIONS.some((t) => t.value === timezone) ? null : (
+                <option value={timezone}>{timezone} (current)</option>
+              )}
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-muted-foreground">Description</span>
             <textarea
               value={description}
@@ -840,7 +885,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
           <button onClick={() => save.mutate()} disabled={save.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
       </div>
     );
