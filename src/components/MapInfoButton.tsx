@@ -80,7 +80,7 @@ export function MapInfoButton({ getCenter, className, align = "right" }: Props) 
         {showAttrib && (
           <>
             <div className="fixed inset-0 z-[600]" onClick={() => setShowAttrib(false)} />
-            <div className="absolute bottom-10 right-0 z-[700] w-64 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+            <div className={`absolute bottom-10 z-[700] w-64 overflow-hidden rounded-xl border border-border bg-background shadow-xl ${align === "left" ? "left-0" : "right-0"}`}>
               <button
                 type="button"
                 onClick={() => { setShowAttrib(false); setReportOpen(true); }}
