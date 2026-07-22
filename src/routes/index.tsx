@@ -610,6 +610,15 @@ function Landing() {
           </div>
         </div>
       </div>
+
+      <MapPicker
+        open={manualPickerOpen}
+        initialLat={nearby?.lat ?? null}
+        initialLng={nearby?.lng ?? null}
+        onClose={() => setManualPickerOpen(false)}
+        onSave={saveManualLocation}
+        title="Pin your location"
+      />
     </div>
   );
 }
