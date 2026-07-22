@@ -119,6 +119,11 @@ function Header() {
       requestAnimationFrame(() => {
         const y = getY();
         setScrolled(y > 8);
+        const max = scroller
+          ? scroller.scrollHeight - scroller.clientHeight
+          : document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
+        setProgress(y < 4 ? 0 : pct);
         const delta = y - lastY;
         if (y < 12) setHidden(false);
         else if (delta > 6) setHidden(true);
@@ -127,6 +132,7 @@ function Header() {
         ticking = false;
       });
     };
+
     onScroll();
     target.addEventListener("scroll", onScroll, { passive: true });
     return () => target.removeEventListener("scroll", onScroll);
