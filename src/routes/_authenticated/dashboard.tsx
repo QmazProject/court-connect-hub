@@ -621,12 +621,26 @@ function useSportsQuery(enabled: boolean) {
   return useQuery({
     queryKey: ["sports"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("sports").select("id, name").order("name");
+      const { data, error } = await supabase.from("sports").select("id, name, slug").order("name");
       if (error) throw error;
       return data as Sport[];
     },
     enabled,
   });
+}
+
+export function sportEmoji(slug?: string | null): string {
+  switch (slug) {
+    case "pickleball": return "🥎";
+    case "tennis": return "🎾";
+    case "basketball": return "🏀";
+    case "table-tennis": return "🏓";
+    case "badminton": return "🏸";
+    case "volleyball": return "🏐";
+    case "football":
+    case "soccer": return "⚽";
+    default: return "🏟️";
+  }
 }
 
 function parseList(input: string): string[] {
