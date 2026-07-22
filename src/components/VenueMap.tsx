@@ -226,11 +226,6 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             opacity: 1,
             sticky: false,
           });
-          m.bindPopup(
-            `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${v.name}</div><div style="font-size:11px;opacity:.7;">${v.address}</div>${v.minRate != null ? `<div style="margin-top:4px;font-size:12px;color:hsl(var(--primary));font-weight:700;">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>` : ""}</div>`,
-            { className: "ch-popup", closeButton: false }
-          );
-          m.on("mouseover", () => m.openPopup());
           m.on("click", (e: any) => {
             e.originalEvent?.stopPropagation?.();
             onSelectVenue(v.id);
