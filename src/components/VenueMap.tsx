@@ -1,16 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
-const REPORT_CATEGORIES = [
-  { icon: "📍", label: "Place address or location" },
-  { icon: "🛣️", label: "Road or road name" },
-  { icon: "🚫", label: "Explicit content (profanity, vandalism, hate speech)" },
-  { icon: "🗺️", label: "Border of country, state, or city" },
-  { icon: "🏷️", label: "Name of country, state, city, or landmark" },
-  { icon: "🌳", label: "Feature such as water body, park, or terrain" },
-  { icon: "📌", label: "Pin location is incorrect" },
-  { icon: "❓", label: "Other" },
-];
+import { MapInfoButton } from "./MapInfoButton";
 
 export type MapVenue = {
   id: number;
