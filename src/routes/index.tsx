@@ -468,7 +468,7 @@ function VenueList({
   activeVenue: (MapVenue & { sports?: string[]; distanceKm?: number | null }) | null | undefined;
   listRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const MAX_VISIBLE = 10;
+  const MAX_VISIBLE = 50;
   const visibleVenues = venues.slice(0, MAX_VISIBLE);
   const hiddenCount = Math.max(0, venues.length - MAX_VISIBLE);
   return (
