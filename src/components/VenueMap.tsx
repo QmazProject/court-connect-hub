@@ -136,6 +136,19 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         if (!rezoomingRef.current) userInteractedRef.current = true;
       });
       map.on("dragstart", () => { userInteractedRef.current = true; });
+
+      // While a venue is active (scattered court view), keep the user zoomed in
+      // on that venue — if they zoom out, snap back to the venue focus.
+      map.on("zoomend", () => {
+        const a = activeRef.current;
+        if (!a || a.id == null) return;
+        if (rezoomingRef.current) return;
+        if (map.getZoom() < 17) {
+          rezoomingRef.current = true;
+          map.flyTo([a.lat, a.lng], 18, { duration: 0.5 });
+          setTimeout(() => { rezoomingRef.current = false; }, 600);
+        }
+      });
     })();
     return () => {
       cancelled = true;
