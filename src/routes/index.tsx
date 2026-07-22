@@ -482,7 +482,7 @@ function Landing() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => { setNearby(null); setNationwide(false); setShowNearestPeek(false); }}
+                  onClick={() => { setNearby(null); setNationwide(false); setShowNearestPeek(false); setLocationMode(null); }}
                   className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Clear location
