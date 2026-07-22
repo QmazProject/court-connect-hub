@@ -5,6 +5,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import chLogo from "@/assets/CHicon.png.asset.json";
+import {
+  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
+  Receipt, Settings as SettingsIcon, Menu, X,
+} from "lucide-react";
+
+type SectionKey =
+  | "dashboard" | "calendar" | "bookings" | "courts"
+  | "customers" | "team" | "transactions" | "settings";
+
+const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "calendar", label: "Calendar", icon: CalendarDays },
+  { key: "bookings", label: "Bookings", icon: BookOpen },
+  { key: "courts", label: "Courts", icon: LandPlot },
+  { key: "customers", label: "Customers", icon: Users },
+  { key: "team", label: "Team", icon: UserCog },
+  { key: "transactions", label: "Transactions", icon: Receipt },
+  { key: "settings", label: "Settings", icon: SettingsIcon },
+];
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
