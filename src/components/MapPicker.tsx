@@ -191,7 +191,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div
         className="flex h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-background shadow-xl sm:h-[70vh] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
