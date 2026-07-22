@@ -85,6 +85,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function Header() {
   const [session, setSession] = useState<{ email?: string; role?: string } | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -104,10 +105,29 @@ function Header() {
   }, [router]);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    const scroller = document.querySelector("main") as HTMLElement | null;
+    const target: HTMLElement | Window = scroller ?? window;
+    const getY = () =>
+      scroller ? scroller.scrollTop : window.scrollY;
+    let lastY = getY();
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = getY();
+        setScrolled(y > 8);
+        const delta = y - lastY;
+        if (y < 12) setHidden(false);
+        else if (delta > 6) setHidden(true);
+        else if (delta < -6) setHidden(false);
+        lastY = y;
+        ticking = false;
+      });
+    };
     onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
   }, []);
 
   async function signOut() {
