@@ -202,7 +202,8 @@ function Landing() {
     if (sport) navigate({ search: {} });
   };
 
-  const activeVenue = activeVenueId != null ? sortedVenues.find((v) => v.id === activeVenueId) : null;
+  const displayVenues = showNearestPeek && nearbyEmpty ? nearestSuggestion : sortedVenues;
+  const activeVenue = activeVenueId != null ? displayVenues.find((v) => v.id === activeVenueId) : null;
 
   // Auto-scroll list to active venue
   const listRef = useRef<HTMLDivElement | null>(null);
