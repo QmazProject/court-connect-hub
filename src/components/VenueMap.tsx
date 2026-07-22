@@ -167,6 +167,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         // Show center venue pin + individual court pins around it
         const vLat = active.latitude as number;
         const vLng = active.longitude as number;
+        activeRef.current = { id: active.id, lat: vLat, lng: vLng };
 
         const centerHtml = `<div class="ch-pin active"><div class="arrow"></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
         const centerIcon = divIcon(L, centerHtml);
