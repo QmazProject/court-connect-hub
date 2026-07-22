@@ -5,6 +5,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import chLogo from "@/assets/CHicon.png.asset.json";
+import {
+  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
+  Receipt, Settings as SettingsIcon, Menu, X,
+} from "lucide-react";
+
+type SectionKey =
+  | "dashboard" | "calendar" | "bookings" | "courts"
+  | "customers" | "team" | "transactions" | "settings";
+
+const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "calendar", label: "Calendar", icon: CalendarDays },
+  { key: "bookings", label: "Bookings", icon: BookOpen },
+  { key: "courts", label: "Courts", icon: LandPlot },
+  { key: "customers", label: "Customers", icon: Users },
+  { key: "team", label: "Team", icon: UserCog },
+  { key: "transactions", label: "Transactions", icon: Receipt },
+  { key: "settings", label: "Settings", icon: SettingsIcon },
+];
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -80,6 +100,9 @@ const DAYS: { key: string; label: string }[] = [
 function Dashboard() {
   const { user } = Route.useRouteContext() as { user: { id: string; email?: string } };
   const qc = useQueryClient();
+  const [section, setSection] = useState<SectionKey>("dashboard");
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
@@ -103,42 +126,257 @@ function Dashboard() {
     },
   });
 
-  if (profileQ.isLoading) return <Shell><Skeleton /></Shell>;
+  if (profileQ.isLoading) {
+    return (
+      <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+        <Skeleton />
+      </TenantShell>
+    );
+  }
   if (profileQ.data?.role !== "tenant") {
     return (
-      <Shell>
+      <main className="mx-auto max-w-6xl px-6 py-10">
         <EmptyState
           title="Player account"
           body="Your account is set up as a player. Head back to browse courts."
           cta={<Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Browse courts</Link>}
         />
-      </Shell>
+      </main>
     );
   }
 
-  return (
-    <Shell>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Tenant dashboard</h1>
-        <p className="mt-1 text-muted-foreground">Manage your venues and courts.</p>
-      </div>
+  const venues = venuesQ.data ?? [];
+  const loadingVenues = venuesQ.isLoading;
 
-      {venuesQ.isLoading ? <Skeleton /> : (venuesQ.data?.length ?? 0) === 0 ? (
-        <CreateVenue onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); }} />
-      ) : (
-        <div className="space-y-8">
-          {venuesQ.data!.map((v) => (
-            <VenueSection key={v.id} venue={v} />
-          ))}
-          <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact />
-        </div>
+  return (
+    <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+      {section === "dashboard" && (
+        <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
       )}
-    </Shell>
+      {section === "courts" && (
+        <>
+          <SectionHeader title="Courts" subtitle="Manage your venues and courts." />
+          {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
+            <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
+          ) : (
+            <div className="space-y-8">
+              {venues.map((v) => <VenueSection key={v.id} venue={v} />)}
+              <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact />
+            </div>
+          )}
+        </>
+      )}
+      {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
+      {section === "bookings" && <ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." />}
+      {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
+      {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
+      {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
+      {section === "settings" && <ComingSoon title="Settings" body="Business profile, notifications and preferences." />}
+    </TenantShell>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>;
+function TenantShell({
+  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed,
+}: {
+  children: React.ReactNode;
+  section: SectionKey;
+  setSection: (s: SectionKey) => void;
+  mobileOpen: boolean;
+  setMobileOpen: (v: boolean) => void;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+}) {
+  const current = NAV.find((n) => n.key === section);
+  return (
+    <div className="flex min-h-full w-full">
+      {/* Desktop sidebar */}
+      <aside
+        className={
+          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-[calc(100dvh-3rem)] md:flex-col transition-[width] duration-200 " +
+          (collapsed ? "md:w-16" : "md:w-60")
+        }
+      >
+        <SidebarBody
+          section={section}
+          setSection={setSection}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+        />
+      </aside>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[1200] md:hidden">
+          <button aria-label="Close menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/40" />
+          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-card shadow-xl">
+            <SidebarBody
+              section={section}
+              setSection={(s) => { setSection(s); setMobileOpen(false); }}
+              collapsed={false}
+              setCollapsed={() => {}}
+              onClose={() => setMobileOpen(false)}
+            />
+          </aside>
+        </div>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile top bar */}
+        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
+          <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
+            <Menu className="h-4 w-4" /> Menu
+          </button>
+          <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
+          <span className="w-16" />
+        </div>
+        <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarBody({
+  section, setSection, collapsed, setCollapsed, onClose,
+}: {
+  section: SectionKey;
+  setSection: (s: SectionKey) => void;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  onClose?: () => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <img src={chLogo.url} alt="CourtHub" className="h-7 w-7 shrink-0 rounded-full object-contain" />
+          {!collapsed && <span className="truncate font-display text-sm font-bold tracking-tight">CourtHub</span>}
+        </div>
+        {onClose ? (
+          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 hover:bg-secondary">
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden rounded-md p-1 text-muted-foreground hover:bg-secondary md:inline-flex"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <nav className="flex-1 overflow-y-auto p-2">
+        <ul className="space-y-1">
+          {NAV.map(({ key, label, icon: Icon }) => {
+            const active = section === key;
+            return (
+              <li key={key}>
+                <button
+                  onClick={() => setSection(key)}
+                  title={collapsed ? label : undefined}
+                  className={
+                    "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
+                    (active
+                      ? "bg-primary/15 text-primary"
+                      : "text-foreground/80 hover:bg-secondary hover:text-foreground")
+                  }
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      {!collapsed && (
+        <div className="border-t border-border p-3 text-[11px] text-muted-foreground">
+          Tenant workspace
+        </div>
+      )}
+    </>
+  );
+}
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-6">
+      <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
+      {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+    </div>
+  );
+}
+
+function ComingSoon({ title, body }: { title: string; body: string }) {
+  return (
+    <>
+      <SectionHeader title={title} />
+      <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+        <p className="text-sm text-muted-foreground">{body}</p>
+        <p className="mt-3 text-xs font-medium uppercase tracking-wider text-primary">Coming soon</p>
+      </div>
+    </>
+  );
+}
+
+function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; loading: boolean; setSection: (s: SectionKey) => void }) {
+  const venueIds = venues.map((v) => v.id);
+  const statsQ = useQuery({
+    queryKey: ["tenant-stats", venueIds.join(",")],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data: courts } = await supabase.from("courts").select("id, venue_id").in("venue_id", venueIds);
+      const courtIds = (courts ?? []).map((c) => c.id);
+      let upcoming = 0;
+      if (courtIds.length) {
+        const { count } = await supabase
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .in("court_id", courtIds)
+          .gte("end_time", new Date().toISOString());
+        upcoming = count ?? 0;
+      }
+      return { courts: courtIds.length, upcoming };
+    },
+  });
+
+  return (
+    <>
+      <SectionHeader title="Dashboard" subtitle="Your workspace at a glance." />
+      {loading ? <Skeleton /> : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard label="Venues" value={venues.length} />
+          <StatCard label="Courts" value={statsQ.data?.courts ?? 0} />
+          <StatCard label="Upcoming bookings" value={statsQ.data?.upcoming ?? 0} />
+        </div>
+      )}
+      <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        <QuickAction title="Manage courts" body="Add courts, rates, amenities and availability." onClick={() => setSection("courts")} />
+        <QuickAction title="View bookings" body="See upcoming reservations across your venues." onClick={() => setSection("bookings")} />
+      </div>
+    </>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 text-3xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+function QuickAction({ title, body, onClick }: { title: string; body: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary">
+      <div className="font-semibold">{title}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{body}</div>
+    </button>
+  );
 }
 function Skeleton() { return <div className="h-40 animate-pulse rounded-2xl bg-muted" />; }
 function EmptyState({ title, body, cta }: { title: string; body: string; cta?: React.ReactNode }) {
