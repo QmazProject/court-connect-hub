@@ -540,7 +540,7 @@ function VenueList({
           </div>
         ) : (
           <div className="space-y-2">
-            {venues.map((v) => {
+            {visibleVenues.map((v) => {
               const pinned = v.latitude != null && v.longitude != null;
               const active = v.id === activeVenueId;
               return (
@@ -596,9 +596,15 @@ function VenueList({
                 </button>
               );
             })}
+            {hiddenCount > 0 && (
+              <div className="rounded-xl border border-dashed border-border bg-background/60 p-3 text-center text-[11px] text-muted-foreground">
+                +{hiddenCount} more {hiddenCount === 1 ? "venue" : "venues"} — use search or filters to narrow down.
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
