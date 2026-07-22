@@ -133,13 +133,10 @@ function Landing() {
           default: return null;
         }
       };
-      return (data as unknown as Row[]).map<MapVenue & { sports: string[]; distanceKm: number | null }>((v) => {
+      return (data as unknown as Row[]).map<MapVenue & { sports: string[] }>((v) => {
         const rates = v.courts?.map((c) => Number(c.hourly_rate)) ?? [];
         const sportSet = new Map<string, string>();
         v.courts?.forEach((c) => c.sports && sportSet.set(c.sports.slug, c.sports.name));
-        const dist = nearby && v.latitude != null && v.longitude != null
-          ? haversineKm(nearby, { lat: v.latitude as number, lng: v.longitude as number })
-          : null;
         return {
           id: v.id,
           name: v.name,
@@ -156,7 +153,6 @@ function Landing() {
             mapEmoji: c.map_emoji ?? v.map_emoji ?? sportDefault(c.sports?.slug) ?? null,
           })),
           sports: Array.from(sportSet.values()),
-          distanceKm: dist,
         };
       });
     },
@@ -165,10 +161,16 @@ function Landing() {
   const sortedVenues = useMemo(() => {
     if (!venues) return [];
     if (nearby) {
-      const withinRadius = venues.filter(
-        (v) => v.distanceKm != null && v.distanceKm <= radiusKm
-      );
-      return withinRadius.sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+      return venues
+        .map((v) => ({
+          ...v,
+          distanceKm:
+            v.latitude != null && v.longitude != null
+              ? haversineKm(nearby, { lat: v.latitude as number, lng: v.longitude as number })
+              : null,
+        }))
+        .filter((v) => v.distanceKm != null && v.distanceKm <= radiusKm)
+        .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
     }
     return venues;
   }, [venues, nearby, radiusKm]);
