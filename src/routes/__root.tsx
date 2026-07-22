@@ -83,7 +83,7 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function Header() {
-  const [session, setSession] = useState<{ email?: string; role?: string } | null>(null);
+  const [session, setSession] = useState<{ name?: string; role?: string } | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -92,15 +92,15 @@ function Header() {
 
   useEffect(() => {
     let mounted = true;
-    async function hydrate(userId: string | undefined, email: string | undefined) {
+    async function hydrate(userId: string | undefined, fallbackName: string | undefined) {
       if (!userId) { if (mounted) setSession(null); return; }
-      const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-      if (mounted) setSession({ email, role: data?.role });
+      const { data } = await supabase.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
+      if (mounted) setSession({ name: data?.full_name || fallbackName, role: data?.role });
     }
-    supabase.auth.getUser().then(({ data }) => hydrate(data.user?.id, data.user?.email));
+    supabase.auth.getUser().then(({ data }) => hydrate(data.user?.id, (data.user?.user_metadata as { full_name?: string } | undefined)?.full_name));
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      hydrate(s?.user?.id, s?.user?.email);
+      hydrate(s?.user?.id, (s?.user?.user_metadata as { full_name?: string } | undefined)?.full_name);
       router.invalidate();
     });
     return () => { mounted = false; sub.subscription.unsubscribe(); };
@@ -185,7 +185,7 @@ function Header() {
                   Dashboard
                 </Link>
               )}
-              <span className="hidden text-xs text-muted-foreground sm:inline">{session.email}</span>
+              {session.name && <span className="hidden max-w-[160px] truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
               <button onClick={signOut} className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary">
                 Sign out
               </button>
