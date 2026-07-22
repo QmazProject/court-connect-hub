@@ -165,15 +165,13 @@ function Landing() {
   const sortedVenues = useMemo(() => {
     if (!venues) return [];
     if (nearby) {
-      return [...venues].sort((a, b) => {
-        if (a.distanceKm == null && b.distanceKm == null) return 0;
-        if (a.distanceKm == null) return 1;
-        if (b.distanceKm == null) return -1;
-        return a.distanceKm - b.distanceKm;
-      });
+      const withinRadius = venues.filter(
+        (v) => v.distanceKm != null && v.distanceKm <= radiusKm
+      );
+      return withinRadius.sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
     }
     return venues;
-  }, [venues, nearby]);
+  }, [venues, nearby, radiusKm]);
 
   const requestNearby = () => {
     if (!("geolocation" in navigator)) { setNearbyError("Location not supported on this device."); return; }
