@@ -208,7 +208,14 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search a place, street, or landmark…"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && coordMatch) {
+                  e.preventDefault();
+                  flyTo(coordMatch.lat, coordMatch.lng, 17);
+                  setResults([]);
+                }
+              }}
+              placeholder="Search a place, or paste coordinates (e.g. 14.5995, 120.9842)…"
               className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm outline-none focus:border-primary"
             />
             {query && (
