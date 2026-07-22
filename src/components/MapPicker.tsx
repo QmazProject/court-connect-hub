@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { MapInfoButton } from "./MapInfoButton";
 
 type Props = {
   open: boolean;
