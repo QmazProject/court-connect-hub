@@ -200,5 +200,35 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
     void onOpenVenue;
   }, [onOpenVenue]);
 
-  return <div ref={elRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={elRef} className="absolute inset-0" />
+      <div className="absolute left-3 top-3 z-[500] inline-flex overflow-hidden rounded-lg border border-border bg-background shadow">
+        <button
+          type="button"
+          onClick={() => {
+            if (view === "street" || !mapRef.current) return;
+            mapRef.current.removeLayer(satelliteLayerRef.current);
+            streetLayerRef.current.addTo(mapRef.current);
+            setView("street");
+          }}
+          className={`px-3 py-1.5 text-xs font-medium ${view === "street" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}
+        >
+          🗺️ Street
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (view === "satellite" || !mapRef.current) return;
+            mapRef.current.removeLayer(streetLayerRef.current);
+            satelliteLayerRef.current.addTo(mapRef.current);
+            setView("satellite");
+          }}
+          className={`px-3 py-1.5 text-xs font-medium ${view === "satellite" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}
+        >
+          🛰️ Satellite
+        </button>
+      </div>
+    </>
+  );
 }
