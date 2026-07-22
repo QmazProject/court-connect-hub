@@ -390,7 +390,7 @@ function Landing() {
                     <input
                       type="range"
                       min={1}
-                      max={25}
+                      max={100}
                       step={1}
                       value={radiusKm}
                       onChange={(e) => setRadiusKm(Number(e.target.value))}
@@ -413,6 +413,19 @@ function Landing() {
                           {km}km
                         </button>
                       ))}
+                      <input
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={radiusKm}
+                        onChange={(e) => {
+                          const n = Number(e.target.value);
+                          if (Number.isFinite(n) && n > 0) setRadiusKm(Math.min(500, Math.max(1, Math.round(n))));
+                        }}
+                        className="w-14 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-semibold text-foreground outline-none focus:border-primary"
+                        aria-label="Custom radius in kilometers"
+                      />
+                      <span className="text-[11px] text-muted-foreground">km</span>
                     </div>
                   </>
                 )}
@@ -433,19 +446,19 @@ function Landing() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => { setNearby(null); setNationwide(false); }}
+                  onClick={() => { setNearby(null); setNationwide(false); setShowNearestPeek(false); }}
                   className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Clear location
                 </button>
               </div>
 
-              {nearbyFallback === "nearest" && (
+              {!nationwide && nearbyEmpty && radiusKm >= 25 && nearestSuggestion.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                   <span className="font-semibold">No venues within {radiusKm} km.</span>
-                  <span>Showing the 5 nearest instead.</span>
-                  <div className="ml-auto flex items-center gap-1">
-                    {[50, 100].map((km) => (
+                  <span>Try a wider search:</span>
+                  <div className="ml-auto flex flex-wrap items-center gap-1">
+                    {[50, 100, 200].filter((km) => km > radiusKm).map((km) => (
                       <button
                         key={km}
                         type="button"
@@ -457,6 +470,13 @@ function Landing() {
                     ))}
                     <button
                       type="button"
+                      onClick={() => setShowNearestPeek((v) => !v)}
+                      className="rounded-full border border-amber-500/50 bg-white/60 px-2 py-0.5 font-semibold text-amber-900 hover:bg-white dark:bg-transparent dark:text-amber-100"
+                    >
+                      {showNearestPeek ? "Hide nearest" : "Show 5 nearest"}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setNationwide(true)}
                       className="rounded-full border border-primary bg-primary px-2 py-0.5 font-semibold text-primary-foreground hover:opacity-90"
                     >
@@ -465,6 +485,8 @@ function Landing() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
             </div>
           )}
 
