@@ -293,7 +293,7 @@ function Landing() {
                 type="text"
                 value={venueQuery}
                 onChange={(e) => setVenueQuery(e.target.value)}
-                placeholder="Search venues by name…"
+                placeholder="Search venues, or use Nearby / Pin manually…"
                 className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
               {venueQuery && (
