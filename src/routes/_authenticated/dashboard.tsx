@@ -229,11 +229,36 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
           initialLat={lat}
           initialLng={lng}
           onClose={() => setPickerOpen(false)}
-          onSave={(la, ln) => { setLat(la); setLng(ln); setPickerOpen(false); }}
+          onSave={(la, ln) => {
+            setLat(la); setLng(ln); setPickerOpen(false);
+            const s = suggestTimezone(la, ln);
+            if (s) { setTimezone(s.tz); setTzConfirmed(false); }
+          }}
           title="Pin your venue"
         />
+        {pinOutsidePH && (
+          <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <strong>Location not supported.</strong> CourtHub is currently available for venues in the <strong>Philippines</strong> only. Please move your pin within the Philippines to continue.
+          </div>
+        )}
+        {tzMismatch && pinInPH && (
+          <div className="sm:col-span-2 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <strong>Timezone doesn't match your pin.</strong> Based on your map location this venue looks like it's in <strong>{suggested?.country}</strong> ({suggested?.tz}), but you selected <strong>{timezone}</strong>. Court hours and bookings will display in the wrong local time if this is incorrect.
+              </div>
+              <button type="button" onClick={() => { setTimezone(suggested!.tz); setTzConfirmed(false); }} className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100">
+                Use {suggested?.tz}
+              </button>
+            </div>
+            <label className="mt-2 flex items-center gap-2 text-[11px]">
+              <input type="checkbox" checked={tzConfirmed} onChange={(e) => setTzConfirmed(e.target.checked)} />
+              I confirm this venue uses <span className="font-mono">{timezone}</span> even though the pin is elsewhere.
+            </label>
+          </div>
+        )}
         <div className="sm:col-span-2 flex flex-wrap gap-2">
-          <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+          <button disabled={mut.isPending || pinOutsidePH || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
             {mut.isPending ? "Creating…" : "Create venue"}
           </button>
           {compact && <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
