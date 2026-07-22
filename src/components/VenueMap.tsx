@@ -110,7 +110,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
       if (cancelled || !elRef.current) return;
 
       const map = L.map(elRef.current, { zoomControl: false, attributionControl: false }).setView([12.8797, 121.774], 6); // PH center
-      L.control.zoom({ position: "topright" }).addTo(map);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
       const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "",
