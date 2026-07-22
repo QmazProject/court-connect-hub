@@ -9,6 +9,20 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
+const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "Asia/Manila", label: "Philippines — Asia/Manila (PHT, UTC+8)" },
+  { value: "Asia/Singapore", label: "Singapore — Asia/Singapore (UTC+8)" },
+  { value: "Asia/Hong_Kong", label: "Hong Kong — Asia/Hong_Kong (UTC+8)" },
+  { value: "Asia/Kuala_Lumpur", label: "Malaysia — Asia/Kuala_Lumpur (UTC+8)" },
+  { value: "Asia/Jakarta", label: "Indonesia (WIB) — Asia/Jakarta (UTC+7)" },
+  { value: "Asia/Bangkok", label: "Thailand — Asia/Bangkok (UTC+7)" },
+  { value: "Asia/Tokyo", label: "Japan — Asia/Tokyo (UTC+9)" },
+  { value: "Asia/Seoul", label: "South Korea — Asia/Seoul (UTC+9)" },
+  { value: "Asia/Taipei", label: "Taiwan — Asia/Taipei (UTC+8)" },
+  { value: "Australia/Sydney", label: "Australia — Australia/Sydney (UTC+10/11)" },
+  { value: "UTC", label: "UTC" },
+];
+
 type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
 type Sport = { id: number; name: string };
 type Court = {
