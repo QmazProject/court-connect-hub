@@ -852,6 +852,21 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
           <Input label="Venue name" value={name} onChange={setName} required />
           <Input label="Address" value={address} onChange={setAddress} required />
           <label className="block sm:col-span-2">
+            <span className="text-xs font-medium text-muted-foreground">Timezone</span>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            >
+              {TIMEZONE_OPTIONS.some((t) => t.value === timezone) ? null : (
+                <option value={timezone}>{timezone} (current)</option>
+              )}
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-muted-foreground">Description</span>
             <textarea
               value={description}
