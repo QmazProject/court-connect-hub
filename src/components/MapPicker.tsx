@@ -195,7 +195,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
               >✕</button>
             )}
             {(results.length > 0 || searching) && (
-              <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
+              <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
                 {searching && <li className="px-3 py-2 text-xs text-muted-foreground">Searching…</li>}
                 {results.map((r, i) => (
                   <li key={i}>
