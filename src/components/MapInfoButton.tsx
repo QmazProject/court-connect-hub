@@ -28,7 +28,7 @@ type Props = {
  *   • Map data legal notices
  *   • OpenStreetMap
  */
-export function MapInfoButton({ getCenter, className }: Props) {
+export function MapInfoButton({ getCenter, className, align = "right" }: Props) {
   const [showAttrib, setShowAttrib] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
