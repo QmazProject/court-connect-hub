@@ -69,17 +69,18 @@ function Landing() {
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const heroChipsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const el = heroChipsRef.current;
+    if (!el) return;
     const scroller = document.querySelector("main") as HTMLElement | null;
-    const target: HTMLElement | Window = scroller ?? window;
-    const onScroll = () => {
-      const y = scroller ? scroller.scrollTop : window.scrollY;
-      setHeaderCollapsed(y > 80);
-    };
-    onScroll();
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => target.removeEventListener("scroll", onScroll);
+    const io = new IntersectionObserver(
+      ([entry]) => setHeaderCollapsed(!entry.isIntersecting),
+      { root: scroller ?? null, threshold: 0, rootMargin: "0px 0px -8px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
   }, []);
 
   // Debounce inputs
