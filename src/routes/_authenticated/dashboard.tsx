@@ -924,6 +924,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [description, setDescription] = useState(venue.description ?? "");
   const [images, setImages] = useState<string[]>(venue.images ?? []);
   const [timezone, setTimezone] = useState(venue.timezone || "Asia/Manila");
+  const [mapEmoji, setMapEmoji] = useState<string | null>(venue.map_emoji ?? null);
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
