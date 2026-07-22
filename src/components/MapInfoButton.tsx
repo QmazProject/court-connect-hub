@@ -17,6 +17,8 @@ type Props = {
   getCenter?: () => { lat: number; lng: number } | null;
   /** Positioning classes relative to the map container. */
   className?: string;
+  /** Which side of the button the popover aligns to. */
+  align?: "left" | "right";
 };
 
 /**
