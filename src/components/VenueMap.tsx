@@ -144,9 +144,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         if (!a || a.id == null) return;
         if (rezoomingRef.current) return;
         if (map.getZoom() < 17) {
-          rezoomingRef.current = true;
-          map.flyTo([a.lat, a.lng], 18, { duration: 0.5 });
-          setTimeout(() => { rezoomingRef.current = false; }, 600);
+          // User zoomed out of the scattered-courts view — exit back to all venues.
+          onSelectVenue(null);
         }
       });
     })();
