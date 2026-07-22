@@ -44,7 +44,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const streetLayerRef = useRef<any>(null);
   const satelliteLayerRef = useRef<any>(null);
   const readyRef = useRef(false);
+  const activeRef = useRef<{ id: number | null; lat: number; lng: number } | null>(null);
+  const rezoomingRef = useRef(false);
   const [view, setView] = useState<"street" | "satellite">("street");
+
 
   // Init map once
   useEffect(() => {
@@ -64,6 +67,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         s.textContent = `
           .ch-marker { background: transparent !important; border: 0 !important; }
           @keyframes ch-pulse-ring { 0% { transform: scale(0.6); opacity:.75;} 100% { transform: scale(1.8); opacity:0;} }
+          @keyframes ch-arrow-bounce { 0%,100% { transform: translate(-50%, 0);} 50% { transform: translate(-50%, 6px);} }
           .ch-pin { position: relative; width: 52px; height: 52px; cursor: pointer; }
           .ch-pin::before { content:""; position:absolute; inset:4px; border-radius:9999px; background: #ef4444; opacity:.55; animation: ch-pulse-ring 1.6s ease-out infinite; z-index:0; }
           .ch-pin .body { position:absolute; inset:0; border-radius:9999px; background: hsl(var(--card)); border:2px solid #ef4444; box-shadow: 0 8px 22px rgba(0,0,0,.22), 0 0 0 4px rgba(239,68,68,.2); display:flex; align-items:center; justify-content:center; font-size:22px; z-index:1; }
@@ -72,12 +76,14 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-pin.active .body { background:#ef4444; border-color:#ef4444; }
           .ch-pin .tip { position:absolute; left:50%; bottom:-6px; width:10px; height:10px; background: hsl(var(--card)); border-right:2px solid #ef4444; border-bottom:2px solid #ef4444; transform: translateX(-50%) rotate(45deg); z-index:1; }
           .ch-pin.active .tip { background:#ef4444; }
+          .ch-pin .arrow { position:absolute; left:50%; top:-26px; transform: translateX(-50%); width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-top:14px solid #ef4444; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); animation: ch-arrow-bounce 1.1s ease-in-out infinite; z-index:3; }
           .ch-court { width: 40px; height: 40px; }
           .ch-court .body { background: hsl(var(--card)); color: hsl(var(--foreground)); border-color:#ef4444; font-size:16px; }
           .ch-me { width:18px; height:18px; border-radius:9999px; background:#3b82f6; border:3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); }
           .ch-popup .leaflet-popup-content-wrapper { border-radius: 14px; padding: 2px; }
           .ch-popup .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
         `;
+
         document.head.appendChild(s);
       }
       if (cancelled || !elRef.current) return;
@@ -103,6 +109,19 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
 
       // Deselect on background click
       map.on("click", () => onSelectVenue(null));
+
+      // Keep the "scattered courts" view locked while a venue is active:
+      // if the user zooms out past a threshold, fly back to the venue.
+      map.on("zoomend", () => {
+        const a = activeRef.current;
+        if (!a || a.id == null) return;
+        if (rezoomingRef.current) return;
+        if (map.getZoom() < 17) {
+          rezoomingRef.current = true;
+          map.flyTo([a.lat, a.lng], 18, { duration: 0.5 });
+          setTimeout(() => { rezoomingRef.current = false; }, 700);
+        }
+      });
     })();
     return () => {
       cancelled = true;
@@ -148,8 +167,9 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         // Show center venue pin + individual court pins around it
         const vLat = active.latitude as number;
         const vLng = active.longitude as number;
+        activeRef.current = { id: active.id, lat: vLat, lng: vLng };
 
-        const centerHtml = `<div class="ch-pin active"><div class="body"><span class="emoji">🎾</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
+        const centerHtml = `<div class="ch-pin active"><div class="arrow"></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
         const centerIcon = divIcon(L, centerHtml);
         const centerMarker = L.marker([vLat, vLng], { icon: centerIcon }).addTo(layer);
         centerMarker.bindPopup(
@@ -174,6 +194,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         // Zoom in to venue
         mapRef.current.flyTo([vLat, vLng], 18, { duration: 0.6 });
       } else {
+        activeRef.current = null;
         // Show all venue pins
         pinned.forEach((v) => {
           const html = `<div class="ch-pin"><div class="body"><span class="emoji">🎾</span></div><div class="count">${v.courtCount}</div><div class="tip"></div></div>`;
