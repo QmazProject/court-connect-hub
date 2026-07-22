@@ -14,6 +14,8 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const streetLayerRef = useRef<any>(null);
+  const satelliteLayerRef = useRef<any>(null);
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(
     initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : null
   );
@@ -22,6 +24,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
   const [searching, setSearching] = useState(false);
+  const [view, setView] = useState<"street" | "satellite">("street");
 
   // Debounced Nominatim search
   useEffect(() => {
