@@ -159,22 +159,31 @@ function Landing() {
     },
   });
 
-  const sortedVenues = useMemo(() => {
-    if (!venues) return [];
-    if (nearby) {
-      return venues
-        .map((v) => ({
-          ...v,
-          distanceKm:
-            v.latitude != null && v.longitude != null
-              ? haversineKm(nearby, { lat: v.latitude as number, lng: v.longitude as number })
-              : null,
-        }))
-        .filter((v) => v.distanceKm != null && v.distanceKm <= radiusKm)
-        .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+  const { list: sortedVenues, fallback: nearbyFallback } = useMemo(() => {
+    if (!venues) return { list: [], fallback: null as null | "nationwide" | "nearest" };
+    if (!nearby) return { list: venues, fallback: null };
+
+    const withDistance = venues
+      .map((v) => ({
+        ...v,
+        distanceKm:
+          v.latitude != null && v.longitude != null
+            ? haversineKm(nearby, { lat: v.latitude as number, lng: v.longitude as number })
+            : null,
+      }))
+      .filter((v) => v.distanceKm != null)
+      .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+
+    if (nationwide) {
+      return { list: withDistance, fallback: "nationwide" as const };
     }
-    return venues;
-  }, [venues, nearby, radiusKm]);
+
+    const inRadius = withDistance.filter((v) => (v.distanceKm ?? 0) <= radiusKm);
+    if (inRadius.length > 0) return { list: inRadius, fallback: null };
+
+    // No venues within the chosen radius — auto-fallback to the 5 nearest
+    return { list: withDistance.slice(0, 5), fallback: "nearest" as const };
+  }, [venues, nearby, radiusKm, nationwide]);
 
   const requestNearby = () => {
     if (!("geolocation" in navigator)) { setNearbyError("Location not supported on this device."); return; }
