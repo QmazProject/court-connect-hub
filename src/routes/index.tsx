@@ -2,9 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, SlidersHorizontal, MapPin, X, ChevronUp, ChevronDown, ArrowLeft } from "lucide-react";
+import { Search, SlidersHorizontal, MapPin, X, ChevronUp, ChevronDown, ArrowLeft, Crosshair } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { VenueMap, type MapVenue } from "@/components/VenueMap";
+import { MapPicker } from "@/components/MapPicker";
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (v: number) => (v * Math.PI) / 180;
@@ -61,6 +62,8 @@ function Landing() {
   const [nearbyError, setNearbyError] = useState<string | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [nationwide, setNationwide] = useState<boolean>(false);
+  const [manualPickerOpen, setManualPickerOpen] = useState(false);
+  const [locationMode, setLocationMode] = useState<"gps" | "manual" | null>(null);
 
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
@@ -190,15 +193,21 @@ function Landing() {
     setNearbyLoading(true);
     setNearbyError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setNearby({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setNearbyLoading(false); },
+      (pos) => { setNearby({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocationMode("gps"); setNearbyLoading(false); },
       (err) => { setNearbyError(err.message || "Please allow location access."); setNearbyLoading(false); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
+  const saveManualLocation = (lat: number, lng: number) => {
+    setNearby({ lat, lng });
+    setLocationMode("manual");
+    setManualPickerOpen(false);
+  };
+
   const resetAll = () => {
     setVenueQuery(""); setFilterSport(""); setFilterCity(""); setMinPrice(""); setMaxPrice("");
-    setNearby(null); setNationwide(false); setActiveVenueId(null);
+    setNearby(null); setNationwide(false); setActiveVenueId(null); setLocationMode(null);
     if (sport) navigate({ search: {} });
   };
 
@@ -313,13 +322,27 @@ function Landing() {
               disabled={nearbyLoading}
               className={
                 "flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition " +
-                (nearby
+                (nearby && locationMode === "gps"
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
               }
             >
               <MapPin className="h-4 w-4" />
               <span className="hidden sm:inline">{nearbyLoading ? "Locating…" : "Nearby"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setManualPickerOpen(true)}
+              className={
+                "flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition " +
+                (nearby && locationMode === "manual"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+              }
+              title="Pin your location manually — search a place or paste coordinates"
+            >
+              <Crosshair className="h-4 w-4" />
+              <span className="hidden sm:inline">Pin manually</span>
             </button>
           </div>
 
@@ -385,6 +408,18 @@ function Landing() {
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                   <MapPin className="h-3.5 w-3.5" />
                   {nationwide ? "Nationwide · sorted by distance" : `Within ${radiusKm} km`}
+                  <span className="ml-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    {locationMode === "manual" ? "Manual pin" : "GPS"}
+                  </span>
+                  {locationMode === "manual" && (
+                    <button
+                      type="button"
+                      onClick={() => setManualPickerOpen(true)}
+                      className="text-[11px] font-semibold text-primary underline underline-offset-2 hover:opacity-80"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
                 {!nationwide && (
                   <>
@@ -447,7 +482,7 @@ function Landing() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => { setNearby(null); setNationwide(false); setShowNearestPeek(false); }}
+                  onClick={() => { setNearby(null); setNationwide(false); setShowNearestPeek(false); setLocationMode(null); }}
                   className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Clear location
@@ -575,6 +610,15 @@ function Landing() {
           </div>
         </div>
       </div>
+
+      <MapPicker
+        open={manualPickerOpen}
+        initialLat={nearby?.lat ?? null}
+        initialLng={nearby?.lng ?? null}
+        onClose={() => setManualPickerOpen(false)}
+        onSave={saveManualLocation}
+        title="Pin your location"
+      />
     </div>
   );
 }
