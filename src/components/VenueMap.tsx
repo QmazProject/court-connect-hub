@@ -165,7 +165,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         const courts = active.courts;
         courts.forEach((c, i) => {
           const p = courtOffset(vLat, vLng, i, Math.max(courts.length, 1));
-          const html = `<div class="ch-pin ch-court"><div class="body">${i + 1}</div><div class="tip"></div></div>`;
+          const html = `<div class="ch-pin ch-court"><div class="body"><span class="emoji">🎾</span></div><div class="count">${i + 1}</div><div class="tip"></div></div>`;
           const m = L.marker([p.lat, p.lng], { icon: divIcon(L, html, 34, "ch-court") }).addTo(layer);
           m.bindPopup(
             `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${c.name}</div><div style="font-size:11px;opacity:.7;">₱${Number(c.hourly_rate).toFixed(0)} / hour</div><div style="margin-top:6px;font-size:11px;color:hsl(var(--primary));font-weight:600;">Tap to book →</div></div>`,
