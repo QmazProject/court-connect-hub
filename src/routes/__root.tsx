@@ -154,12 +154,12 @@ function Header() {
   return (
     <header
       className={
-        "sticky top-0 z-[1100] border-b bg-background/85 backdrop-blur transition-[height,transform,background,border-color,box-shadow] duration-300 will-change-transform " +
-        (hidden ? "-translate-y-full " : "translate-y-0 ") +
+        "sticky top-0 z-[1100] border-b bg-background/85 backdrop-blur transition-[height,background,border-color,box-shadow] duration-300 " +
         (scrolled
           ? "h-12 border-border shadow-sm supports-[backdrop-filter]:bg-background/70"
           : "h-16 border-border/60")
       }
+
     >
       <div
         aria-hidden
