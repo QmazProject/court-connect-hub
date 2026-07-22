@@ -91,15 +91,15 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
       }
       if (cancelled || !elRef.current) return;
 
-      const map = L.map(elRef.current, { zoomControl: false }).setView([12.8797, 121.774], 6); // PH center
+      const map = L.map(elRef.current, { zoomControl: false, attributionControl: false }).setView([12.8797, 121.774], 6); // PH center
       L.control.zoom({ position: "topright" }).addTo(map);
       const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: "© OpenStreetMap",
+        attribution: "",
       });
       const satellite = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom: 19, attribution: "Tiles © Esri" }
+        { maxZoom: 19, attribution: "" }
       );
       street.addTo(map);
       streetLayerRef.current = street;
