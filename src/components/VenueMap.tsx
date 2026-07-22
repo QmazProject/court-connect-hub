@@ -51,6 +51,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const readyRef = useRef(false);
   const activeRef = useRef<{ id: number | null; lat: number; lng: number } | null>(null);
   const rezoomingRef = useRef(false);
+  const userInteractedRef = useRef(false);
   const [view, setView] = useState<"street" | "satellite">("street");
 
 
