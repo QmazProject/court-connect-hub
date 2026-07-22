@@ -873,16 +873,21 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [timezone, setTimezone] = useState(venue.timezone || "Asia/Manila");
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
+  const [tzConfirmed, setTzConfirmed] = useState(false);
+
+  const suggested = suggestTimezone(venue.latitude, venue.longitude);
+  const tzMismatch = !!(suggested && suggested.tz !== timezone);
 
   const save = useMutation({
     mutationFn: async () => {
+      if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
         .update({ name, address, description: description || null, images, timezone })
         .eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { setEditing(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onSuccess: () => { setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
     onError: (e: Error) => setErr(e.message),
   });
 
