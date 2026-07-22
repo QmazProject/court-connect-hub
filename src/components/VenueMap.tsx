@@ -87,6 +87,12 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-me { width:18px; height:18px; border-radius:9999px; background:#3b82f6; border:3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); }
           .ch-popup .leaflet-popup-content-wrapper { border-radius: 14px; padding: 2px; }
           .ch-popup .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
+          .leaflet-tooltip.ch-tip-wrap { background: hsl(var(--card)); color: hsl(var(--foreground)); border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); padding: 6px 8px; font-family: inherit; white-space: normal; max-width: 200px; pointer-events: none; }
+          .leaflet-tooltip.ch-tip-wrap::before { border-top-color: hsl(var(--card)); }
+          .ch-tip-name { font-weight: 700; font-size: 12px; line-height: 1.2; }
+          .ch-tip-addr { font-size: 10.5px; opacity: .7; line-height: 1.25; margin-top: 1px; }
+          .ch-tip-rate { margin-top: 3px; font-size: 11px; font-weight: 700; color: #09b8a8; }
+          .ch-tip-rate.ch-tip-muted { color: inherit; opacity: .65; font-weight: 600; }
         `;
 
         document.head.appendChild(s);
@@ -209,6 +215,17 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           const emoji = v.mapEmoji || "🎾";
           const html = `<div class="ch-pin"><div class="body"><span class="emoji">${emoji}</span></div><div class="count">${v.courtCount}</div><div class="tip"></div></div>`;
           const m = L.marker([v.latitude as number, v.longitude as number], { icon: divIcon(L, html) }).addTo(layer);
+          const rateLine = v.minRate != null
+            ? `<div class="ch-tip-rate">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`
+            : `<div class="ch-tip-rate ch-tip-muted">${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`;
+          const tipHtml = `<div class="ch-tip"><div class="ch-tip-name">${v.name}</div><div class="ch-tip-addr">${v.address}</div>${rateLine}</div>`;
+          m.bindTooltip(tipHtml, {
+            permanent: true,
+            direction: "top",
+            offset: [0, -28],
+            className: "ch-tip-wrap",
+            opacity: 1,
+          });
           m.bindPopup(
             `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${v.name}</div><div style="font-size:11px;opacity:.7;">${v.address}</div>${v.minRate != null ? `<div style="margin-top:4px;font-size:12px;color:hsl(var(--primary));font-weight:700;">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>` : ""}</div>`,
             { className: "ch-popup", closeButton: false }
