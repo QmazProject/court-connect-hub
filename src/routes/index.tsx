@@ -322,13 +322,27 @@ function Landing() {
               disabled={nearbyLoading}
               className={
                 "flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition " +
-                (nearby
+                (nearby && locationMode === "gps"
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
               }
             >
               <MapPin className="h-4 w-4" />
               <span className="hidden sm:inline">{nearbyLoading ? "Locating…" : "Nearby"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setManualPickerOpen(true)}
+              className={
+                "flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition " +
+                (nearby && locationMode === "manual"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+              }
+              title="Pin your location manually — search a place or paste coordinates"
+            >
+              <Crosshair className="h-4 w-4" />
+              <span className="hidden sm:inline">Pin manually</span>
             </button>
           </div>
 
