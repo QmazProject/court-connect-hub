@@ -2,9 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, SlidersHorizontal, MapPin, X, ChevronUp, ChevronDown, ArrowLeft } from "lucide-react";
+import { Search, SlidersHorizontal, MapPin, X, ChevronUp, ChevronDown, ArrowLeft, Crosshair } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { VenueMap, type MapVenue } from "@/components/VenueMap";
+import { MapPicker } from "@/components/MapPicker";
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (v: number) => (v * Math.PI) / 180;
