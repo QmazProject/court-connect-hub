@@ -248,10 +248,6 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
             hint="Shown on the landing-page map. Individual courts can override this."
           />
         </div>
-        <div className="hidden" aria-hidden>
-        </>
-        {/* keep JSX balanced */}
-        </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <strong>Location not supported.</strong> CourtHub is currently available for venues in the <strong>Philippines</strong> only. Please move your pin within the Philippines to continue.
