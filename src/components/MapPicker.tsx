@@ -26,11 +26,25 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const [searching, setSearching] = useState(false);
   const [view, setView] = useState<"street" | "satellite">("street");
 
+  // Detect "lat, lng" (also supports "lat lng" or Google Maps style "@lat,lng,zoom")
+  const parseCoords = (s: string): { lat: number; lng: number } | null => {
+    const m = s.match(/-?\d+(?:\.\d+)?/g);
+    if (!m || m.length < 2) return null;
+    // Prefer first two numeric matches (works for "@14.5,120.9,17z" too)
+    const lat = Number(m[0]);
+    const lng = Number(m[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  };
+  const coordMatch = parseCoords(query.trim());
+
   // Debounced Nominatim search
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
     if (q.length < 3) { setResults([]); return; }
+    if (parseCoords(q)) { setResults([]); return; } // handled via paste-coords button
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       setSearching(true);
