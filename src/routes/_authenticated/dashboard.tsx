@@ -23,6 +23,38 @@ const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "UTC", label: "UTC" },
 ];
 
+// Rough country bounding boxes → suggested timezone. Philippines is the
+// primary market so we restrict pins to it by default (see PH_BOUNDS below).
+const TZ_BOUNDS: { tz: string; country: string; minLat: number; maxLat: number; minLng: number; maxLng: number }[] = [
+  { tz: "Asia/Manila", country: "Philippines", minLat: 4.5, maxLat: 21.5, minLng: 116, maxLng: 127 },
+  { tz: "Asia/Singapore", country: "Singapore", minLat: 1.15, maxLat: 1.5, minLng: 103.6, maxLng: 104.05 },
+  { tz: "Asia/Hong_Kong", country: "Hong Kong", minLat: 22.15, maxLat: 22.58, minLng: 113.83, maxLng: 114.44 },
+  { tz: "Asia/Kuala_Lumpur", country: "Malaysia", minLat: 0.85, maxLat: 7.4, minLng: 99.6, maxLng: 119.3 },
+  { tz: "Asia/Jakarta", country: "Indonesia (WIB)", minLat: -8.8, maxLat: 6.1, minLng: 95, maxLng: 141 },
+  { tz: "Asia/Bangkok", country: "Thailand", minLat: 5.6, maxLat: 20.5, minLng: 97.3, maxLng: 105.7 },
+  { tz: "Asia/Tokyo", country: "Japan", minLat: 24, maxLat: 45.6, minLng: 122.9, maxLng: 146 },
+  { tz: "Asia/Seoul", country: "South Korea", minLat: 33, maxLat: 38.7, minLng: 124.5, maxLng: 131 },
+  { tz: "Asia/Taipei", country: "Taiwan", minLat: 21.8, maxLat: 25.4, minLng: 119.3, maxLng: 122.1 },
+  { tz: "Australia/Sydney", country: "Australia", minLat: -44, maxLat: -10, minLng: 112, maxLng: 154 },
+];
+
+const PH_BOUNDS = TZ_BOUNDS[0];
+
+function suggestTimezone(lat: number | null, lng: number | null): { tz: string; country: string } | null {
+  if (lat == null || lng == null) return null;
+  for (const b of TZ_BOUNDS) {
+    if (lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng) {
+      return { tz: b.tz, country: b.country };
+    }
+  }
+  return null;
+}
+
+function isInPhilippines(lat: number | null, lng: number | null): boolean {
+  if (lat == null || lng == null) return false;
+  return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
+}
+
 type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
 type Sport = { id: number; name: string };
 type Court = {
