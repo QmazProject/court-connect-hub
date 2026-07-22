@@ -30,6 +30,11 @@ function courtOffset(lat: number, lng: number, i: number, total: number) {
   const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
   return { lat: lat + Math.sin(angle) * R, lng: lng + Math.cos(angle) * R / Math.cos((lat * Math.PI) / 180) };
 }
+function buildDirUrl(lat: number, lng: number, from: { lat: number; lng: number } | null) {
+  const base = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  return from ? `${base}&origin=${from.lat},${from.lng}` : base;
+}
+
 
 function divIcon(L: any, html: string, size = 44, className = "") {
   return L.divIcon({
@@ -91,7 +96,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-me { width:18px; height:18px; border-radius:9999px; background:#3b82f6; border:3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); }
           .ch-popup .leaflet-popup-content-wrapper { border-radius: 14px; padding: 2px; }
           .ch-popup .leaflet-popup-content { margin: 10px 12px; font-family: inherit; }
-          .leaflet-tooltip.ch-tip-wrap { background: #ffffff; color: #0f172a; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); padding: 6px 10px; font-family: inherit; white-space: nowrap; max-width: none; pointer-events: none; }
+          .leaflet-tooltip.ch-tip-wrap { background: #ffffff; color: #0f172a; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); padding: 6px 10px; font-family: inherit; white-space: nowrap; max-width: none; pointer-events: auto; }
+          .ch-tip-dir { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#0ea5a3; text-decoration:none; padding:3px 8px; border-radius:9999px; background:rgba(9,230,210,.14); border:1px solid rgba(9,230,210,.4); }
+          .ch-tip-dir:hover { background:rgba(9,230,210,.25); }
+          .ch-dir-btn { display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; font-weight:700; color:#0ea5a3; text-decoration:none; padding:5px 10px; border-radius:9999px; background:rgba(9,230,210,.14); border:1px solid rgba(9,230,210,.4); }
+          .ch-dir-btn:hover { background:rgba(9,230,210,.25); }
           .leaflet-tooltip.ch-tip-wrap::before { border-top-color: #ffffff; }
           .ch-tip { display: inline-flex; align-items: center; gap: 8px; }
           .ch-tip-sep { width: 1px; height: 12px; background: rgba(0,0,0,.12); flex: none; }
@@ -228,9 +237,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         const centerHtml = `<div class="ch-pin active"><div class="arrow"></div><div class="body"><span class="emoji">${venueEmoji}</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
         const centerIcon = divIcon(L, centerHtml);
         const centerMarker = L.marker([vLat, vLng], { icon: centerIcon }).addTo(layer);
+        const dirUrl = buildDirUrl(vLat, vLng, nearby);
         centerMarker.bindPopup(
-          `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${active.name}</div><div style="font-size:11px;opacity:.7;">${active.address}</div></div>`,
-          { className: "ch-popup", closeButton: false }
+          `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${active.name}</div><div style="font-size:11px;opacity:.7;">${active.address}</div><a class="ch-dir-btn" href="${dirUrl}" target="_blank" rel="noopener noreferrer">🧭 Get directions</a></div>`,
+          { className: "ch-popup", closeButton: false, autoClose: false, closeOnClick: false }
         );
         centerMarker.on("mouseover", () => centerMarker.openPopup());
 
@@ -266,7 +276,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           const rateLine = v.minRate != null
             ? `<div class="ch-tip-rate">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`
             : `<div class="ch-tip-rate ch-tip-muted">${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`;
-          const tipHtml = `<div class="ch-tip"><span class="ch-tip-name">${v.name}</span><span class="ch-tip-sep"></span><span class="ch-tip-addr">${v.address}</span><span class="ch-tip-sep"></span>${rateLine}</div>`;
+          const dirUrl = buildDirUrl(v.latitude as number, v.longitude as number, nearby);
+          const tipHtml = `<div class="ch-tip"><span class="ch-tip-name">${v.name}</span><span class="ch-tip-sep"></span><span class="ch-tip-addr">${v.address}</span><span class="ch-tip-sep"></span>${rateLine}<span class="ch-tip-sep"></span><a class="ch-tip-dir" href="${dirUrl}" target="_blank" rel="noopener noreferrer">🧭 Directions</a></div>`;
           m.bindTooltip(tipHtml, {
             direction: "top",
             offset: [0, -28],
@@ -275,6 +286,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             sticky: false,
           });
           m.on("click", (e: any) => {
+            const target = e.originalEvent?.target as HTMLElement | undefined;
+            if (target?.closest?.(".ch-tip-dir")) return;
             e.originalEvent?.stopPropagation?.();
             userInteractedRef.current = false;
             onSelectVenue(v.id);
