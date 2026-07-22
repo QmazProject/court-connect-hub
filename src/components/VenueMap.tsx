@@ -232,9 +232,10 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         const centerHtml = `<div class="ch-pin active"><div class="arrow"></div><div class="body"><span class="emoji">${venueEmoji}</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
         const centerIcon = divIcon(L, centerHtml);
         const centerMarker = L.marker([vLat, vLng], { icon: centerIcon }).addTo(layer);
+        const dirUrl = buildDirUrl(vLat, vLng, nearby);
         centerMarker.bindPopup(
-          `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${active.name}</div><div style="font-size:11px;opacity:.7;">${active.address}</div></div>`,
-          { className: "ch-popup", closeButton: false }
+          `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${active.name}</div><div style="font-size:11px;opacity:.7;">${active.address}</div><a class="ch-dir-btn" href="${dirUrl}" target="_blank" rel="noopener noreferrer">🧭 Get directions</a></div>`,
+          { className: "ch-popup", closeButton: false, autoClose: false, closeOnClick: false }
         );
         centerMarker.on("mouseover", () => centerMarker.openPopup());
 
