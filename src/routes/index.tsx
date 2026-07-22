@@ -68,6 +68,19 @@ function Landing() {
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
+  useEffect(() => {
+    const scroller = document.querySelector("main") as HTMLElement | null;
+    const target: HTMLElement | Window = scroller ?? window;
+    const onScroll = () => {
+      const y = scroller ? scroller.scrollTop : window.scrollY;
+      setHeaderCollapsed(y > 80);
+    };
+    onScroll();
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Debounce inputs
   const [dQuery, setDQuery] = useState(venueQuery);
@@ -345,6 +358,51 @@ function Landing() {
               <span className="hidden sm:inline">Pin manually</span>
             </button>
           </div>
+
+          {headerCollapsed && (
+            <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 sm:-mx-6 sm:px-6 nice-scroll">
+              <button
+                type="button"
+                onClick={() => setFilterSport("")}
+                className={
+                  "shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition " +
+                  (!filterSport
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+                }
+              >
+                All sports
+              </button>
+              {(sports ?? []).map((s) => {
+                const emoji =
+                  s.slug === "pickleball" ? "🥎"
+                  : s.slug === "tennis" ? "🎾"
+                  : s.slug === "basketball" ? "🏀"
+                  : s.slug === "table-tennis" ? "🏓"
+                  : s.slug === "badminton" ? "🏸"
+                  : s.slug === "volleyball" ? "🏐"
+                  : s.slug === "football" || s.slug === "soccer" ? "⚽"
+                  : "🏟️";
+                const active = filterSport === s.slug;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setFilterSport(active ? "" : s.slug)}
+                    className={
+                      "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition " +
+                      (active
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+                    }
+                  >
+                    <span aria-hidden>{emoji}</span> {s.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
 
           {filterOpen && (
             <div className="grid gap-2 rounded-2xl border border-border bg-background p-3 sm:grid-cols-2 lg:grid-cols-4">
