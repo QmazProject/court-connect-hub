@@ -451,7 +451,7 @@ function Landing() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 
