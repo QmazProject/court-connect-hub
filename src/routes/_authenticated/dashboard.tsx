@@ -56,8 +56,8 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
   return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
 }
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
-type Sport = { id: number; name: string };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null };
+type Sport = { id: number; name: string; slug?: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
   sport_id: number; venue_id: number;
@@ -67,7 +67,8 @@ type Court = {
   blocked_hours: Record<string, number[]> | null;
   blocked_dates: Record<string, number[]> | null;
   coming_soon: boolean | null;
-  sports: { name: string } | null;
+  map_emoji: string | null;
+  sports: { name: string; slug?: string } | null;
 };
 
 const DAYS: { key: string; label: string }[] = [
