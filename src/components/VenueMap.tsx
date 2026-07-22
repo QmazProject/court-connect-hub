@@ -167,28 +167,28 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           icon: L.divIcon({ className: "ch-marker", html: `<div class="ch-me"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] }),
         }).addTo(mapRef.current);
         if (radiusKm && radiusKm > 0) {
+          const color = radiusHasMatches ? "#22c55e" : "#09e6d2";
           const group = L.layerGroup().addTo(mapRef.current);
           const base = L.circle([nearby.lat, nearby.lng], {
             radius: radiusKm * 1000,
             weight: 2,
-            fillOpacity: 0.12,
+            color,
+            fillColor: color,
+            fillOpacity: radiusHasMatches ? 0.08 : 0.12,
             interactive: false,
             className: "ch-radius-base",
           }).addTo(group);
-          L.circle([nearby.lat, nearby.lng], {
-            radius: radiusKm * 1000,
-            weight: 2,
-            fill: false,
-            interactive: false,
-            className: "ch-radius-ping",
-          }).addTo(group);
-          L.circle([nearby.lat, nearby.lng], {
-            radius: radiusKm * 1000,
-            weight: 2,
-            fill: false,
-            interactive: false,
-            className: "ch-radius-ping ch-radius-ping-2",
-          }).addTo(group);
+          const ringClasses = ["ch-radius-ping", "ch-radius-ping ch-radius-ping-2", "ch-radius-ping ch-radius-ping-3"];
+          ringClasses.forEach((cls) => {
+            L.circle([nearby.lat, nearby.lng], {
+              radius: radiusKm * 1000,
+              weight: 2,
+              color,
+              fill: false,
+              interactive: false,
+              className: cls,
+            }).addTo(group);
+          });
           circleRef.current = group;
           if (activeVenueId == null) {
             mapRef.current.fitBounds(base.getBounds(), { padding: [40, 40] });
