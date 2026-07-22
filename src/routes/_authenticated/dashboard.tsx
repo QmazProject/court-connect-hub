@@ -969,10 +969,10 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => save.mutate()} disabled={save.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+          <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setTzConfirmed(false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
       </div>
     );
