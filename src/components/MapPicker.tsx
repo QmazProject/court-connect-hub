@@ -292,6 +292,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
           </div>
           <MapInfoButton
             className="bottom-3 left-3"
+            align="left"
             getCenter={() => {
               const c = mapRef.current?.getCenter?.();
               return c ? { lat: c.lat, lng: c.lng } : null;

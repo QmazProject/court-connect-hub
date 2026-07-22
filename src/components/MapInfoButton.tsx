@@ -17,6 +17,8 @@ type Props = {
   getCenter?: () => { lat: number; lng: number } | null;
   /** Positioning classes relative to the map container. */
   className?: string;
+  /** Which side of the button the popover aligns to. */
+  align?: "left" | "right";
 };
 
 /**
@@ -26,7 +28,7 @@ type Props = {
  *   • Map data legal notices
  *   • OpenStreetMap
  */
-export function MapInfoButton({ getCenter, className }: Props) {
+export function MapInfoButton({ getCenter, className, align = "right" }: Props) {
   const [showAttrib, setShowAttrib] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -78,7 +80,7 @@ export function MapInfoButton({ getCenter, className }: Props) {
         {showAttrib && (
           <>
             <div className="fixed inset-0 z-[600]" onClick={() => setShowAttrib(false)} />
-            <div className="absolute bottom-10 right-0 z-[700] w-64 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+            <div className={`absolute bottom-10 z-[700] w-64 overflow-hidden rounded-xl border border-border bg-background shadow-xl ${align === "left" ? "left-0" : "right-0"}`}>
               <button
                 type="button"
                 onClick={() => { setShowAttrib(false); setReportOpen(true); }}
@@ -105,7 +107,7 @@ export function MapInfoButton({ getCenter, className }: Props) {
                 <span aria-hidden className="text-base">🗺️</span>
                 <span>OpenStreetMap</span>
               </a>
-              <div className="pointer-events-none absolute -bottom-1.5 right-3 h-3 w-3 rotate-45 border-b border-r border-border bg-background" />
+              <div className={`pointer-events-none absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-border bg-background ${align === "left" ? "left-3" : "right-3"}`} />
             </div>
           </>
         )}
