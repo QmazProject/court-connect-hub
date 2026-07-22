@@ -220,7 +220,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           const rateLine = v.minRate != null
             ? `<div class="ch-tip-rate">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`
             : `<div class="ch-tip-rate ch-tip-muted">${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`;
-          const tipHtml = `<div class="ch-tip"><div class="ch-tip-name">${v.name}</div><div class="ch-tip-addr">${v.address}</div>${rateLine}</div>`;
+          const tipHtml = `<div class="ch-tip"><span class="ch-tip-name">${v.name}</span><span class="ch-tip-sep"></span><span class="ch-tip-addr">${v.address}</span><span class="ch-tip-sep"></span>${rateLine}</div>`;
           m.bindTooltip(tipHtml, {
             direction: "top",
             offset: [0, -28],
