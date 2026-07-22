@@ -21,6 +21,7 @@ type Props = {
   onOpenCourt: (courtId: number) => void;
   nearby: { lat: number; lng: number } | null;
   radiusKm?: number | null;
+  radiusHasMatches?: boolean;
 };
 
 // Spread court markers evenly around a venue on a small circle.
@@ -39,7 +40,7 @@ function divIcon(L: any, html: string, size = 44, className = "") {
   });
 }
 
-export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, onOpenCourt, nearby, radiusKm }: Props) {
+export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, onOpenCourt, nearby, radiusKm, radiusHasMatches }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
@@ -97,11 +98,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-tip-addr { font-size: 11px; color: #64748b; line-height: 1.2; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
           .ch-tip-rate { font-size: 11px; font-weight: 700; color: #09b8a8; }
           .ch-tip-rate.ch-tip-muted { color: #64748b; font-weight: 600; }
-          @keyframes ch-radius-hue { 0%,100% { stroke: #3b82f6; fill: #3b82f6; } 50% { stroke: #ef4444; fill: #ef4444; } }
-          @keyframes ch-radius-ping { 0% { opacity: .75; stroke-width: 2; } 100% { opacity: 0; stroke-width: 10; } }
-          .ch-radius-base { animation: ch-radius-hue 2.4s ease-in-out infinite; }
-          .ch-radius-ping { animation: ch-radius-hue 2.4s ease-in-out infinite, ch-radius-ping 2s ease-out infinite; transform-origin: center; }
-          .ch-radius-ping-2 { animation-delay: 0s, 1s; }
+          @keyframes ch-signal { 0% { transform: scale(0.05); opacity: .85; } 100% { transform: scale(1); opacity: 0; } }
+          .ch-radius-base { transition: stroke .3s ease, fill .3s ease; }
+          .ch-radius-ping { transform-box: fill-box; transform-origin: center; animation: ch-signal 2.6s ease-out infinite; }
+          .ch-radius-ping-2 { animation-delay: 0.87s; }
+          .ch-radius-ping-3 { animation-delay: 1.73s; }
         `;
 
         document.head.appendChild(s);
@@ -166,28 +167,28 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           icon: L.divIcon({ className: "ch-marker", html: `<div class="ch-me"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] }),
         }).addTo(mapRef.current);
         if (radiusKm && radiusKm > 0) {
+          const color = radiusHasMatches ? "#22c55e" : "#09e6d2";
           const group = L.layerGroup().addTo(mapRef.current);
           const base = L.circle([nearby.lat, nearby.lng], {
             radius: radiusKm * 1000,
             weight: 2,
-            fillOpacity: 0.12,
+            color,
+            fillColor: color,
+            fillOpacity: radiusHasMatches ? 0.08 : 0.12,
             interactive: false,
             className: "ch-radius-base",
           }).addTo(group);
-          L.circle([nearby.lat, nearby.lng], {
-            radius: radiusKm * 1000,
-            weight: 2,
-            fill: false,
-            interactive: false,
-            className: "ch-radius-ping",
-          }).addTo(group);
-          L.circle([nearby.lat, nearby.lng], {
-            radius: radiusKm * 1000,
-            weight: 2,
-            fill: false,
-            interactive: false,
-            className: "ch-radius-ping ch-radius-ping-2",
-          }).addTo(group);
+          const ringClasses = ["ch-radius-ping", "ch-radius-ping ch-radius-ping-2", "ch-radius-ping ch-radius-ping-3"];
+          ringClasses.forEach((cls) => {
+            L.circle([nearby.lat, nearby.lng], {
+              radius: radiusKm * 1000,
+              weight: 2,
+              color,
+              fill: false,
+              interactive: false,
+              className: cls,
+            }).addTo(group);
+          });
           circleRef.current = group;
           if (activeVenueId == null) {
             mapRef.current.fitBounds(base.getBounds(), { padding: [40, 40] });
@@ -195,7 +196,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         }
       }
     })();
-  }, [nearby, radiusKm, activeVenueId]);
+  }, [nearby, radiusKm, radiusHasMatches, activeVenueId]);
 
   // Render pins whenever venues / active change
   useEffect(() => {
