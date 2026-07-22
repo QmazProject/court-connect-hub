@@ -88,10 +88,17 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
 
       const map = L.map(containerRef.current, { zoomControl: false }).setView(start, initialLat != null ? 15 : 11);
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
-      }).addTo(map);
+      });
+      const satellite = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles © Esri" }
+      );
+      street.addTo(map);
+      streetLayerRef.current = street;
+      satelliteLayerRef.current = satellite;
 
       const icon = L.icon({
         iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
