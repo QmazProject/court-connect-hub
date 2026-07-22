@@ -797,6 +797,15 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         <Textarea label="Description" value={description} onChange={setDescription} />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
         <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
+        <div className="rounded-xl border border-border bg-background p-3">
+          <EmojiPicker
+            label="Court map emoji"
+            value={mapEmoji}
+            fallback={fallbackEmoji}
+            onChange={setMapEmoji}
+            hint="Falls back to the venue emoji, then the sport default."
+          />
+        </div>
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
