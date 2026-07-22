@@ -107,36 +107,44 @@ function Header() {
   }, [router]);
 
   useEffect(() => {
-    const scroller = document.querySelector("main") as HTMLElement | null;
-    const target: HTMLElement | Window = scroller ?? window;
-    const getY = () =>
-      scroller ? scroller.scrollTop : window.scrollY;
-    let lastY = getY();
     let ticking = false;
-    const onScroll = () => {
+    let lastY = 0;
+    const update = (target: EventTarget | null) => {
+      let y = 0;
+      let max = 0;
+      if (target instanceof HTMLElement) {
+        y = target.scrollTop;
+        max = target.scrollHeight - target.clientHeight;
+      } else {
+        const main = document.querySelector("main") as HTMLElement | null;
+        if (main && main.scrollHeight > main.clientHeight) {
+          y = main.scrollTop;
+          max = main.scrollHeight - main.clientHeight;
+        } else {
+          y = window.scrollY;
+          max = document.documentElement.scrollHeight - window.innerHeight;
+        }
+      }
+      setScrolled(y > 8);
+      const pct = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
+      setProgress(y < 4 ? 0 : pct);
+      const delta = y - lastY;
+      if (y < 12) setHidden(false);
+      else if (delta > 6) setHidden(true);
+      else if (delta < -6) setHidden(false);
+      lastY = y;
+    };
+    const onScroll = (e: Event) => {
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(() => {
-        const y = getY();
-        setScrolled(y > 8);
-        const max = scroller
-          ? scroller.scrollHeight - scroller.clientHeight
-          : document.documentElement.scrollHeight - window.innerHeight;
-        const pct = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
-        setProgress(y < 4 ? 0 : pct);
-        const delta = y - lastY;
-        if (y < 12) setHidden(false);
-        else if (delta > 6) setHidden(true);
-        else if (delta < -6) setHidden(false);
-        lastY = y;
-        ticking = false;
-      });
+      const t = e.target;
+      requestAnimationFrame(() => { update(t); ticking = false; });
     };
-
-    onScroll();
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => target.removeEventListener("scroll", onScroll);
+    update(null);
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    return () => window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
   }, []);
+
 
   async function signOut() {
     await supabase.auth.signOut();
