@@ -937,7 +937,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji })
         .eq("id", venue.id);
       if (error) throw error;
     },
