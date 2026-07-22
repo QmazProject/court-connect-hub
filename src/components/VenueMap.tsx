@@ -276,7 +276,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           const rateLine = v.minRate != null
             ? `<div class="ch-tip-rate">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`
             : `<div class="ch-tip-rate ch-tip-muted">${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`;
-          const tipHtml = `<div class="ch-tip"><span class="ch-tip-name">${v.name}</span><span class="ch-tip-sep"></span><span class="ch-tip-addr">${v.address}</span><span class="ch-tip-sep"></span>${rateLine}</div>`;
+          const dirUrl = buildDirUrl(v.latitude as number, v.longitude as number, nearby);
+          const tipHtml = `<div class="ch-tip"><span class="ch-tip-name">${v.name}</span><span class="ch-tip-sep"></span><span class="ch-tip-addr">${v.address}</span><span class="ch-tip-sep"></span>${rateLine}<span class="ch-tip-sep"></span><a class="ch-tip-dir" href="${dirUrl}" target="_blank" rel="noopener noreferrer">🧭 Directions</a></div>`;
           m.bindTooltip(tipHtml, {
             direction: "top",
             offset: [0, -28],
@@ -285,6 +286,8 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             sticky: false,
           });
           m.on("click", (e: any) => {
+            const target = e.originalEvent?.target as HTMLElement | undefined;
+            if (target?.closest?.(".ch-tip-dir")) return;
             e.originalEvent?.stopPropagation?.();
             userInteractedRef.current = false;
             onSelectVenue(v.id);
