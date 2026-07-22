@@ -185,7 +185,7 @@ function Header() {
                   Dashboard
                 </Link>
               )}
-              <span className="hidden text-xs text-muted-foreground sm:inline">{session.email}</span>
+              {session.name && <span className="hidden max-w-[160px] truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
               <button onClick={signOut} className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary">
                 Sign out
               </button>
