@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { MapInfoButton } from "./MapInfoButton";
 
 type Props = {
   open: boolean;
@@ -100,15 +101,15 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
       const start: [number, number] =
         initialLat != null && initialLng != null ? [initialLat, initialLng] : [14.5995, 120.9842]; // Manila
 
-      const map = L.map(containerRef.current, { zoomControl: false }).setView(start, initialLat != null ? 15 : 11);
+      const map = L.map(containerRef.current, { zoomControl: false, attributionControl: false }).setView(start, initialLat != null ? 15 : 11);
       L.control.zoom({ position: "bottomright" }).addTo(map);
       const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: "© OpenStreetMap",
+        attribution: "",
       });
       const satellite = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom: 19, attribution: "Tiles © Esri" }
+        { maxZoom: 19, attribution: "" }
       );
       street.addTo(map);
       streetLayerRef.current = street;
@@ -289,7 +290,15 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
               🛰️ Satellite
             </button>
           </div>
+          <MapInfoButton
+            className="bottom-3 left-3"
+            getCenter={() => {
+              const c = mapRef.current?.getCenter?.();
+              return c ? { lat: c.lat, lng: c.lng } : null;
+            }}
+          />
         </div>
+
 
         <div className="space-y-2 border-t border-border bg-secondary/30 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
