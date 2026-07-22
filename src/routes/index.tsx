@@ -198,7 +198,7 @@ function Landing() {
 
   const resetAll = () => {
     setVenueQuery(""); setFilterSport(""); setFilterCity(""); setMinPrice(""); setMaxPrice("");
-    setNearby(null); setActiveVenueId(null);
+    setNearby(null); setNationwide(false); setActiveVenueId(null);
     if (sport) navigate({ search: {} });
   };
 
