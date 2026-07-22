@@ -23,6 +23,38 @@ const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "UTC", label: "UTC" },
 ];
 
+// Rough country bounding boxes → suggested timezone. Philippines is the
+// primary market so we restrict pins to it by default (see PH_BOUNDS below).
+const TZ_BOUNDS: { tz: string; country: string; minLat: number; maxLat: number; minLng: number; maxLng: number }[] = [
+  { tz: "Asia/Manila", country: "Philippines", minLat: 4.5, maxLat: 21.5, minLng: 116, maxLng: 127 },
+  { tz: "Asia/Singapore", country: "Singapore", minLat: 1.15, maxLat: 1.5, minLng: 103.6, maxLng: 104.05 },
+  { tz: "Asia/Hong_Kong", country: "Hong Kong", minLat: 22.15, maxLat: 22.58, minLng: 113.83, maxLng: 114.44 },
+  { tz: "Asia/Kuala_Lumpur", country: "Malaysia", minLat: 0.85, maxLat: 7.4, minLng: 99.6, maxLng: 119.3 },
+  { tz: "Asia/Jakarta", country: "Indonesia (WIB)", minLat: -8.8, maxLat: 6.1, minLng: 95, maxLng: 141 },
+  { tz: "Asia/Bangkok", country: "Thailand", minLat: 5.6, maxLat: 20.5, minLng: 97.3, maxLng: 105.7 },
+  { tz: "Asia/Tokyo", country: "Japan", minLat: 24, maxLat: 45.6, minLng: 122.9, maxLng: 146 },
+  { tz: "Asia/Seoul", country: "South Korea", minLat: 33, maxLat: 38.7, minLng: 124.5, maxLng: 131 },
+  { tz: "Asia/Taipei", country: "Taiwan", minLat: 21.8, maxLat: 25.4, minLng: 119.3, maxLng: 122.1 },
+  { tz: "Australia/Sydney", country: "Australia", minLat: -44, maxLat: -10, minLng: 112, maxLng: 154 },
+];
+
+const PH_BOUNDS = TZ_BOUNDS[0];
+
+function suggestTimezone(lat: number | null, lng: number | null): { tz: string; country: string } | null {
+  if (lat == null || lng == null) return null;
+  for (const b of TZ_BOUNDS) {
+    if (lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng) {
+      return { tz: b.tz, country: b.country };
+    }
+  }
+  return null;
+}
+
+function isInPhilippines(lat: number | null, lng: number | null): boolean {
+  if (lat == null || lng == null) return false;
+  return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
+}
+
 type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null };
 type Sport = { id: number; name: string };
 type Court = {
@@ -129,13 +161,22 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   const [lng, setLng] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [tzConfirmed, setTzConfirmed] = useState(false);
+
+  const suggested = suggestTimezone(lat, lng);
+  const pinInPH = isInPhilippines(lat, lng);
+  const tzMismatch = !!(suggested && suggested.tz !== timezone);
+  const pinOutsidePH = lat != null && lng != null && !pinInPH;
 
   const mut = useMutation({
     mutationFn: async () => {
+      if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
+      if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
+      if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setErr(null); setOpen(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -188,11 +229,36 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
           initialLat={lat}
           initialLng={lng}
           onClose={() => setPickerOpen(false)}
-          onSave={(la, ln) => { setLat(la); setLng(ln); setPickerOpen(false); }}
+          onSave={(la, ln) => {
+            setLat(la); setLng(ln); setPickerOpen(false);
+            const s = suggestTimezone(la, ln);
+            if (s) { setTimezone(s.tz); setTzConfirmed(false); }
+          }}
           title="Pin your venue"
         />
+        {pinOutsidePH && (
+          <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <strong>Location not supported.</strong> CourtHub is currently available for venues in the <strong>Philippines</strong> only. Please move your pin within the Philippines to continue.
+          </div>
+        )}
+        {tzMismatch && pinInPH && (
+          <div className="sm:col-span-2 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <strong>Timezone doesn't match your pin.</strong> Based on your map location this venue looks like it's in <strong>{suggested?.country}</strong> ({suggested?.tz}), but you selected <strong>{timezone}</strong>. Court hours and bookings will display in the wrong local time if this is incorrect.
+              </div>
+              <button type="button" onClick={() => { setTimezone(suggested!.tz); setTzConfirmed(false); }} className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100">
+                Use {suggested?.tz}
+              </button>
+            </div>
+            <label className="mt-2 flex items-center gap-2 text-[11px]">
+              <input type="checkbox" checked={tzConfirmed} onChange={(e) => setTzConfirmed(e.target.checked)} />
+              I confirm this venue uses <span className="font-mono">{timezone}</span> even though the pin is elsewhere.
+            </label>
+          </div>
+        )}
         <div className="sm:col-span-2 flex flex-wrap gap-2">
-          <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+          <button disabled={mut.isPending || pinOutsidePH || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
             {mut.isPending ? "Creating…" : "Create venue"}
           </button>
           {compact && <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
@@ -807,16 +873,21 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [timezone, setTimezone] = useState(venue.timezone || "Asia/Manila");
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
+  const [tzConfirmed, setTzConfirmed] = useState(false);
+
+  const suggested = suggestTimezone(venue.latitude, venue.longitude);
+  const tzMismatch = !!(suggested && suggested.tz !== timezone);
 
   const save = useMutation({
     mutationFn: async () => {
+      if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
         .update({ name, address, description: description || null, images, timezone })
         .eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { setEditing(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onSuccess: () => { setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -855,7 +926,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
             <span className="text-xs font-medium text-muted-foreground">Timezone</span>
             <select
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => { setTimezone(e.target.value); setTzConfirmed(false); }}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
               {TIMEZONE_OPTIONS.some((t) => t.value === timezone) ? null : (
@@ -865,6 +936,22 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
+            {tzMismatch && (
+              <div className="mt-2 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <strong>Timezone doesn't match the pin.</strong> This venue's map pin is in <strong>{suggested?.country}</strong> ({suggested?.tz}). Changing it away from the suggested zone means court hours and bookings will display in a different local time.
+                  </div>
+                  <button type="button" onClick={() => { setTimezone(suggested!.tz); setTzConfirmed(false); }} className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100">
+                    Use {suggested?.tz}
+                  </button>
+                </div>
+                <label className="mt-2 flex items-center gap-2 text-[11px]">
+                  <input type="checkbox" checked={tzConfirmed} onChange={(e) => setTzConfirmed(e.target.checked)} />
+                  I confirm this venue uses <span className="font-mono">{timezone}</span>.
+                </label>
+              </div>
+            )}
           </label>
           <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-muted-foreground">Description</span>
@@ -882,10 +969,10 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => save.mutate()} disabled={save.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+          <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setTzConfirmed(false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
       </div>
     );
