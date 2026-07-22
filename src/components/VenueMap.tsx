@@ -153,7 +153,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         const vLat = active.latitude as number;
         const vLng = active.longitude as number;
 
-        const centerHtml = `<div class="ch-pin active"><div class="body">${active.courtCount}</div><div class="tip"></div></div>`;
+        const centerHtml = `<div class="ch-pin active"><div class="body"><span class="emoji">🏟️</span></div><div class="count">${active.courtCount}</div><div class="tip"></div></div>`;
         const centerIcon = divIcon(L, centerHtml);
         const centerMarker = L.marker([vLat, vLng], { icon: centerIcon }).addTo(layer);
         centerMarker.bindPopup(
