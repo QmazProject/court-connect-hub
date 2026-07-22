@@ -226,7 +226,23 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
                 aria-label="Clear"
               >✕</button>
             )}
-            {(results.length > 0 || searching) && (
+            {coordMatch && (
+              <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { flyTo(coordMatch.lat, coordMatch.lng, 17); setResults([]); }}
+                    className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
+                  >
+                    <span className="font-semibold text-primary">Go to coordinates</span>{" "}
+                    <span className="font-mono text-muted-foreground">
+                      {coordMatch.lat.toFixed(6)}, {coordMatch.lng.toFixed(6)}
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            )}
+            {!coordMatch && (results.length > 0 || searching) && (
               <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
                 {searching && <li className="px-3 py-2 text-xs text-muted-foreground">Searching…</li>}
                 {results.map((r, i) => (
