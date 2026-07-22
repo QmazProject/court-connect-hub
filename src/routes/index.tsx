@@ -377,7 +377,7 @@ function Landing() {
       </div>
 
       {/* MAP + LIST */}
-      <div className="relative flex min-h-[420px] flex-1 overflow-hidden pb-3 pl-3 sm:pl-6">
+      <div className="relative flex min-h-[620px] flex-1 overflow-hidden pb-4 pl-3 sm:pl-6">
         {/* Map */}
         <div className="relative flex-1 overflow-hidden rounded-l-2xl border border-border">
           <VenueMap
