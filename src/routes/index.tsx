@@ -193,8 +193,51 @@ function Landing() {
             What are you playing today?
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Explore the map, filter by sport and price, and lock in your slot at premium courts near you.
+            Pick a sport to see courts available near you — explore the map, filter by price, and lock in your slot in seconds.
           </p>
+
+          {/* Sport chips */}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setFilterSport("")}
+              className={
+                "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition sm:text-sm " +
+                (!filterSport
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+              }
+            >
+              All sports
+            </button>
+            {(sports ?? []).map((s) => {
+              const emoji =
+                s.slug === "pickleball" ? "🥎"
+                : s.slug === "tennis" ? "🎾"
+                : s.slug === "basketball" ? "🏀"
+                : s.slug === "table-tennis" ? "🏓"
+                : s.slug === "badminton" ? "🏸"
+                : s.slug === "volleyball" ? "🏐"
+                : s.slug === "football" || s.slug === "soccer" ? "⚽"
+                : "🏟️";
+              const active = filterSport === s.slug;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setFilterSport(active ? "" : s.slug)}
+                  className={
+                    "flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition sm:text-sm " +
+                    (active
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
+                  }
+                >
+                  <span aria-hidden>{emoji}</span> {s.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 
