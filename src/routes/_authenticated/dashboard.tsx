@@ -926,7 +926,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
             <span className="text-xs font-medium text-muted-foreground">Timezone</span>
             <select
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => { setTimezone(e.target.value); setTzConfirmed(false); }}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
               {TIMEZONE_OPTIONS.some((t) => t.value === timezone) ? null : (
@@ -936,6 +936,22 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
+            {tzMismatch && (
+              <div className="mt-2 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <strong>Timezone doesn't match the pin.</strong> This venue's map pin is in <strong>{suggested?.country}</strong> ({suggested?.tz}). Changing it away from the suggested zone means court hours and bookings will display in a different local time.
+                  </div>
+                  <button type="button" onClick={() => { setTimezone(suggested!.tz); setTzConfirmed(false); }} className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100">
+                    Use {suggested?.tz}
+                  </button>
+                </div>
+                <label className="mt-2 flex items-center gap-2 text-[11px]">
+                  <input type="checkbox" checked={tzConfirmed} onChange={(e) => setTzConfirmed(e.target.checked)} />
+                  I confirm this venue uses <span className="font-mono">{timezone}</span>.
+                </label>
+              </div>
+            )}
           </label>
           <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-muted-foreground">Description</span>
