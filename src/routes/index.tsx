@@ -62,6 +62,8 @@ function Landing() {
   const [nearbyError, setNearbyError] = useState<string | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [nationwide, setNationwide] = useState<boolean>(false);
+  const [manualPickerOpen, setManualPickerOpen] = useState(false);
+  const [locationMode, setLocationMode] = useState<"gps" | "manual" | null>(null);
 
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
