@@ -30,6 +30,11 @@ function courtOffset(lat: number, lng: number, i: number, total: number) {
   const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
   return { lat: lat + Math.sin(angle) * R, lng: lng + Math.cos(angle) * R / Math.cos((lat * Math.PI) / 180) };
 }
+function buildDirUrl(lat: number, lng: number, from: { lat: number; lng: number } | null) {
+  const base = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  return from ? `${base}&origin=${from.lat},${from.lng}` : base;
+}
+
 
 function divIcon(L: any, html: string, size = 44, className = "") {
   return L.divIcon({
