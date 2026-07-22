@@ -284,7 +284,7 @@ function Landing() {
       </section>
 
       {/* TOP TOOLBAR */}
-      <div className="border-b border-border bg-card/60 backdrop-blur">
+      <div className="sticky top-0 z-[900] border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-3 sm:px-6">
           <div className="flex items-center gap-2">
             <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-background px-3 py-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
