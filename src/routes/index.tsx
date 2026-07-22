@@ -253,7 +253,7 @@ function Landing() {
           </p>
 
           {/* Sport chips */}
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div ref={heroChipsRef} className="mt-5 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setFilterSport("")}
