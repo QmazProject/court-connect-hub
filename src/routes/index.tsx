@@ -60,6 +60,7 @@ function Landing() {
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [nationwide, setNationwide] = useState<boolean>(false);
 
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
