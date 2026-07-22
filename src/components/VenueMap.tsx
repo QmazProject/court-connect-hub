@@ -320,7 +320,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             <div className="absolute bottom-10 right-0 z-[700] w-64 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
               <button
                 type="button"
-                onClick={() => { setShowAttrib(false); alert("Report a map problem — coming soon."); }}
+                onClick={() => { setShowAttrib(false); setReportOpen(true); }}
                 className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-secondary"
               >
                 <span aria-hidden className="text-base">⚠️</span>
