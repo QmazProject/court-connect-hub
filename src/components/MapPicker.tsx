@@ -83,7 +83,8 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
       const start: [number, number] =
         initialLat != null && initialLng != null ? [initialLat, initialLng] : [14.5995, 120.9842]; // Manila
 
-      const map = L.map(containerRef.current).setView(start, initialLat != null ? 15 : 11);
+      const map = L.map(containerRef.current, { zoomControl: false }).setView(start, initialLat != null ? 15 : 11);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
