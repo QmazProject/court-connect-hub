@@ -804,6 +804,7 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
   const [address, setAddress] = useState(venue.address);
   const [description, setDescription] = useState(venue.description ?? "");
   const [images, setImages] = useState<string[]>(venue.images ?? []);
+  const [timezone, setTimezone] = useState(venue.timezone || "Asia/Manila");
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
 
