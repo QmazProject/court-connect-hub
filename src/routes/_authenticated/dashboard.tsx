@@ -161,13 +161,22 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   const [lng, setLng] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [tzConfirmed, setTzConfirmed] = useState(false);
+
+  const suggested = suggestTimezone(lat, lng);
+  const pinInPH = isInPhilippines(lat, lng);
+  const tzMismatch = !!(suggested && suggested.tz !== timezone);
+  const pinOutsidePH = lat != null && lng != null && !pinInPH;
 
   const mut = useMutation({
     mutationFn: async () => {
+      if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
+      if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
+      if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setErr(null); setOpen(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
