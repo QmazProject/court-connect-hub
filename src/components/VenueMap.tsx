@@ -285,8 +285,6 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
             sticky: false,
           });
           m.on("click", (e: any) => {
-            const target = e.originalEvent?.target as HTMLElement | undefined;
-            if (target?.closest?.(".ch-tip-dir")) return;
             e.originalEvent?.stopPropagation?.();
             userInteractedRef.current = false;
             onSelectVenue(v.id);
