@@ -387,11 +387,11 @@ function VenueSection({ venue }: { venue: Venue }) {
   );
 }
 
-function CourtCard({ court, onChanged }: { court: Court; onChanged: () => void }) {
+function CourtCard({ court, venueEmoji, onChanged }: { court: Court; venueEmoji: string | null; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
   const [managingHours, setManagingHours] = useState(false);
   if (editing) {
-    return <EditCourt court={court} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
+    return <EditCourt court={court} venueEmoji={venueEmoji} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
   }
   if (managingHours) {
     return <AvailabilityEditor court={court} onDone={() => { setManagingHours(false); onChanged(); }} onCancel={() => setManagingHours(false)} />;
