@@ -290,7 +290,15 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
               🛰️ Satellite
             </button>
           </div>
+          <MapInfoButton
+            className="bottom-3 left-3"
+            getCenter={() => {
+              const c = mapRef.current?.getCenter?.();
+              return c ? { lat: c.lat, lng: c.lng } : null;
+            }}
+          />
         </div>
+
 
         <div className="space-y-2 border-t border-border bg-secondary/30 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
