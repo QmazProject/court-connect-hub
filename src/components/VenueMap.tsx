@@ -187,7 +187,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           // CSS rotation (clockwise from up) so the arrow points from court back to venue
           const rotDeg = (Math.atan2(-Math.cos(angle), -Math.sin(angle)) * 180) / Math.PI;
           const p = courtOffset(vLat, vLng, i, total);
-          const html = `<div class="ch-pin ch-court"><div class="point-wrap" style="transform: rotate(${rotDeg}deg)"><div class="point"></div></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${i + 1}</div><div class="tip"></div></div>`;
+          const html = `<div class="ch-pin ch-court"><div class="point-wrap" style="transform: rotate(${rotDeg}deg)"><div class="point"></div></div><div class="body"><span class="emoji">🎾</span></div><div class="count">${i + 1}</div></div>`;
           const m = L.marker([p.lat, p.lng], { icon: divIcon(L, html, 34, "ch-court") }).addTo(layer);
           m.bindPopup(
             `<div class="ch-popup-inner"><div style="font-weight:700;font-size:13px;">${c.name}</div><div style="font-size:11px;opacity:.7;">₱${Number(c.hourly_rate).toFixed(0)} / hour</div><div style="margin-top:6px;font-size:11px;color:hsl(var(--primary));font-weight:600;">Tap to book →</div></div>`,
