@@ -86,7 +86,9 @@ function Header() {
   const [session, setSession] = useState<{ email?: string; role?: string } | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [progress, setProgress] = useState(0);
   const router = useRouter();
+
 
   useEffect(() => {
     let mounted = true;
