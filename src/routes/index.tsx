@@ -607,15 +607,6 @@ function Landing() {
             radiusHasMatches={!nearbyEmpty}
           />
 
-          {activeVenueId != null && (
-            <button
-              type="button"
-              onClick={() => setActiveVenueId(null)}
-              className="absolute left-3 top-3 z-[500] flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold shadow-md hover:border-primary hover:text-primary"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> All venues
-            </button>
-          )}
 
           {isFetching && (
             <div className="absolute right-3 top-3 z-[500] rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground shadow-md">
