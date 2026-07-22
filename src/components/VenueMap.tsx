@@ -131,17 +131,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
       // Deselect on background click
       map.on("click", () => onSelectVenue(null));
 
-      // If the user zooms out past the scatter threshold, deselect the venue
-      // so the courts collapse back into a single venue pin and the right-side
-      // list re-adapts to show all venues.
-      map.on("zoomend", () => {
-        const a = activeRef.current;
-        if (!a || a.id == null) return;
-        if (rezoomingRef.current) return;
-        if (map.getZoom() < 17) {
-          onSelectVenue(null);
-        }
+      // Track user-initiated map interactions so we don't auto-refit their view.
+      map.on("zoomstart", (e: any) => {
+        if (!rezoomingRef.current) userInteractedRef.current = true;
       });
+      map.on("dragstart", () => { userInteractedRef.current = true; });
     })();
     return () => {
       cancelled = true;
