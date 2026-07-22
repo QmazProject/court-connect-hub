@@ -182,7 +182,22 @@ function Landing() {
   }, [activeVenueId]);
 
   return (
-    <main className="flex h-[calc(100vh-64px)] flex-col overflow-hidden">
+    <main className="flex min-h-[calc(100vh-64px)] flex-col">
+      {/* HERO */}
+      <section className="border-b border-border bg-gradient-to-b from-primary/10 via-background to-background">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Dedicated Court Facility
+          </div>
+          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
+            What are you playing today?
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+            Explore the map, filter by sport and price, and lock in your slot at premium courts near you.
+          </p>
+        </div>
+      </section>
+
       {/* TOP TOOLBAR */}
       <div className="border-b border-border bg-card/60 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-3 sm:px-6">
