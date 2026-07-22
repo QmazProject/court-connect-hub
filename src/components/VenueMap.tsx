@@ -48,6 +48,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const rezoomingRef = useRef(false);
   const [view, setView] = useState<"street" | "satellite">("street");
   const [showAttrib, setShowAttrib] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
 
 
   // Init map once
