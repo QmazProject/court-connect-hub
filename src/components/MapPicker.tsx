@@ -14,6 +14,8 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const streetLayerRef = useRef<any>(null);
+  const satelliteLayerRef = useRef<any>(null);
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(
     initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : null
   );
@@ -22,6 +24,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
   const [searching, setSearching] = useState(false);
+  const [view, setView] = useState<"street" | "satellite">("street");
 
   // Debounced Nominatim search
   useEffect(() => {
@@ -85,10 +88,17 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
 
       const map = L.map(containerRef.current, { zoomControl: false }).setView(start, initialLat != null ? 15 : 11);
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
-      }).addTo(map);
+      });
+      const satellite = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles © Esri" }
+      );
+      street.addTo(map);
+      streetLayerRef.current = street;
+      satelliteLayerRef.current = satellite;
 
       const icon = L.icon({
         iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -214,7 +224,35 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
           </div>
         </div>
 
-        <div ref={containerRef} className="flex-1" style={{ minHeight: 240 }} />
+        <div className="relative flex-1" style={{ minHeight: 240 }}>
+          <div ref={containerRef} className="absolute inset-0" />
+          <div className="absolute left-3 top-3 z-[500] inline-flex overflow-hidden rounded-lg border border-border bg-background shadow">
+            <button
+              type="button"
+              onClick={() => {
+                if (view === "street" || !mapRef.current) return;
+                mapRef.current.removeLayer(satelliteLayerRef.current);
+                streetLayerRef.current.addTo(mapRef.current);
+                setView("street");
+              }}
+              className={`px-3 py-1.5 text-xs font-medium ${view === "street" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}
+            >
+              🗺️ Street
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (view === "satellite" || !mapRef.current) return;
+                mapRef.current.removeLayer(streetLayerRef.current);
+                satelliteLayerRef.current.addTo(mapRef.current);
+                setView("satellite");
+              }}
+              className={`px-3 py-1.5 text-xs font-medium ${view === "satellite" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}
+            >
+              🛰️ Satellite
+            </button>
+          </div>
+        </div>
 
         <div className="space-y-2 border-t border-border bg-secondary/30 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
