@@ -81,10 +81,18 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
 
       const map = L.map(elRef.current, { zoomControl: false }).setView([12.8797, 121.774], 6); // PH center
       L.control.zoom({ position: "topright" }).addTo(map);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      L.control.zoom({ position: "topright" }).addTo(map);
+      const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "© OpenStreetMap",
-      }).addTo(map);
+      });
+      const satellite = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles © Esri" }
+      );
+      street.addTo(map);
+      streetLayerRef.current = street;
+      satelliteLayerRef.current = satellite;
       mapRef.current = map;
       layerRef.current = L.layerGroup().addTo(map);
       readyRef.current = true;
