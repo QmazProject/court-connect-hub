@@ -61,6 +61,39 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const [view, setView] = useState<"street" | "satellite">("street");
   const [showAttrib, setShowAttrib] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
+  const [reportCategory, setReportCategory] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportDesc, setReportDesc] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
+
+  function closeReport() {
+    setReportOpen(false);
+    setReportCategory(null);
+    setReportDesc("");
+    setReportSent(false);
+    setReportSubmitting(false);
+  }
+
+  async function submitReport() {
+    if (!reportCategory || !reportDesc.trim()) return;
+    setReportSubmitting(true);
+    const center = mapRef.current?.getCenter?.();
+    const { data: userData } = await supabase.auth.getUser();
+    const { error } = await supabase.from("map_problems").insert({
+      category: reportCategory,
+      description: reportDesc.trim().slice(0, 2000),
+      latitude: center?.lat ?? null,
+      longitude: center?.lng ?? null,
+      user_id: userData?.user?.id ?? null,
+    });
+    setReportSubmitting(false);
+    if (error) {
+      alert("Could not send report: " + error.message);
+      return;
+    }
+    setReportSent(true);
+  }
 
 
   // Init map once
