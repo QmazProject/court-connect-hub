@@ -84,6 +84,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function Header() {
   const [session, setSession] = useState<{ email?: string; role?: string } | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -102,17 +103,35 @@ function Header() {
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, [router]);
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   async function signOut() {
     await supabase.auth.signOut();
     router.navigate({ to: "/", replace: true });
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-2 font-display text-xl font-bold tracking-tight">
-          <img src={chLogo.url} alt="CourtHub logo" className="h-9 w-9 rounded-full object-contain" />
-          CourtHub
+    <header
+      className={
+        "sticky top-0 z-[1100] border-b bg-background/85 backdrop-blur transition-[height,background,border-color,box-shadow] duration-200 " +
+        (scrolled
+          ? "h-12 border-border shadow-sm supports-[backdrop-filter]:bg-background/70"
+          : "h-16 border-border/60")
+      }
+    >
+      <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6">
+        <Link to="/" className="flex items-center gap-2 font-display font-bold tracking-tight">
+          <img
+            src={chLogo.url}
+            alt="CourtHub logo"
+            className={"rounded-full object-contain transition-all duration-200 " + (scrolled ? "h-7 w-7" : "h-9 w-9")}
+          />
+          <span className={"transition-all duration-200 " + (scrolled ? "text-base" : "text-xl")}>CourtHub</span>
         </Link>
         <nav className="flex items-center gap-2">
           {session ? (
@@ -142,6 +161,7 @@ function Header() {
     </header>
   );
 }
+
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
