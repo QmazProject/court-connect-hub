@@ -488,7 +488,7 @@ function Landing() {
             onOpenVenue={(id) => navigate({ to: "/venues/$venueId", params: { venueId: String(id) }, search: {} })}
             onOpenCourt={(id) => navigate({ to: "/courts/$courtId", params: { courtId: String(id) }, search: {} })}
             nearby={nearby}
-            radiusKm={nearby && !nationwide && nearbyFallback !== "nearest" ? radiusKm : null}
+            radiusKm={nearby && !nationwide ? radiusKm : null}
           />
 
           {activeVenueId != null && (
