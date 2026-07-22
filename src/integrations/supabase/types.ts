@@ -115,6 +115,36 @@ export type Database = {
           },
         ]
       }
+      map_problems: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          user_id: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
