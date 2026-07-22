@@ -487,8 +487,6 @@ function Landing() {
               )}
             </div>
           )}
-            </div>
-          )}
 
           {nearbyError && (
             <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
