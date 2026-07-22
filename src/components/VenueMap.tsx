@@ -9,7 +9,8 @@ export type MapVenue = {
   longitude: number | null;
   courtCount: number;
   minRate: number | null;
-  courts: { id: number; name: string; hourly_rate: number }[];
+  mapEmoji: string | null;
+  courts: { id: number; name: string; hourly_rate: number; mapEmoji: string | null }[];
 };
 
 type Props = {
