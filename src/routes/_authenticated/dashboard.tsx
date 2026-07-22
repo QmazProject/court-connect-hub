@@ -121,7 +121,10 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
   const [open, setOpen] = useState(!compact);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [timezone, setTimezone] = useState(
+    TIMEZONE_OPTIONS.some((t) => t.value === detectedTz) ? detectedTz : "Asia/Manila"
+  );
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
