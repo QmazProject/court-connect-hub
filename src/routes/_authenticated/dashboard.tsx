@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
+import { EmojiPicker } from "@/components/EmojiPicker";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
