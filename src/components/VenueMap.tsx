@@ -97,6 +97,11 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           .ch-tip-addr { font-size: 11px; color: #64748b; line-height: 1.2; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
           .ch-tip-rate { font-size: 11px; font-weight: 700; color: #09b8a8; }
           .ch-tip-rate.ch-tip-muted { color: #64748b; font-weight: 600; }
+          @keyframes ch-radius-hue { 0%,100% { stroke: #3b82f6; fill: #3b82f6; } 50% { stroke: #ef4444; fill: #ef4444; } }
+          @keyframes ch-radius-ping { 0% { opacity: .75; stroke-width: 2; } 100% { opacity: 0; stroke-width: 10; } }
+          .ch-radius-base { animation: ch-radius-hue 2.4s ease-in-out infinite; }
+          .ch-radius-ping { animation: ch-radius-hue 2.4s ease-in-out infinite, ch-radius-ping 2s ease-out infinite; transform-origin: center; }
+          .ch-radius-ping-2 { animation-delay: 0s, 1s; }
         `;
 
         document.head.appendChild(s);
@@ -161,16 +166,31 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           icon: L.divIcon({ className: "ch-marker", html: `<div class="ch-me"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] }),
         }).addTo(mapRef.current);
         if (radiusKm && radiusKm > 0) {
-          circleRef.current = L.circle([nearby.lat, nearby.lng], {
+          const group = L.layerGroup().addTo(mapRef.current);
+          const base = L.circle([nearby.lat, nearby.lng], {
             radius: radiusKm * 1000,
-            color: "#09e6d2",
             weight: 2,
-            fillColor: "#09e6d2",
-            fillOpacity: 0.08,
+            fillOpacity: 0.12,
             interactive: false,
-          }).addTo(mapRef.current);
+            className: "ch-radius-base",
+          }).addTo(group);
+          L.circle([nearby.lat, nearby.lng], {
+            radius: radiusKm * 1000,
+            weight: 2,
+            fill: false,
+            interactive: false,
+            className: "ch-radius-ping",
+          }).addTo(group);
+          L.circle([nearby.lat, nearby.lng], {
+            radius: radiusKm * 1000,
+            weight: 2,
+            fill: false,
+            interactive: false,
+            className: "ch-radius-ping ch-radius-ping-2",
+          }).addTo(group);
+          circleRef.current = group;
           if (activeVenueId == null) {
-            mapRef.current.fitBounds(circleRef.current.getBounds(), { padding: [40, 40] });
+            mapRef.current.fitBounds(base.getBounds(), { padding: [40, 40] });
           }
         }
       }
