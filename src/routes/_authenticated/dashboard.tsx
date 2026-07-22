@@ -1020,6 +1020,15 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
           <div className="sm:col-span-2">
             <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
           </div>
+          <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
+            <EmojiPicker
+              label="Map emoji (venue pin)"
+              value={mapEmoji}
+              fallback="🎾"
+              onChange={setMapEmoji}
+              hint="Shown on the landing-page map. Individual courts can override this."
+            />
+          </div>
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
