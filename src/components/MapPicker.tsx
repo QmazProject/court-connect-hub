@@ -26,11 +26,25 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const [searching, setSearching] = useState(false);
   const [view, setView] = useState<"street" | "satellite">("street");
 
+  // Detect "lat, lng" (also supports "lat lng" or Google Maps style "@lat,lng,zoom")
+  const parseCoords = (s: string): { lat: number; lng: number } | null => {
+    const m = s.match(/-?\d+(?:\.\d+)?/g);
+    if (!m || m.length < 2) return null;
+    // Prefer first two numeric matches (works for "@14.5,120.9,17z" too)
+    const lat = Number(m[0]);
+    const lng = Number(m[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  };
+  const coordMatch = parseCoords(query.trim());
+
   // Debounced Nominatim search
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
     if (q.length < 3) { setResults([]); return; }
+    if (parseCoords(q)) { setResults([]); return; } // handled via paste-coords button
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       setSearching(true);
@@ -194,7 +208,14 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search a place, street, or landmark…"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && coordMatch) {
+                  e.preventDefault();
+                  flyTo(coordMatch.lat, coordMatch.lng, 17);
+                  setResults([]);
+                }
+              }}
+              placeholder="Search a place, or paste coordinates (e.g. 14.5995, 120.9842)…"
               className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm outline-none focus:border-primary"
             />
             {query && (
@@ -205,7 +226,23 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
                 aria-label="Clear"
               >✕</button>
             )}
-            {(results.length > 0 || searching) && (
+            {coordMatch && (
+              <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { flyTo(coordMatch.lat, coordMatch.lng, 17); setResults([]); }}
+                    className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
+                  >
+                    <span className="font-semibold text-primary">Go to coordinates</span>{" "}
+                    <span className="font-mono text-muted-foreground">
+                      {coordMatch.lat.toFixed(6)}, {coordMatch.lng.toFixed(6)}
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            )}
+            {!coordMatch && (results.length > 0 || searching) && (
               <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
                 {searching && <li className="px-3 py-2 text-xs text-muted-foreground">Searching…</li>}
                 {results.map((r, i) => (
