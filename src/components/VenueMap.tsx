@@ -112,16 +112,15 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
       // Deselect on background click
       map.on("click", () => onSelectVenue(null));
 
-      // Keep the "scattered courts" view locked while a venue is active:
-      // if the user zooms out past a threshold, fly back to the venue.
+      // If the user zooms out past the scatter threshold, deselect the venue
+      // so the courts collapse back into a single venue pin and the right-side
+      // list re-adapts to show all venues.
       map.on("zoomend", () => {
         const a = activeRef.current;
         if (!a || a.id == null) return;
         if (rezoomingRef.current) return;
         if (map.getZoom() < 17) {
-          rezoomingRef.current = true;
-          map.flyTo([a.lat, a.lng], 18, { duration: 0.5 });
-          setTimeout(() => { rezoomingRef.current = false; }, 700);
+          onSelectVenue(null);
         }
       });
     })();
