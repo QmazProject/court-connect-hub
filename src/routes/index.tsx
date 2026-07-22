@@ -503,7 +503,7 @@ function Landing() {
         {/* Map */}
         <div className="relative flex-1 overflow-hidden rounded-l-2xl border border-border">
           <VenueMap
-            venues={sortedVenues}
+            venues={displayVenues}
             activeVenueId={activeVenueId}
             onSelectVenue={setActiveVenueId}
             onOpenVenue={(id) => navigate({ to: "/venues/$venueId", params: { venueId: String(id) }, search: {} })}
@@ -532,7 +532,7 @@ function Landing() {
         {/* Right sidebar (desktop / tablet) */}
         <aside className="hidden w-[380px] shrink-0 border-l border-border bg-background md:flex md:flex-col">
           <VenueList
-            venues={sortedVenues}
+            venues={displayVenues}
             activeVenueId={activeVenueId}
             onSelectVenue={setActiveVenueId}
             activeVenue={activeVenue}
@@ -565,7 +565,7 @@ function Landing() {
               </span>
             </button>
             <VenueList
-              venues={sortedVenues}
+              venues={displayVenues}
               activeVenueId={activeVenueId}
               onSelectVenue={(id) => { setActiveVenueId(id); if (id != null) setSheetExpanded(false); }}
               activeVenue={activeVenue}
