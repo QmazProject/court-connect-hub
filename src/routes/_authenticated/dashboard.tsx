@@ -103,6 +103,7 @@ function Dashboard() {
   const [section, setSection] = useState<SectionKey>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [createVenueOpen, setCreateVenueOpen] = useState(false);
 
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
