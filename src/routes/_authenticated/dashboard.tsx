@@ -158,7 +158,7 @@ function Dashboard() {
           <SectionHeader title="Venues / Courts" subtitle="Manage your venues and courts." />
           <VenuesCourtsActions hasVenues={venues.length > 0} />
           <VenuesCourtsGlance venues={venues} />
-          <VenuesCourtsTable venues={venues} />
+          
 
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
             <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} /></div>
@@ -367,10 +367,6 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
           <StatCard label="Upcoming bookings" value={statsQ.data?.upcoming ?? 0} />
         </div>
       )}
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
-        <QuickAction title="Manage courts" body="Add courts, rates, amenities and availability." onClick={() => setSection("courts")} />
-        <QuickAction title="View bookings" body="See upcoming reservations across your venues." onClick={() => setSection("bookings")} />
-      </div>
     </>
   );
 }
