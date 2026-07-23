@@ -394,18 +394,14 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
-function VenuesCourtsActions({ hasVenues, onCreateVenue }: { hasVenues: boolean; onCreateVenue: () => void }) {
-  const scrollTo = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const onAddCourt = () => {
+function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt }: { hasVenues: boolean; onCreateVenue: () => void; onAddCourt: () => void }) {
+  const handleAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
       onCreateVenue();
       return;
     }
-    scrollTo("add-court-anchor");
+    onAddCourt();
   };
   const onCreateGroup = () => {
     alert("Groups are coming soon — you'll be able to bundle multiple venues under one brand or organization.");
@@ -419,7 +415,7 @@ function VenuesCourtsActions({ hasVenues, onCreateVenue }: { hasVenues: boolean;
         + Create group
       </button>
       <button
-        onClick={onAddCourt}
+        onClick={handleAddCourt}
         className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
       >
         + Add court
