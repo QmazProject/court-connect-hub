@@ -104,6 +104,7 @@ function Dashboard() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [createVenueOpen, setCreateVenueOpen] = useState(false);
+  const [addCourtOpen, setAddCourtOpen] = useState(false);
 
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
@@ -157,7 +158,7 @@ function Dashboard() {
       {section === "courts" && (
         <>
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
-          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} />
+          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} onAddCourt={() => setAddCourtOpen(true)} />
           <VenuesCourtsGlance venues={venues} />
 
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
@@ -185,6 +186,12 @@ function Dashboard() {
             open={createVenueOpen}
             onClose={() => setCreateVenueOpen(false)}
             onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); setCreateVenueOpen(false); }}
+          />
+          <AddCourtDrawer
+            open={addCourtOpen}
+            onClose={() => setAddCourtOpen(false)}
+            venues={venues}
+            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); setAddCourtOpen(false); }}
           />
         </>
       )}
@@ -387,18 +394,14 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
-function VenuesCourtsActions({ hasVenues, onCreateVenue }: { hasVenues: boolean; onCreateVenue: () => void }) {
-  const scrollTo = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const onAddCourt = () => {
+function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt }: { hasVenues: boolean; onCreateVenue: () => void; onAddCourt: () => void }) {
+  const handleAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
       onCreateVenue();
       return;
     }
-    scrollTo("add-court-anchor");
+    onAddCourt();
   };
   const onCreateGroup = () => {
     alert("Groups are coming soon — you'll be able to bundle multiple venues under one brand or organization.");
@@ -412,7 +415,7 @@ function VenuesCourtsActions({ hasVenues, onCreateVenue }: { hasVenues: boolean;
         + Create group
       </button>
       <button
-        onClick={onAddCourt}
+        onClick={handleAddCourt}
         className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
       >
         + Add court
@@ -1080,7 +1083,7 @@ function parseList(input: string): string[] {
   return input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
 }
 
-function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEmoji: string | null; onCreated: () => void }) {
+function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { venueId: number; venueEmoji: string | null; onCreated: () => void; alwaysOpen?: boolean; onCancel?: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("25");
@@ -1093,7 +1096,7 @@ function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEm
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const sportsQ = useSportsQuery(open);
+  const sportsQ = useSportsQuery(open || !!alwaysOpen);
 
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
@@ -1122,7 +1125,7 @@ function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEm
     onError: (e: Error) => setErr(e.message),
   });
 
-  if (!open) {
+  if (!open && !alwaysOpen) {
     return (
       <button onClick={() => setOpen(true)} className="grid min-h-[128px] place-items-center rounded-xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
         + Add court
@@ -1175,9 +1178,77 @@ function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEm
         <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
           {mut.isPending ? "Adding…" : "Add court"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
+        <button type="button" onClick={() => { if (onCancel) onCancel(); else setOpen(false); }} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
       </div>
     </form>
+  );
+}
+
+function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; onClose: () => void; venues: Venue[]; onCreated: () => void }) {
+  const [venueId, setVenueId] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    setVenueId(venues.length === 1 ? venues[0].id : null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose, venues]);
+  const selectedVenue = venues.find((v) => v.id === venueId) ?? null;
+  return (
+    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+      <div
+        onClick={onClose}
+        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+      />
+      <aside
+        className={
+          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full")
+        }
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add court"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+          <h2 className="text-lg font-bold">Add court</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">
+            ✕
+          </button>
+        </div>
+        <div className="space-y-4 p-4 sm:p-6">
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Venue</span>
+            <select
+              value={venueId ?? ""}
+              onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Select a venue…</option>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">Choose which venue this court belongs to.</p>
+          </label>
+          {selectedVenue ? (
+            <AddCourt
+              key={selectedVenue.id}
+              venueId={selectedVenue.id}
+              venueEmoji={selectedVenue.map_emoji ?? null}
+              alwaysOpen
+              onCancel={onClose}
+              onCreated={onCreated}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Pick a venue above to start adding a court.
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
   );
 }
 
