@@ -2665,7 +2665,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     });
   };
 
-  const removeMember = async (courtId: string | number) => {
+  const removeMember = async (courtId: number) => {
     setErr(null);
     // Only allow removing if no bookings on that court
     const { count, error: cErr } = await supabase.from("bookings")
