@@ -333,9 +333,18 @@ function SidebarBody({
         </ul>
       </nav>
       {!collapsed && (
-        <div className="border-t border-border p-3 font-display text-sm font-semibold tracking-tight text-foreground">
-          Tenant workspace
+        <div className="border-t border-border px-3 py-3.5">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Tenant
+            </span>
+          </div>
+          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">
+            Workspace
+          </div>
         </div>
+
 
       )}
     </>
