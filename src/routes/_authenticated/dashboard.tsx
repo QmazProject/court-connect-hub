@@ -161,11 +161,13 @@ function Dashboard() {
           <VenuesCourtsTable venues={venues} />
 
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
-            <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
+            <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} /></div>
           ) : (
             <div className="space-y-8">
-              {venues.map((v) => <VenueSection key={v.id} venue={v} />)}
-              <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact />
+              {venues.map((v, i) => (
+                <div key={v.id} id={i === 0 ? "add-court-anchor" : undefined}><VenueSection venue={v} /></div>
+              ))}
+              <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact /></div>
             </div>
           )}
         </>
