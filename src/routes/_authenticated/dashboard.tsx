@@ -155,7 +155,7 @@ function Dashboard() {
       )}
       {section === "courts" && (
         <>
-          <SectionHeader title="Venues / Courts" subtitle="Manage your venues and courts." />
+          <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
           <VenuesCourtsActions hasVenues={venues.length > 0} />
           <VenuesCourtsGlance venues={venues} />
           
