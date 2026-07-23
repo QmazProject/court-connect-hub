@@ -1358,6 +1358,8 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [mapView, setMapView] = useState<"internal" | "google">("internal");
+  const [internalOpen, setInternalOpen] = useState(false);
+
 
   const mut = useMutation({
     mutationFn: async ({ lat, lng }: { lat: number; lng: number }) => {
@@ -1391,30 +1393,49 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
               🌐 Google
             </button>
           </div>
-          <a
-            href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`}
-            target="_blank"
-            rel="noreferrer"
-            className="group relative block w-full"
-            title="View on map"
-          >
-            <div className="relative h-32 w-full overflow-hidden">
-              <iframe
-                key={mapView}
-                title={`${venue.name} map`}
-                src={mapView === "internal" ? osmEmbedUrl(venue.latitude!, venue.longitude!) : googleEmbedUrl(venue.latitude!, venue.longitude!)}
-                className={
-                  mapView === "internal"
-                    ? "pointer-events-none absolute left-0 right-0 -top-6 h-48 w-full"
-                    : "pointer-events-none absolute inset-0 h-full w-full"
-                }
-                loading="lazy"
-              />
-            </div>
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-xs font-semibold text-transparent transition group-hover:bg-black/40 group-hover:text-white">
-              🔍 View on map
-            </span>
-          </a>
+          {mapView === "internal" ? (
+            <button
+              type="button"
+              onClick={() => setInternalOpen(true)}
+              className="group relative block w-full text-left"
+              title="View on internal map"
+            >
+              <div className="relative h-32 w-full overflow-hidden">
+                <iframe
+                  key="internal"
+                  title={`${venue.name} map`}
+                  src={osmEmbedUrl(venue.latitude!, venue.longitude!)}
+                  className="pointer-events-none absolute left-0 right-0 -top-6 h-48 w-full"
+                  loading="lazy"
+                />
+              </div>
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-xs font-semibold text-transparent transition group-hover:bg-black/40 group-hover:text-white">
+                🔍 View on map
+              </span>
+            </button>
+          ) : (
+            <a
+              href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="group relative block w-full"
+              title="Open in Google Maps"
+            >
+              <div className="relative h-32 w-full overflow-hidden">
+                <iframe
+                  key="google"
+                  title={`${venue.name} map`}
+                  src={googleEmbedUrl(venue.latitude!, venue.longitude!)}
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                  loading="lazy"
+                />
+              </div>
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-xs font-semibold text-transparent transition group-hover:bg-black/40 group-hover:text-white">
+                🔍 Open in Google Maps
+              </span>
+            </a>
+          )}
+
           <div className="flex items-center justify-end gap-2 bg-secondary/40 px-3 py-2 text-xs">
             <button onClick={() => setPickerOpen(true)} className="rounded-md border border-border bg-background px-2 py-1 font-medium hover:border-primary hover:text-primary">Edit pin</button>
           </div>
@@ -1435,6 +1456,8 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
         saving={mut.isPending}
         title={`Pin ${venue.name}`}
       />
+      <MapViewModal venue={internalOpen ? venue : null} onClose={() => setInternalOpen(false)} />
+
     </div>
   );
 }
