@@ -19,7 +19,7 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "calendar", label: "Calendar", icon: CalendarDays },
   { key: "bookings", label: "Bookings", icon: BookOpen },
-  { key: "courts", label: "Venues / Courts", icon: LandPlot },
+  { key: "courts", label: "Venues & Courts", icon: LandPlot },
   { key: "customers", label: "Customers", icon: Users },
   { key: "team", label: "Team", icon: UserCog },
   { key: "transactions", label: "Transactions", icon: Receipt },
@@ -155,7 +155,7 @@ function Dashboard() {
       )}
       {section === "courts" && (
         <>
-          <SectionHeader title="Venues / Courts" subtitle="Manage your venues and courts." />
+          <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
           <VenuesCourtsActions hasVenues={venues.length > 0} />
           <VenuesCourtsGlance venues={venues} />
           
