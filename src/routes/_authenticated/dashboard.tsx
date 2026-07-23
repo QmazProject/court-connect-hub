@@ -1083,7 +1083,7 @@ function parseList(input: string): string[] {
   return input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
 }
 
-function AddCourt({ venueId, venueEmoji, onCreated }: { venueId: number; venueEmoji: string | null; onCreated: () => void }) {
+function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { venueId: number; venueEmoji: string | null; onCreated: () => void; alwaysOpen?: boolean; onCancel?: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("25");
