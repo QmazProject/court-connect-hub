@@ -2452,6 +2452,7 @@ function CourtDrawer({ title, open, onClose, children }: { title: string; open: 
 
 function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
+  const [editing, setEditing] = useState<GroupRow | null>(null);
   useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
 
   const groupsQ = useQuery({
@@ -2502,12 +2503,13 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
             No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts onto one physical slab.
           </div>
         ) : (
-          <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+          <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-3 py-2 font-semibold">Group</th>
                 <th className="px-3 py-2 font-semibold">Description</th>
                 <th className="px-3 py-2 font-semibold">Court layouts</th>
+                <th className="px-3 py-2 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2533,13 +2535,152 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
                       </div>
                     )}
                   </td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(g)}
+                        title="Edit group"
+                        aria-label={`Edit ${g.name}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <DeleteGroupButton group={g} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      {editing && <EditGroupDrawer group={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
+
+type GroupRow = { id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> };
+
+function DeleteGroupButton({ group }: { group: GroupRow }) {
+  const qc = useQueryClient();
+  const [confirm, setConfirm] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const courtIds = group.layouts.map((l) => l.id);
+      if (courtIds.length > 0) {
+        const { count, error } = await supabase.from("bookings")
+          .select("id", { count: "exact", head: true }).in("court_id", courtIds);
+        if (error) throw error;
+        if ((count ?? 0) > 0) throw new Error("This group has existing bookings and cannot be deleted.");
+        // Detach courts from the physical surface by giving each its own new slab
+        for (const c of group.layouts) {
+          const { data: pc, error: pcErr } = await supabase.from("physical_courts")
+            .insert({ venue_id: (group as any).venue_id ?? undefined, name: c.name })
+            .select("id").single();
+          if (pcErr) {
+            // Fall back: leave the physical_court_id — parent will still delete-cascade if we allow, but safer to abort.
+            throw pcErr;
+          }
+          const { error: upErr } = await supabase.from("courts")
+            .update({ physical_court_id: pc.id, capacity: 1, footprint: 1 }).eq("id", c.id);
+          if (upErr) throw upErr;
+        }
+      }
+      const { error } = await supabase.from("physical_courts").delete().eq("id", group.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setConfirm(false); setErr(null);
+      qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
+      qc.invalidateQueries({ queryKey: ["physical-courts"] });
+      qc.invalidateQueries({ queryKey: ["tenant-venues-full"] });
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => { setErr(null); setConfirm(true); }}
+        title="Delete group"
+        aria-label={`Delete ${group.name}`}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+      {confirm && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-4" onClick={() => !mut.isPending && setConfirm(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold">Delete group?</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              <b className="text-foreground">{group.name}</b> will be removed. Its courts will remain but each becomes an independent slab again. This can't be undone.
+            </p>
+            {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button type="button" disabled={mut.isPending} onClick={() => setConfirm(false)} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
+              <button type="button" disabled={mut.isPending} onClick={() => mut.mutate()} className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50">
+                {mut.isPending ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(group.name);
+  const [emoji, setEmoji] = useState<string | null>(group.map_emoji);
+  const [description, setDescription] = useState(group.description ?? "");
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) throw new Error("Group name is required");
+      const { error } = await supabase.from("physical_courts")
+        .update({ name: name.trim(), map_emoji: emoji, description: description.trim() || null })
+        .eq("id", group.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
+      qc.invalidateQueries({ queryKey: ["physical-courts"] });
+      onClose();
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-[70] flex" onClick={onClose}>
+      <div className="flex-1 bg-black/50" />
+      <div className="h-full w-full max-w-lg overflow-y-auto bg-background shadow-2xl nice-scroll" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-5 py-4">
+          <h3 className="text-lg font-semibold">Edit group</h3>
+          <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4 p-5">
+          <Input label="Group name" value={name} onChange={setName} required />
+          <div className="rounded-xl border border-border bg-background p-3">
+            <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
+          </div>
+          <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+          {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" onClick={onClose} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
+            <button disabled={mut.isPending || !name.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+              {mut.isPending ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 
