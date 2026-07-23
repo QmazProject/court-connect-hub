@@ -2382,31 +2382,9 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
   const qc = useQueryClient();
 
-
-
-
-  const [newName, setNewName] = useState("");
-  const [newEmoji, setNewEmoji] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const createMut = useMutation({
-    mutationFn: async () => {
-      if (!venueId) throw new Error("Pick a venue");
-      const { error } = await supabase.from("physical_courts").insert({
-        venue_id: venueId, name: newName, map_emoji: newEmoji,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => { setNewName(""); setNewEmoji(null); setErr(null); qc.invalidateQueries({ queryKey: ["physical-courts-full", venueId] }); qc.invalidateQueries({ queryKey: ["physical-courts", venueId] }); },
-    onError: (e: Error) => setErr(e.message),
-  });
-
-
-
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
-
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Venue</span>
           <select value={venueId ?? ""} onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
@@ -2415,22 +2393,10 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           </select>
         </label>
       </div>
-
-      <form onSubmit={(e) => { e.preventDefault(); if (!newName.trim()) return; createMut.mutate(); }}
-        className="rounded-2xl border border-dashed border-border bg-secondary/20 p-4">
-        <div className="text-sm font-semibold">+ New physical surface</div>
-        <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-          <Input label='Name (e.g. "Court 1 — Main Slab")' value={newName} onChange={setNewName} required />
-          <div className="rounded-lg border border-border bg-background p-2">
-            <EmojiPicker label="Emoji" value={newEmoji} fallback="🏟️" onChange={setNewEmoji} />
-          </div>
-          <button disabled={createMut.isPending || !newName.trim()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
-            {createMut.isPending ? "Creating…" : "Create surface"}
-          </button>
-        </div>
-        {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
-      </form>
-
+      <p className="text-xs text-muted-foreground">
+        Use <b className="text-foreground">+ Create group</b> above to bundle courts that share the same physical slab.
+      </p>
     </div>
   );
 }
+
