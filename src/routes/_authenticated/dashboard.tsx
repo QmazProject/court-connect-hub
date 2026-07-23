@@ -1110,18 +1110,44 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
+  const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
+  const [capacity, setCapacity] = useState("1");
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
+  const pcQ = useQuery({
+    queryKey: ["physical-courts", venueId],
+    enabled: open || !!alwaysOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", venueId).order("id");
+      if (error) throw error;
+      return data as { id: number; name: string; map_emoji: string | null }[];
+    },
+  });
 
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
+      let pcId: number;
+      if (physicalCourtId === "new") {
+        const { data, error } = await supabase.from("physical_courts").insert({
+          venue_id: venueId, name, map_emoji: mapEmoji ?? venueEmoji ?? null,
+        }).select("id").single();
+        if (error) throw error;
+        pcId = data.id;
+      } else {
+        pcId = Number(physicalCourtId);
+      }
+      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
+      const footprint = 1 / cap;
       const { error } = await supabase.from("courts").insert({
         venue_id: venueId,
         sport_id: Number(sportId),
+        physical_court_id: pcId,
+        capacity: cap,
+        footprint,
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
@@ -1135,7 +1161,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
