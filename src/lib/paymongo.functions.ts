@@ -20,7 +20,6 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       paymongoMode,
     } = await import("./paymongo.server");
 
-    // Load court + venue payment settings
     const { data: court, error: courtErr } = await supabase
       .from("courts")
       .select("id, name, hourly_rate, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours)")
@@ -38,7 +37,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     const centavos = Math.round(collectAmount * 100);
     if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
 
-    // Insert bookings as confirmed (reserves the slot) with payment_status=unpaid
+    // Insert bookings as pending + unpaid. Slot is not held until payment succeeds.
     const rows = data.hours.map((h) => {
       const start = new Date(`${data.date}T${String(h).padStart(2, "0")}:00:00`);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -47,7 +46,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
         user_id: userId,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        status: "confirmed",
+        status: "pending",
         payment_status: "unpaid",
       };
     });
@@ -57,9 +56,8 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       .select("id");
     if (insErr) throw new Error(insErr.message);
     const bookingIds = (inserted ?? []).map((r) => r.id as number);
-    if (bookingIds.length === 0) throw new Error("Failed to reserve slots");
+    if (bookingIds.length === 0) throw new Error("Failed to create booking");
 
-    // Create PayMongo checkout session
     const primaryBookingId = bookingIds[0];
     const reference = `bk_${primaryBookingId}_${Date.now().toString(36)}`;
     const successUrl = `${data.origin}/payment/return?ref=${encodeURIComponent(reference)}&status=success`;
@@ -83,12 +81,10 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
         },
       });
     } catch (e) {
-      // Roll back the reservations if PayMongo fails
       await supabase.from("bookings").delete().in("id", bookingIds);
       throw e;
     }
 
-    // Insert one transaction per booking (for accurate per-hour reporting)
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const mode = paymongoMode();
     const perBookingCentavos = Math.round(centavos / bookingIds.length);
@@ -115,6 +111,123 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     };
   });
 
+const RetryInput = z.object({
+  bookingIds: z.array(z.number().int().positive()).min(1).max(12),
+  method: z.enum(["gcash", "paymaya", "grab_pay", "qrph", "card"]),
+  origin: z.string().url(),
+});
+
+// Retry payment for existing pending/unpaid bookings without creating new booking rows.
+export const retryBookingPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => RetryInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { createCheckoutSession, paymongoMode } = await import("./paymongo.server");
+
+    const { data: bookings, error: bErr } = await supabase
+      .from("bookings")
+      .select("id, court_id, user_id, start_time, end_time, status, payment_status, courts(name, hourly_rate, venue_id, venues(name, payment_mode))")
+      .in("id", data.bookingIds);
+    if (bErr || !bookings || bookings.length === 0) throw new Error("Bookings not found");
+    if (bookings.length !== data.bookingIds.length) throw new Error("Some bookings could not be loaded");
+
+    for (const b of bookings) {
+      if (b.user_id !== userId) throw new Error("Not your booking");
+      if (b.payment_status === "paid") throw new Error("Booking already paid");
+      if (b.status === "cancelled") throw new Error("Booking is cancelled");
+    }
+    const courtIds = new Set(bookings.map((b) => b.court_id));
+    if (courtIds.size > 1) throw new Error("All bookings must be on the same court");
+
+    const first = bookings[0] as unknown as {
+      court_id: number;
+      courts: { name: string; hourly_rate: number; venue_id: number; venues: { name: string; payment_mode: string } };
+    };
+    const venue = first.courts.venues;
+    if (!venue || venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
+
+    const totalHours = bookings.length;
+    const fullAmount = Number(first.courts.hourly_rate) * totalHours;
+    const collectAmount =
+      venue.payment_mode === "downpayment_50" ? Math.round(fullAmount * 50) / 100 : fullAmount;
+    const centavos = Math.round(collectAmount * 100);
+    if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
+
+    const bookingIds = bookings.map((b) => b.id as number).sort((a, b) => a - b);
+    const primaryBookingId = bookingIds[0];
+    const reference = `bk_${primaryBookingId}_${Date.now().toString(36)}`;
+    const successUrl = `${data.origin}/payment/return?ref=${encodeURIComponent(reference)}&status=success`;
+    const cancelUrl = `${data.origin}/payment/return?ref=${encodeURIComponent(reference)}&status=cancel`;
+
+    const session = await createCheckoutSession({
+      amountCentavos: centavos,
+      description: `${venue.name} — ${first.courts.name} (${totalHours} hr${totalHours > 1 ? "s" : ""})`,
+      referenceNumber: reference,
+      lineItemName: `${first.courts.name} · ${totalHours} hour${totalHours > 1 ? "s" : ""}`,
+      methods: [data.method],
+      successUrl,
+      cancelUrl,
+      metadata: {
+        booking_ids: bookingIds.join(","),
+        venue_id: String(first.courts.venue_id),
+        court_id: String(first.court_id),
+        user_id: userId,
+        retry: "1",
+      },
+    });
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Void previous pending tx for these bookings.
+    await supabaseAdmin
+      .from("transactions")
+      .update({ status: "cancelled" })
+      .in("booking_id", bookingIds)
+      .eq("status", "pending");
+
+    const mode = paymongoMode();
+    const perBookingCentavos = Math.round(centavos / bookingIds.length);
+    const txRows = bookingIds.map((bid) => ({
+      booking_id: bid,
+      venue_id: first.courts.venue_id,
+      user_id: userId,
+      amount: perBookingCentavos / 100,
+      currency: "PHP",
+      method: data.method,
+      provider: "paymongo",
+      provider_ref: session.data.id,
+      status: "pending",
+      mode,
+    }));
+    const { error: txErr } = await supabaseAdmin.from("transactions").insert(txRows);
+    if (txErr) console.error("[transactions insert retry]", txErr);
+
+    return {
+      checkoutUrl: session.data.attributes.checkout_url,
+      sessionId: session.data.id,
+      reference,
+      amount: centavos / 100,
+    };
+  });
+
+const CancelInput = z.object({ bookingIds: z.array(z.number().int().positive()).min(1).max(24) });
+
+// Cancel unpaid pending bookings (used when player abandons or cancels checkout).
+export const cancelPendingBookings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => CancelInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .in("id", data.bookingIds)
+      .eq("user_id", userId)
+      .neq("payment_status", "paid");
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const getCheckoutStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ reference: z.string().min(1) }).parse(data))
@@ -125,9 +238,6 @@ export const getCheckoutStatus = createServerFn({ method: "POST" })
       .select("id, status, amount, method, booking_id, provider_ref, paid_at")
       .eq("provider_ref", data.reference.startsWith("bk_") ? data.reference : data.reference)
       .limit(1);
-    // provider_ref stores the PayMongo session id, but on return we know the ref number, not session id.
-    // Look up by the reference passed on success/cancel URL via a fallback: match on the most recent tx
-    // where the metadata reference matches the booking. Simpler: search bookings by user + the ref pattern.
     if (tx && tx.length > 0) {
       return { status: tx[0].status, amount: tx[0].amount, method: tx[0].method };
     }
