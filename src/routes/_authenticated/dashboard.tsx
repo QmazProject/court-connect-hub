@@ -205,8 +205,16 @@ function Dashboard() {
         </div>
       )}
       {section === "calendar" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." /></div>}
-      {section === "bookings" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." /></div>}
-      {section === "customers" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Customers" body="See the players who book your courts, their history and notes." /></div>}
+      {section === "bookings" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <BookingsSection venues={venues} />
+        </div>
+      )}
+      {section === "customers" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <CustomersSection venues={venues} />
+        </div>
+      )}
       {section === "team" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." /></div>}
       {section === "transactions" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
