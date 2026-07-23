@@ -171,7 +171,15 @@ function Dashboard() {
       {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
       {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
       {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
-      {section === "settings" && <ComingSoon title="Settings" body="Business profile, notifications and preferences." />}
+      {section === "settings" && (
+        <SettingsSection
+          fullName={profileQ.data?.full_name ?? ""}
+          email={user.email ?? ""}
+          role={profileQ.data?.role ?? "tenant"}
+          userId={user.id}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
+        />
+      )}
     </TenantShell>
   );
 }
