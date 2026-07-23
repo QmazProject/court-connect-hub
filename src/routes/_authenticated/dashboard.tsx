@@ -1722,7 +1722,7 @@ function SettingsSection({
 function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
   const [tab, setTab] = useState<"venues" | "courts" | "groups">("venues");
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
         <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
           Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
@@ -1730,7 +1730,8 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>Court Groups</TabBtn>
       </div>
-      <div className="nice-scroll max-h-[calc(100dvh-220px)] min-h-[380px] overflow-y-auto overflow-x-auto">
+      <div className="nice-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto">
+
         {tab === "venues" && <VenuesTab venues={venues} />}
         {tab === "courts" && <CourtsTab venues={venues} />}
         {tab === "groups" && (
