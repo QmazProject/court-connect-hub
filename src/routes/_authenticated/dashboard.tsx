@@ -1662,3 +1662,296 @@ function SettingsSection({
     </div>
   );
 }
+
+// ================= Venues & Courts tabs =================
+
+function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
+  const [tab, setTab] = useState<"venues" | "courts">("venues");
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="flex border-b border-border bg-secondary/30">
+        <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
+          Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
+        </TabBtn>
+        <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
+      </div>
+      <div className="nice-scroll max-h-[70vh] min-h-[380px] overflow-y-auto overflow-x-auto">
+        {tab === "venues" ? <VenuesTab venues={venues} /> : <CourtsTab venues={venues} />}
+      </div>
+    </div>
+  );
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "relative px-4 sm:px-6 py-3 text-sm font-semibold transition " +
+        (active ? "text-primary" : "text-muted-foreground hover:text-foreground")
+      }
+    >
+      {children}
+      {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
+    </button>
+  );
+}
+
+function VenuesTab({ venues }: { venues: Venue[] }) {
+  const [editing, setEditing] = useState<Venue | null>(null);
+  return (
+    <>
+      <table className="w-full min-w-[900px] text-sm">
+        <thead className="sticky top-0 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
+          <tr>
+            <th className="px-4 py-2.5 w-10"></th>
+            <th className="px-3 py-2.5">Venue</th>
+            <th className="px-3 py-2.5">Location</th>
+            <th className="px-3 py-2.5">Description</th>
+            <th className="px-3 py-2.5 w-32">Map</th>
+            <th className="px-3 py-2.5 w-40 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {venues.map((v) => (
+            <tr key={v.id} className="border-t border-border align-top hover:bg-secondary/20">
+              <td className="px-4 py-3 text-xl leading-none">{v.map_emoji ?? "🎾"}</td>
+              <td className="px-3 py-3">
+                <div className="font-semibold">{v.name}</div>
+                <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
+              </td>
+              <td className="px-3 py-3 text-muted-foreground min-w-[180px]">{v.address}</td>
+              <td className="px-3 py-3 text-muted-foreground max-w-[260px]">
+                {v.description ? <span className="line-clamp-2">{v.description}</span> : <span className="italic opacity-60">No description</span>}
+              </td>
+              <td className="px-3 py-3">
+                {v.latitude != null && v.longitude != null ? (
+                  <div className="overflow-hidden rounded-md border border-border">
+                    <iframe
+                      title={`${v.name} map`}
+                      src={osmEmbedUrl(v.latitude, v.longitude)}
+                      className="pointer-events-none h-14 w-28"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">No pin</span>
+                )}
+              </td>
+              <td className="px-3 py-3 text-right">
+                <button
+                  onClick={() => setEditing(v)}
+                  className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary"
+                >
+                  ✎ Edit / Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
+    </>
+  );
+}
+
+function EditVenueDrawer({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const open = venue !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+
+  const courtsQ = useQuery({
+    queryKey: ["courts-count", venue?.id],
+    enabled: open,
+    queryFn: async () => {
+      const { count } = await supabase.from("courts").select("id", { count: "exact", head: true }).eq("venue_id", venue!.id);
+      return count ?? 0;
+    },
+  });
+
+  return (
+    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+      <div onClick={onClose} className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")} />
+      <aside
+        className={
+          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full")
+        }
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+          <h2 className="text-lg font-bold">Edit venue</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+        </div>
+        {open && venue && (
+          <div className="space-y-4 p-4 sm:p-6">
+            <VenueEditor
+              venue={venue}
+              courtsCount={courtsQ.data ?? 0}
+              initialEditing
+              onDoneEditing={onClose}
+            />
+            <div className="rounded-xl border border-border p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Map location</div>
+              <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
+            </div>
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+// ------- Courts tab -------
+
+type CourtRow = Court & { venue: Venue };
+
+function CourtsTab({ venues }: { venues: Venue[] }) {
+  const qc = useQueryClient();
+  const venueIds = venues.map((v) => v.id);
+  const courtsQ = useQuery({
+    queryKey: ["all-tenant-courts", venueIds.join(",")],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courts").select("*, sports(name)").in("venue_id", venueIds).order("venue_id").order("id");
+      if (error) throw error;
+      const byId = new Map(venues.map((v) => [v.id, v]));
+      return (data as unknown as Court[]).map((c) => ({ ...c, venue: byId.get(c.venue_id)! })) as CourtRow[];
+    },
+  });
+
+  const [venueFilter, setVenueFilter] = useState<number | "all">("all");
+  const [editing, setEditing] = useState<CourtRow | null>(null);
+  const [managingHours, setManagingHours] = useState<CourtRow | null>(null);
+
+  const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
+    qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+  };
+
+  return (
+    <>
+      <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur">
+        <label className="text-xs text-muted-foreground">Filter venue:</label>
+        <select
+          value={venueFilter === "all" ? "all" : String(venueFilter)}
+          onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+        >
+          <option value="all">All venues</option>
+          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <span className="ml-auto text-xs text-muted-foreground">{rows.length} court{rows.length === 1 ? "" : "s"}</span>
+      </div>
+      {courtsQ.isLoading ? (
+        <div className="p-6"><div className="h-24 animate-pulse rounded-lg bg-muted" /></div>
+      ) : rows.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">No courts yet. Use <strong>Add court</strong> to create one.</div>
+      ) : (
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className="sticky top-[41px] z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
+            <tr>
+              <th className="px-4 py-2.5 w-10"></th>
+              <th className="px-3 py-2.5">Court</th>
+              <th className="px-3 py-2.5">Venue</th>
+              <th className="px-3 py-2.5">Sport</th>
+              <th className="px-3 py-2.5">Type</th>
+              <th className="px-3 py-2.5 text-right">Rate / hr</th>
+              <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => (
+              <tr key={c.id} className="border-t border-border align-middle hover:bg-secondary/20">
+                <td className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>
+                <td className="px-3 py-3">
+                  <div className="font-semibold">{c.name}</div>
+                  {c.description && <div className="text-[11px] text-muted-foreground line-clamp-1 max-w-[240px]">{c.description}</div>}
+                </td>
+                <td className="px-3 py-3">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    <span>{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
+                <td className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>
+                <td className="px-3 py-3 text-right font-semibold text-primary tabular-nums">₱{Number(c.hourly_rate).toFixed(0)}</td>
+                <td className="px-3 py-3">
+                  {c.coming_soon ? (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
+                  ) : (
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">Live</span>
+                  )}
+                </td>
+                <td className="px-3 py-3 text-right whitespace-nowrap">
+                  <button onClick={() => setManagingHours(c)} className="mr-1 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20">Hours</button>
+                  <button onClick={() => setEditing(c)} className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:border-primary hover:text-primary">Edit</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <CourtDrawer title="Edit court" open={editing !== null} onClose={() => setEditing(null)}>
+        {editing && (
+          <EditCourt
+            court={editing}
+            venueEmoji={editing.venue.map_emoji}
+            onDone={() => { invalidate(); setEditing(null); }}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+      </CourtDrawer>
+      <CourtDrawer title="Manage availability" open={managingHours !== null} onClose={() => setManagingHours(null)}>
+        {managingHours && (
+          <AvailabilityEditor
+            court={managingHours}
+            onDone={() => { invalidate(); setManagingHours(null); }}
+            onCancel={() => setManagingHours(null)}
+          />
+        )}
+      </CourtDrawer>
+    </>
+  );
+}
+
+function CourtDrawer({ title, open, onClose, children }: { title: string; open: boolean; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+  return (
+    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+      <div onClick={onClose} className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")} />
+      <aside
+        className={
+          "absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full")
+        }
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+          <h2 className="text-lg font-bold">{title}</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+        </div>
+        <div className="p-4 sm:p-6">{open && children}</div>
+      </aside>
+    </div>
+  );
+}
