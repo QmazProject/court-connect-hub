@@ -9,7 +9,7 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2,
 } from "lucide-react";
 
 type SectionKey =
@@ -2071,13 +2071,19 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
               </td>
-              <td className="px-3 py-3 text-right">
-                <button
-                  onClick={() => setEditing(v)}
-                  className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary"
-                >
-                  ✎ Edit / Delete
-                </button>
+              <td className="px-3 py-3">
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(v)}
+                    title="Edit venue"
+                    aria-label={`Edit ${v.name}`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <DeleteVenueButton venue={v} />
+                </div>
               </td>
             </tr>
           ))}
@@ -2085,6 +2091,73 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       </table>
       <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
       <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
+    </>
+  );
+}
+
+function DeleteVenueButton({ venue }: { venue: Venue }) {
+  const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const del = useMutation({
+    mutationFn: async () => {
+      const { data: courts, error: cErr } = await supabase.from("courts").select("id").eq("venue_id", venue.id);
+      if (cErr) throw cErr;
+      const courtIds = (courts ?? []).map((c) => c.id);
+      if (courtIds.length > 0) {
+        const { count, error: bErr } = await supabase
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .in("court_id", courtIds);
+        if (bErr) throw bErr;
+        if ((count ?? 0) > 0) {
+          throw new Error("This venue has existing bookings and cannot be deleted.");
+        }
+        const { error: dcErr } = await supabase.from("courts").delete().in("id", courtIds);
+        if (dcErr) throw dcErr;
+      }
+      const { error } = await supabase.from("venues").delete().eq("id", venue.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { setConfirming(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  useEffect(() => {
+    if (!confirming) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setConfirming(false); setErr(null); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirming]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => { setConfirming(true); setErr(null); }}
+        title="Delete venue"
+        aria-label={`Delete ${venue.name}`}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-destructive/40 text-destructive transition hover:bg-destructive/10"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+      {confirming && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!del.isPending) { setConfirming(false); setErr(null); } }}>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold">Delete "{venue.name}"?</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This permanently removes the venue and all its courts. Venues with existing bookings cannot be deleted.
+            </p>
+            {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => { setConfirming(false); setErr(null); }} disabled={del.isPending} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+              <button onClick={() => del.mutate()} disabled={del.isPending} className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+                {del.isPending ? "Deleting…" : "Delete venue"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
