@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -3655,14 +3657,21 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("id, booking_id, amount, status, method, paid_at, created_at")
+        .select("id, booking_id, amount, status, method, paid_at, created_at, provider_ref")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(400);
       if (error) throw error;
-      return (data ?? []) as { id: string; booking_id: number; amount: number; status: string; method: string | null; paid_at: string | null; created_at: string }[];
+      return (data ?? []) as { id: string; booking_id: number; amount: number; status: string; method: string | null; paid_at: string | null; created_at: string; provider_ref: string | null }[];
     },
   });
+
+  const retryFn = useServerFn(retryBookingPayment);
+  const cancelPendingFn = useServerFn(cancelPendingBookings);
+  const [payFor, setPayFor] = useState<{ ids: number[]; amount: number; courtName: string } | null>(null);
+  const [payMethod, setPayMethod] = useState<"gcash" | "paymaya" | "grab_pay" | "qrph">("gcash");
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState<string | null>(null);
 
   const cancelMut = useMutation({
     mutationFn: async (bookingId: number) => {
@@ -3702,11 +3711,61 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
   const stBadge = (s: string) => {
     const map: Record<string, string> = {
       confirmed: "bg-primary/10 text-primary",
+      pending: "bg-amber-500/15 text-amber-700",
       cancelled: "bg-destructive/10 text-destructive",
       completed: "bg-emerald-500/15 text-emerald-700",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+    const label = s === "pending" ? "Awaiting payment" : s;
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
+
+  // Group unpaid pending bookings by their shared checkout session (provider_ref)
+  // so "Pay now" retries the full slot batch together.
+  const siblingsForRetry = (bookingId: number): number[] => {
+    const tx = (txQ.data ?? []).find((t) => t.booking_id === bookingId);
+    if (!tx?.provider_ref) return [bookingId];
+    const sameSession = (txQ.data ?? [])
+      .filter((t) => t.provider_ref === tx.provider_ref)
+      .map((t) => t.booking_id);
+    const eligible = rows
+      .filter((r) => sameSession.includes(r.id) && r.payment_status !== "paid" && r.status !== "cancelled")
+      .map((r) => r.id);
+    return eligible.length > 0 ? eligible : [bookingId];
+  };
+
+  const openPay = (b: PlayerBooking) => {
+    const ids = siblingsForRetry(b.id);
+    const bookings = rows.filter((r) => ids.includes(r.id));
+    const hrs = bookings.length;
+    const rate = b.courts?.hourly_rate ?? 0;
+    // Payment amount reflects the venue's payment_mode via retry fn; assume full here for display.
+    const amount = rate * hrs;
+    setPayFor({ ids, amount, courtName: `${b.courts?.venues?.name ?? ""} · ${b.courts?.name ?? ""}` });
+    setPayErr(null);
+  };
+
+  const submitPay = async () => {
+    if (!payFor) return;
+    setPayBusy(true);
+    setPayErr(null);
+    try {
+      const res = await retryFn({
+        data: { bookingIds: payFor.ids, method: payMethod, origin: window.location.origin },
+      });
+      window.location.href = res.checkoutUrl;
+    } catch (e) {
+      setPayErr((e as Error).message);
+      setPayBusy(false);
+    }
+  };
+
+  const cancelPending = async (bookingId: number) => {
+    if (!confirm("Cancel this unpaid booking? It will not be reserved.")) return;
+    const ids = siblingsForRetry(bookingId);
+    await cancelPendingFn({ data: { bookingIds: ids } });
+    qc.invalidateQueries({ queryKey: ["player-bookings", userId] });
+  };
+
 
   return (
     <main className="mx-auto min-h-[100dvh] max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
@@ -3722,11 +3781,20 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
 
       {/* KPI tiles */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <PlayerKpi label="Upcoming" value={String(upcoming.length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
-        <PlayerKpi label="Total bookings" value={String(rows.length)} hint={`${past.length} completed`} />
+        <PlayerKpi label="Upcoming" value={String(upcoming.filter((r) => r.payment_status === "paid").length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
+        <PlayerKpi label="Awaiting payment" value={String(upcoming.filter((r) => r.payment_status !== "paid").length)} hint="Reserved only after payment" />
         <PlayerKpi label="Total spent" value={peso(totalSpent)} hint={`${(txQ.data ?? []).filter((t) => t.status === "paid").length} paid`} />
         <PlayerKpi label="Cancelled" value={String(cancelled.length)} hint="Lifetime" />
       </div>
+
+      {/* Unpaid banner */}
+      {upcoming.filter((r) => r.payment_status !== "paid").length > 0 && tab === "upcoming" && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="font-medium text-amber-800 dark:text-amber-300">
+            You have unpaid booking{upcoming.filter((r) => r.payment_status !== "paid").length > 1 ? "s" : ""}. Slots are only reserved after payment.
+          </p>
+        </div>
+      )}
 
       {/* Next up highlight */}
       {nextUp && tab === "upcoming" && (
@@ -3781,7 +3849,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
               const tx = txByBooking.get(b.id);
               const h = hours(b.start_time, b.end_time);
               const amount = tx?.amount != null ? Number(tx.amount) : (b.courts?.hourly_rate ?? 0) * h;
-              const canCancel = tab === "upcoming" && b.payment_status !== "paid" && new Date(b.start_time) > now;
+              
               return (
                 <li key={b.id} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3804,17 +3872,40 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                       {tx?.method && <p className="text-[10px] uppercase tracking-wider text-muted-foreground">via {tx.method}</p>}
                     </div>
                   </div>
-                  {canCancel && (
-                    <div className="mt-3 flex justify-end border-t border-border pt-3">
-                      <button
-                        onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}
-                        disabled={cancelMut.isPending}
-                        className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                      >
-                        Cancel booking
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const isUnpaidUpcoming = tab === "upcoming" && b.payment_status !== "paid" && b.status !== "cancelled" && new Date(b.start_time) > now;
+                    const isPaidUpcoming = tab === "upcoming" && b.payment_status === "paid" && new Date(b.start_time) > now;
+                    if (!isUnpaidUpcoming && !isPaidUpcoming) return null;
+                    return (
+                      <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+                        {isUnpaidUpcoming && (
+                          <>
+                            <button
+                              onClick={() => openPay(b)}
+                              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                            >
+                              Pay now
+                            </button>
+                            <button
+                              onClick={() => cancelPending(b.id)}
+                              className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        {isPaidUpcoming && (
+                          <button
+                            onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}
+                            disabled={cancelMut.isPending}
+                            className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                          >
+                            Cancel booking
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}
@@ -3831,6 +3922,71 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           Sign out
         </button>
       </div>
+
+
+      {/* Pay now modal */}
+      {payFor && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold">Complete payment</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{payFor.courtName}</p>
+              </div>
+              <button onClick={() => setPayFor(null)} className="rounded-lg p-1 hover:bg-muted" disabled={payBusy}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl bg-secondary/60 p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">{payFor.ids.length} hour{payFor.ids.length > 1 ? "s" : ""}</span>
+                <span className="font-semibold">{peso(payFor.amount)}</span>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">Final amount depends on venue payment mode (full or 50% down).</p>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment method</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {([
+                  { v: "gcash", l: "GCash" },
+                  { v: "paymaya", l: "Maya" },
+                  { v: "grab_pay", l: "GrabPay" },
+                  { v: "qrph", l: "QR Ph" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.v}
+                    onClick={() => setPayMethod(m.v)}
+                    disabled={payBusy}
+                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${payMethod === m.v ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}
+                  >
+                    {m.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {payErr && <p className="mt-3 text-xs font-medium text-destructive">{payErr}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setPayFor(null)}
+                disabled={payBusy}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+              >
+                Not now
+              </button>
+              <button
+                onClick={submitPay}
+                disabled={payBusy}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {payBusy ? "Redirecting…" : "Continue to pay"}
+              </button>
+            </div>
+            <p className="mt-3 text-[10px] text-muted-foreground">
+              Your slot is only reserved after payment is successful. If cancelled, the booking is removed.
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
