@@ -187,6 +187,12 @@ function Dashboard() {
             onClose={() => setCreateVenueOpen(false)}
             onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); setCreateVenueOpen(false); }}
           />
+          <AddCourtDrawer
+            open={addCourtOpen}
+            onClose={() => setAddCourtOpen(false)}
+            venues={venues}
+            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); setAddCourtOpen(false); }}
+          />
         </>
       )}
       {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
