@@ -63,7 +63,7 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, sports(name), venues(name, address, timezone, latitude, longitude)")
         .eq("id", Number(courtId))
         .maybeSingle();
 
@@ -75,16 +75,21 @@ function CourtBooking() {
   const dayStart = useMemo(() => new Date(`${date}T00:00:00`), [date]);
   const dayEnd = useMemo(() => new Date(`${date}T23:59:59`), [date]);
 
-  const busyQ = useQuery({
-    queryKey: ["busy", courtId, date],
+  const availQ = useQuery({
+    queryKey: ["avail", courtId, date],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_court_bookings", {
+      const { data, error } = await supabase.rpc("get_court_availability", {
         _court_id: Number(courtId),
         _from: dayStart.toISOString(),
         _to: dayEnd.toISOString(),
       });
       if (error) throw error;
-      return (data ?? []) as { start_time: string; end_time: string }[];
+      const map = new Map<number, { remaining: number; blockedByOther: boolean }>();
+      (data ?? []).forEach((row: { hour_start: string; remaining: number; blocked_by_other_sport: boolean }) => {
+        const h = new Date(row.hour_start).getHours();
+        map.set(h, { remaining: row.remaining, blockedByOther: row.blocked_by_other_sport });
+      });
+      return map;
     },
     enabled: !!courtQ.data,
   });
