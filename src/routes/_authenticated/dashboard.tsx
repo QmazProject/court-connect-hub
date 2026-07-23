@@ -2071,13 +2071,19 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
               </td>
-              <td className="px-3 py-3 text-right">
-                <button
-                  onClick={() => setEditing(v)}
-                  className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary"
-                >
-                  ✎ Edit / Delete
-                </button>
+              <td className="px-3 py-3">
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(v)}
+                    title="Edit venue"
+                    aria-label={`Edit ${v.name}`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <DeleteVenueButton venue={v} />
+                </div>
               </td>
             </tr>
           ))}
