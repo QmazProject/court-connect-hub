@@ -147,15 +147,10 @@ function CourtBooking() {
   const dateOverride = court.blocked_dates?.[date];
   const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
-  const isBooked = (hour: number) => {
-    const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
-    const slotEnd = slotStart + 60 * 60 * 1000;
-    return (busyQ.data ?? []).some((b) => {
-      const bs = new Date(b.start_time).getTime();
-      const be = new Date(b.end_time).getTime();
-      return bs < slotEnd && be > slotStart;
-    });
-  };
+  const capacity = Math.max(1, court.capacity ?? 1);
+  const slotInfo = (hour: number) => availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false };
+  const isBooked = (hour: number) => slotInfo(hour).remaining <= 0 && !slotInfo(hour).blockedByOther;
+  const isBlockedBySport = (hour: number) => slotInfo(hour).blockedByOther;
   const isBlocked = (hour: number) => blocked.has(hour);
 
   const isPast = (hour: number) => {
