@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           end_time: string
           id: number
+          payment_status: string
           start_time: string
           status: string
           user_id: string
@@ -29,6 +30,7 @@ export type Database = {
           created_at?: string
           end_time: string
           id?: never
+          payment_status?: string
           start_time: string
           status?: string
           user_id?: string
@@ -38,6 +40,7 @@ export type Database = {
           created_at?: string
           end_time?: string
           id?: never
+          payment_status?: string
           start_time?: string
           status?: string
           user_id?: string
@@ -276,6 +279,78 @@ export type Database = {
           },
         ]
       }
+      transactions: {
+        Row: {
+          amount: number
+          booking_id: number
+          created_at: string
+          currency: string
+          id: string
+          method: string
+          mode: string
+          paid_at: string | null
+          provider: string
+          provider_ref: string | null
+          raw: Json | null
+          refunded_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          venue_id: number
+        }
+        Insert: {
+          amount: number
+          booking_id: number
+          created_at?: string
+          currency?: string
+          id?: string
+          method: string
+          mode?: string
+          paid_at?: string | null
+          provider?: string
+          provider_ref?: string | null
+          raw?: Json | null
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          venue_id: number
+        }
+        Update: {
+          amount?: number
+          booking_id?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          method?: string
+          mode?: string
+          paid_at?: string | null
+          provider?: string
+          provider_ref?: string | null
+          raw?: Json | null
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           address: string
@@ -286,6 +361,8 @@ export type Database = {
           longitude: number | null
           map_emoji: string | null
           name: string
+          payment_mode: string
+          refund_cutoff_hours: number
           timezone: string
         }
         Insert: {
@@ -297,6 +374,8 @@ export type Database = {
           longitude?: number | null
           map_emoji?: string | null
           name: string
+          payment_mode?: string
+          refund_cutoff_hours?: number
           timezone?: string
         }
         Update: {
@@ -308,6 +387,8 @@ export type Database = {
           longitude?: number | null
           map_emoji?: string | null
           name?: string
+          payment_mode?: string
+          refund_cutoff_hours?: number
           timezone?: string
         }
         Relationships: []
