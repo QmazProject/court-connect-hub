@@ -227,7 +227,7 @@ function TenantShell({
       {/* Desktop sidebar */}
       <aside
         className={
-          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-[calc(100dvh-3rem)] md:flex-col transition-[width] duration-200 " +
+          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-[100dvh] md:flex-col transition-[width] duration-200 " +
           (collapsed ? "md:w-16" : "md:w-60")
         }
       >
@@ -1724,7 +1724,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>Court Groups</TabBtn>
       </div>
-      <div className="nice-scroll max-h-[70vh] min-h-[380px] overflow-y-auto overflow-x-auto">
+      <div className="nice-scroll max-h-[calc(100dvh-220px)] min-h-[380px] overflow-y-auto overflow-x-auto">
         {tab === "venues" && <VenuesTab venues={venues} />}
         {tab === "courts" && <CourtsTab venues={venues} />}
         {tab === "groups" && (
