@@ -182,11 +182,9 @@ function Header() {
         <nav className="flex items-center gap-2">
           {session ? (
             <>
-              {session.role === "tenant" && (
-                <Link to="/dashboard" className="rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary">
-                  Dashboard
-                </Link>
-              )}
+              <Link to="/dashboard" className="rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary">
+                {session.role === "tenant" ? "Dashboard" : "My bookings"}
+              </Link>
               {session.name && <span className="hidden max-w-[160px] truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
               <button onClick={signOut} className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary">
                 Sign out
