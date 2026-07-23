@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 type SectionKey =
-  | "dashboard" | "calendar" | "bookings" | "courts"
+  | "dashboard" | "calendar" | "bookings" | "courts" | "courtsList" | "courtGroups"
   | "customers" | "team" | "transactions" | "settings";
 
 const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -20,6 +20,8 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "calendar", label: "Calendar", icon: CalendarDays },
   { key: "bookings", label: "Bookings", icon: BookOpen },
   { key: "courts", label: "Venues & Courts", icon: LandPlot },
+  { key: "courtsList", label: "Courts", icon: Grid3x3 },
+  { key: "courtGroups", label: "Court Groups", icon: Layers },
   { key: "customers", label: "Customers", icon: Users },
   { key: "team", label: "Team", icon: UserCog },
   { key: "transactions", label: "Transactions", icon: Receipt },
