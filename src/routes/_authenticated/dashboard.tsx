@@ -593,8 +593,7 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta?: R
   );
 }
 
-function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: boolean }) {
-  const [open, setOpen] = useState(!compact);
+function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
