@@ -1456,6 +1456,8 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
         saving={mut.isPending}
         title={`Pin ${venue.name}`}
       />
+      <MapViewModal venue={internalOpen ? venue : null} onClose={() => setInternalOpen(false)} />
+
     </div>
   );
 }
