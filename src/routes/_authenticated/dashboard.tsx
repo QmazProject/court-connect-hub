@@ -3872,17 +3872,40 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                       {tx?.method && <p className="text-[10px] uppercase tracking-wider text-muted-foreground">via {tx.method}</p>}
                     </div>
                   </div>
-                  {canCancel && (
-                    <div className="mt-3 flex justify-end border-t border-border pt-3">
-                      <button
-                        onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}
-                        disabled={cancelMut.isPending}
-                        className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                      >
-                        Cancel booking
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const isUnpaidUpcoming = tab === "upcoming" && b.payment_status !== "paid" && b.status !== "cancelled" && new Date(b.start_time) > now;
+                    const isPaidUpcoming = tab === "upcoming" && b.payment_status === "paid" && new Date(b.start_time) > now;
+                    if (!isUnpaidUpcoming && !isPaidUpcoming) return null;
+                    return (
+                      <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+                        {isUnpaidUpcoming && (
+                          <>
+                            <button
+                              onClick={() => openPay(b)}
+                              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                            >
+                              Pay now
+                            </button>
+                            <button
+                              onClick={() => cancelPending(b.id)}
+                              className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        {isPaidUpcoming && (
+                          <button
+                            onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}
+                            disabled={cancelMut.isPending}
+                            className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                          >
+                            Cancel booking
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}
