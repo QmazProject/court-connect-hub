@@ -2454,9 +2454,35 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
   useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
 
+  const groupsQ = useQuery({
+    queryKey: ["physical-courts-full", venueId],
+    enabled: !!venueId,
+    queryFn: async () => {
+      const { data: pcs, error } = await supabase.from("physical_courts")
+        .select("id, name, map_emoji, description").eq("venue_id", venueId!).order("id");
+      if (error) throw error;
+      const pcIds = (pcs ?? []).map((p) => p.id);
+      if (pcIds.length === 0) return [] as Array<{ id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> }>;
+      const { data: cs, error: cErr } = await supabase.from("courts")
+        .select("id, name, capacity, physical_court_id, sports(name)")
+        .in("physical_court_id", pcIds);
+      if (cErr) throw cErr;
+      const byPc = new Map<number, Array<{ id: number; name: string; capacity: number; sport: string | null }>>();
+      (cs ?? []).forEach((c: any) => {
+        const arr = byPc.get(c.physical_court_id) ?? [];
+        arr.push({ id: c.id, name: c.name, capacity: c.capacity, sport: c.sports?.name ?? null });
+        byPc.set(c.physical_court_id, arr);
+      });
+      return (pcs ?? []).map((p) => ({ ...p, layouts: byPc.get(p.id) ?? [] }))
+        .filter((g) => g.layouts.length !== 1);
+    },
+  });
+
+  const groups = groupsQ.data ?? [];
+
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex h-full flex-col">
+      <div className="flex flex-wrap items-center gap-3 p-4 sm:p-6">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Venue</span>
           <select value={venueId ?? ""} onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
@@ -2464,10 +2490,55 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
             {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         </label>
+        <p className="text-xs text-muted-foreground">
+          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same physical slab.
+        </p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Use <b className="text-foreground">+ Create group</b> above to bundle courts that share the same physical slab.
-      </p>
+      <div className="flex-1 overflow-auto nice-scroll px-4 pb-6 sm:px-6">
+        {groupsQ.isLoading ? (
+          <div className="h-24 animate-pulse rounded-xl bg-muted" />
+        ) : groups.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts onto one physical slab.
+          </div>
+        ) : (
+          <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+            <thead className="sticky top-0 z-10 bg-background">
+              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-3 py-2 font-semibold">Group</th>
+                <th className="px-3 py-2 font-semibold">Description</th>
+                <th className="px-3 py-2 font-semibold">Court layouts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <tr key={g.id} className="border-t border-border align-top">
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-2 font-medium">
+                      <span className="text-lg">{g.map_emoji ?? "🏟️"}</span>
+                      <span>{g.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-muted-foreground">{g.description || "—"}</td>
+                  <td className="px-3 py-3">
+                    {g.layouts.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">No courts assigned yet — edit a court and set its physical surface to this group.</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {g.layouts.map((l) => (
+                          <span key={l.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/50 px-2 py-0.5 text-xs">
+                            <b>{l.sport ?? "—"}</b> · {l.name} · cap {l.capacity}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
