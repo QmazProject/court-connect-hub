@@ -1417,7 +1417,7 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
 
 function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing }: { venue: Venue; courtsCount: number; initialEditing?: boolean; onDoneEditing?: () => void }) {
   const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEditing);
   const [confirmDel, setConfirmDel] = useState(false);
   const [name, setName] = useState(venue.name);
   const [address, setAddress] = useState(venue.address);
