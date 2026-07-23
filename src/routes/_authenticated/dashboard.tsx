@@ -620,21 +620,13 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
       const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="w-full rounded-2xl border-2 border-dashed border-border p-6 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
-        + Add another venue
-      </button>
-    );
-  }
-
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
-      <h2 className="text-xl font-bold">{compact ? "New venue" : "Create your first venue"}</h2>
+      <h2 className="text-xl font-bold">New venue</h2>
       <p className="mt-1 text-sm text-muted-foreground">A venue holds one or more courts.</p>
       <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="mt-4 grid gap-3 sm:grid-cols-2">
         <Input label="Venue name" value={name} onChange={setName} required />
