@@ -155,7 +155,8 @@ function Dashboard() {
       )}
       {section === "courts" && (
         <>
-          <SectionHeader title="Courts" subtitle="Manage your venues and courts." />
+          <SectionHeader title="Venues / Courts" subtitle="Manage your venues and courts." />
+          <VenuesCourtsGlance venues={venues} />
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
             <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
           ) : (
