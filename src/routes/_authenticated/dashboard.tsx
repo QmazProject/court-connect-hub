@@ -205,8 +205,16 @@ function Dashboard() {
         </div>
       )}
       {section === "calendar" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." /></div>}
-      {section === "bookings" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." /></div>}
-      {section === "customers" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Customers" body="See the players who book your courts, their history and notes." /></div>}
+      {section === "bookings" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <BookingsSection venues={venues} />
+        </div>
+      )}
+      {section === "customers" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <CustomersSection venues={venues} />
+        </div>
+      )}
       {section === "team" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." /></div>}
       {section === "transactions" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
@@ -3032,6 +3040,250 @@ function VenuePaymentRow({
       >
         {saving ? "Saving…" : "Save"}
       </button>
+    </div>
+  );
+}
+
+// ================= Bookings =================
+
+type BookingRow = {
+  id: number;
+  court_id: number;
+  user_id: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  payment_status: string;
+  created_at: string;
+  courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
+};
+
+function BookingsSection({ venues }: { venues: Venue[] }) {
+  const [venueFilter, setVenueFilter] = useState<number | "all">("all");
+  const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled">("upcoming");
+  const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid" | "refunded">("all");
+
+  const bookingsQ = useQuery({
+    queryKey: ["tenant-bookings", venueFilter, status, payFilter],
+    queryFn: async () => {
+      let q = supabase
+        .from("bookings")
+        .select("id, court_id, user_id, start_time, end_time, status, payment_status, created_at, courts(name, venue_id, venues(name))")
+        .order("start_time", { ascending: false })
+        .limit(500);
+      if (payFilter !== "all") q = q.eq("payment_status", payFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      const nowIso = new Date().toISOString();
+      let rows = (data as unknown as BookingRow[]) ?? [];
+      if (venueFilter !== "all") rows = rows.filter((r) => r.courts?.venue_id === venueFilter);
+      if (status === "upcoming") rows = rows.filter((r) => r.end_time >= nowIso && r.status !== "cancelled");
+      else if (status === "past") rows = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled");
+      else if (status === "cancelled") rows = rows.filter((r) => r.status === "cancelled");
+      return rows;
+    },
+  });
+
+  // Load player names for uid list
+  const uids = Array.from(new Set((bookingsQ.data ?? []).map((r) => r.user_id)));
+  const namesQ = useQuery({
+    queryKey: ["profile-names", uids.sort().join(",")],
+    enabled: uids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, full_name, phone").in("id", uids);
+      if (error) throw error;
+      return (data ?? []) as { id: string; full_name: string | null; phone: string | null }[];
+    },
+  });
+  const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p]));
+
+  const rows = bookingsQ.data ?? [];
+  const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && r.status !== "cancelled").length;
+  const paidCount = rows.filter((r) => r.payment_status === "paid").length;
+  const unpaidCount = rows.filter((r) => r.payment_status === "unpaid" && r.status !== "cancelled").length;
+
+  const fmt = (iso: string) => new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  const payBadge = (s: string) => {
+    const map: Record<string, string> = {
+      paid: "bg-primary/15 text-primary",
+      unpaid: "bg-amber-500/15 text-amber-700",
+      refunded: "bg-muted text-muted-foreground",
+    };
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+  };
+  const stBadge = (s: string) => {
+    const map: Record<string, string> = {
+      confirmed: "bg-primary/10 text-primary",
+      cancelled: "bg-destructive/10 text-destructive",
+      pending: "bg-amber-500/15 text-amber-700",
+    };
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Bookings" subtitle="Monitor every reservation across your venues." />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <KpiTile label="Upcoming" value={String(totalUpcoming)} />
+        <KpiTile label="Paid" value={String(paidCount)} />
+        <KpiTile label="Awaiting payment" value={String(unpaidCount)} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={venueFilter} onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          <option value="all">All venues</option>
+          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Past</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="all">All</option>
+        </select>
+        <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          <option value="all">Any payment</option>
+          <option value="paid">Paid</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="refunded">Refunded</option>
+        </select>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="nice-scroll max-h-[65vh] overflow-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+              <tr>
+                <th className="px-4 py-3">When</th>
+                <th className="px-4 py-3">Venue · Court</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Payment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookingsQ.isLoading ? (
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>Loading…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>No bookings match these filters yet.</td></tr>
+              ) : rows.map((r) => {
+                const p = nameMap.get(r.user_id);
+                return (
+                  <tr key={r.id} className="border-t border-border">
+                    <td className="px-4 py-3 whitespace-nowrap">{fmt(r.start_time)}<div className="text-[11px] text-muted-foreground">→ {new Date(r.end_time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</div></td>
+                    <td className="px-4 py-3">{r.courts?.venues?.name ?? "—"}<div className="text-[11px] text-muted-foreground">{r.courts?.name ?? `Court #${r.court_id}`}</div></td>
+                    <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
+                    <td className="px-4 py-3">{stBadge(r.status)}</td>
+                    <td className="px-4 py-3">{payBadge(r.payment_status)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ================= Customers =================
+
+function CustomersSection({ venues }: { venues: Venue[] }) {
+  const [venueFilter, setVenueFilter] = useState<number | "all">("all");
+
+  const dataQ = useQuery({
+    queryKey: ["tenant-customers", venueFilter],
+    queryFn: async () => {
+      let bq = supabase
+        .from("bookings")
+        .select("id, user_id, start_time, end_time, payment_status, status, courts!inner(venue_id)")
+        .order("start_time", { ascending: false })
+        .limit(2000);
+      if (venueFilter !== "all") bq = bq.eq("courts.venue_id", venueFilter);
+      const { data: bookings, error } = await bq;
+      if (error) throw error;
+
+      const txQ = supabase.from("transactions").select("user_id, amount, status, venue_id");
+      const { data: txs } = venueFilter === "all" ? await txQ : await txQ.eq("venue_id", venueFilter);
+
+      const uids = Array.from(new Set((bookings ?? []).map((b) => b.user_id)));
+      const { data: profiles } = uids.length > 0
+        ? await supabase.from("profiles").select("id, full_name, phone").in("id", uids)
+        : { data: [] as { id: string; full_name: string | null; phone: string | null }[] };
+
+      type Agg = { id: string; name: string; phone: string; bookings: number; paidBookings: number; spent: number; lastAt: string | null };
+      const map = new Map<string, Agg>();
+      for (const b of bookings ?? []) {
+        const cur = map.get(b.user_id) ?? { id: b.user_id, name: "", phone: "", bookings: 0, paidBookings: 0, spent: 0, lastAt: null };
+        cur.bookings += 1;
+        if (b.payment_status === "paid") cur.paidBookings += 1;
+        if (!cur.lastAt || b.start_time > cur.lastAt) cur.lastAt = b.start_time;
+        map.set(b.user_id, cur);
+      }
+      for (const t of txs ?? []) {
+        if (t.status !== "paid") continue;
+        const cur = map.get(t.user_id);
+        if (cur) cur.spent += Number(t.amount);
+      }
+      for (const p of profiles ?? []) {
+        const cur = map.get(p.id);
+        if (cur) { cur.name = p.full_name ?? ""; cur.phone = p.phone ?? ""; }
+      }
+      return Array.from(map.values()).sort((a, b) => b.spent - a.spent || b.bookings - a.bookings);
+    },
+  });
+
+  const rows = dataQ.data ?? [];
+  const totalCustomers = rows.length;
+  const totalSpent = rows.reduce((s, r) => s + r.spent, 0);
+  const repeat = rows.filter((r) => r.bookings > 1).length;
+  const currency = (n: number) => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Customers" subtitle="Players who have booked your venues." />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <KpiTile label="Total customers" value={String(totalCustomers)} />
+        <KpiTile label="Repeat customers" value={String(repeat)} />
+        <KpiTile label="Lifetime revenue" value={currency(totalSpent)} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <select value={venueFilter} onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          <option value="all">All venues</option>
+          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+      </div>
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="nice-scroll max-h-[65vh] overflow-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+              <tr>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Bookings</th>
+                <th className="px-4 py-3">Paid</th>
+                <th className="px-4 py-3">Spent</th>
+                <th className="px-4 py-3">Last booking</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dataQ.isLoading ? (
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No customers yet — once players book, they'll show up here.</td></tr>
+              ) : rows.map((r) => (
+                <tr key={r.id} className="border-t border-border">
+                  <td className="px-4 py-3 font-medium">{r.name || "Player"}<div className="text-[11px] text-muted-foreground">{r.id.slice(0, 8)}…</div></td>
+                  <td className="px-4 py-3 text-muted-foreground">{r.phone || "—"}</td>
+                  <td className="px-4 py-3">{r.bookings}</td>
+                  <td className="px-4 py-3">{r.paidBookings}</td>
+                  <td className="px-4 py-3 font-semibold">{currency(r.spent)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{r.lastAt ? new Date(r.lastAt).toLocaleDateString("en-PH", { dateStyle: "medium" }) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
