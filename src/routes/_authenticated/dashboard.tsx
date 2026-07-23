@@ -109,6 +109,7 @@ function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
   const [createVenueOpen, setCreateVenueOpen] = useState(false);
   const [addCourtOpen, setAddCourtOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
