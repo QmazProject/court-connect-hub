@@ -2373,28 +2373,8 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
   const qc = useQueryClient();
 
-  const pcQ = useQuery({
-    queryKey: ["physical-courts-full", venueId],
-    enabled: !!venueId,
-    queryFn: async () => {
-      const { data: pcs, error: e1 } = await supabase
-        .from("physical_courts").select("id, venue_id, name, map_emoji, description")
-        .eq("venue_id", venueId!).order("id");
-      if (e1) throw e1;
-      const ids = (pcs ?? []).map((p) => p.id);
-      if (ids.length === 0) return (pcs ?? []).map((p) => ({ ...p, layouts: [] as Array<{ id: number; name: string; capacity: number; hourly_rate: number; sports: { name: string; slug?: string } | null }> }));
-      const { data: layouts, error: e2 } = await supabase
-        .from("courts").select("id, name, capacity, hourly_rate, physical_court_id, sports(name, slug)")
-        .in("physical_court_id", ids);
-      if (e2) throw e2;
-      const byPc = new Map<number, typeof layouts>();
-      (layouts ?? []).forEach((l: any) => {
-        const arr = byPc.get(l.physical_court_id) ?? [];
-        arr.push(l); byPc.set(l.physical_court_id, arr);
-      });
-      return (pcs ?? []).map((p: any) => ({ ...p, layouts: byPc.get(p.id) ?? [] }));
-    },
-  });
+
+
 
   const [newName, setNewName] = useState("");
   const [newEmoji, setNewEmoji] = useState<string | null>(null);
