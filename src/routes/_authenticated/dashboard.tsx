@@ -260,7 +260,7 @@ function TenantShell({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
           <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
@@ -269,10 +269,11 @@ function TenantShell({
           <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
           <span className="w-16" />
         </div>
-        <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </div>
       </div>
+
     </div>
   );
 }
