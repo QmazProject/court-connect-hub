@@ -333,9 +333,10 @@ function SidebarBody({
         </ul>
       </nav>
       {!collapsed && (
-        <div className="border-t border-border p-3 text-[11px] text-muted-foreground">
+        <div className="border-t border-border p-3 font-display text-sm font-semibold tracking-tight text-foreground">
           Tenant workspace
         </div>
+
       )}
     </>
   );
