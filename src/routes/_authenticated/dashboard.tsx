@@ -2405,14 +2405,8 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6">
-      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
-        <div className="font-semibold text-primary">What is a Court Group / Physical Surface?</div>
-        <p className="mt-1 text-muted-foreground">
-          One physical slab can host different sports at different capacities — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.
-        </p>
-      </div>
-
       <div className="flex flex-wrap items-center gap-3">
+
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Venue</span>
           <select value={venueId ?? ""} onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
