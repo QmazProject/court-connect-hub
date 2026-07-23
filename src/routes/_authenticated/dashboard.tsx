@@ -1740,14 +1740,25 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               </td>
               <td className="px-3 py-3">
                 {v.latitude != null && v.longitude != null ? (
-                  <div className="overflow-hidden rounded-md border border-border">
-                    <iframe
-                      title={`${v.name} map`}
-                      src={osmEmbedUrl(v.latitude, v.longitude)}
-                      className="pointer-events-none h-14 w-28"
-                      loading="lazy"
-                    />
-                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${v.latitude},${v.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="View on map"
+                    className="group block overflow-hidden rounded-md border border-border hover:border-primary"
+                  >
+                    <div className="relative h-14 w-28 overflow-hidden">
+                      <iframe
+                        title={`${v.name} map`}
+                        src={osmEmbedUrl(v.latitude, v.longitude)}
+                        className="pointer-events-none absolute left-0 right-0 -top-4 h-24 w-full"
+                        loading="lazy"
+                      />
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-[10px] font-semibold text-transparent transition group-hover:bg-black/40 group-hover:text-white">
+                        🔍 View
+                      </span>
+                    </div>
+                  </a>
                 ) : (
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
