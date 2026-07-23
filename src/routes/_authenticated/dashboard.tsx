@@ -1825,18 +1825,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
 
         {tab === "venues" && <VenuesTab venues={venues} />}
         {tab === "courts" && <CourtsTab venues={venues} />}
-        {tab === "groups" && (
-          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-            <div className="rounded-2xl bg-primary/10 p-4">
-              <Layers className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-bold">Court Groups</h3>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Bundle related courts into groups (by sport, floor, or brand) to manage rates, hours and staff at scale.
-            </p>
-            <span className="mt-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Coming soon</span>
-          </div>
-        )}
+        {tab === "groups" && <CourtGroupsTab venues={venues} />}
       </div>
     </div>
   );
