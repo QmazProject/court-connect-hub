@@ -158,7 +158,7 @@ function Dashboard() {
       {section === "courts" && (
         <>
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
-          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} />
+          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} onAddCourt={() => setAddCourtOpen(true)} />
           <VenuesCourtsGlance venues={venues} />
 
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
