@@ -141,15 +141,7 @@ function Dashboard() {
     );
   }
   if (profileQ.data?.role !== "tenant") {
-    return (
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <EmptyState
-          title="Player account"
-          body="Your account is set up as a player. Head back to browse courts."
-          cta={<Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Browse courts</Link>}
-        />
-      </main>
-    );
+    return <PlayerDashboard userId={user.id} fullName={profileQ.data?.full_name ?? ""} email={user.email ?? ""} />;
   }
 
   const venues = venuesQ.data ?? [];
