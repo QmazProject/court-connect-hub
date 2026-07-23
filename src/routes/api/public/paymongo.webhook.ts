@@ -94,11 +94,22 @@ export const Route = createFileRoute("/api/public/paymongo/webhook")({
           }
 
           const bookingIds = Array.from(new Set((txs ?? []).map((r) => r.booking_id)));
-          if (bookingIds.length > 0) {
-            await supabaseAdmin
+          // Promote each pending booking to confirmed one-by-one so slot-conflict
+          // trigger errors don't roll back the whole batch. If a slot was taken
+          // meanwhile, mark that booking cancelled + payment_status='paid' so
+          // it can be refunded manually.
+          for (const bid of bookingIds) {
+            const { error: upErr } = await supabaseAdmin
               .from("bookings")
-              .update({ payment_status: "paid" })
-              .in("id", bookingIds);
+              .update({ status: "confirmed", payment_status: "paid" })
+              .eq("id", bid);
+            if (upErr) {
+              console.error("[paymongo webhook] booking confirm failed, marking as conflict", bid, upErr);
+              await supabaseAdmin
+                .from("bookings")
+                .update({ status: "cancelled", payment_status: "paid" })
+                .eq("id", bid);
+            }
           }
         } else if (
           eventType === "checkout_session.payment.failed" ||
