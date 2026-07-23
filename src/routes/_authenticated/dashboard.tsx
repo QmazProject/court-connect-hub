@@ -1910,6 +1910,26 @@ function SettingsSection({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const qc = useQueryClient();
+
+  const paySettingsQ = useQuery({
+    queryKey: ["venue-payment-settings"],
+    enabled: role === "tenant",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
+      if (error) throw error;
+      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
+    },
+  });
+
+  const savePaymentSettings = async (venueId: number, mode: string, cutoff: number) => {
+    const { error } = await supabase
+      .from("venues")
+      .update({ payment_mode: mode, refund_cutoff_hours: cutoff })
+      .eq("id", venueId);
+    if (error) alert(error.message);
+    else qc.invalidateQueries({ queryKey: ["venue-payment-settings"] });
+  };
 
   const save = async () => {
     setSaving(true); setMsg(null); setErr(null);
@@ -1924,6 +1944,7 @@ function SettingsSection({
     await supabase.auth.signOut();
     window.location.href = "/";
   };
+
 
   return (
     <div className="space-y-6">
@@ -1974,7 +1995,31 @@ function SettingsSection({
         </div>
       </div>
 
+      {role === "tenant" && (
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold">Payments</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose how players pay online per venue. Set to <b>Full payment</b> or <b>50% downpayment</b> to enable the GCash / Maya / GrabPay / QR Ph checkout for that venue's courts. Refund cutoff blocks player-initiated refunds inside the window before the booking.
+              </p>
+            </div>
+            <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold">PayMongo · Test mode</span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {paySettingsQ.isLoading && <p className="text-sm text-muted-foreground">Loading venues…</p>}
+            {!paySettingsQ.isLoading && (paySettingsQ.data ?? []).map((v) => (
+              <VenuePaymentRow key={v.id} venue={v} onSave={savePaymentSettings} />
+            ))}
+            {!paySettingsQ.isLoading && (paySettingsQ.data?.length ?? 0) === 0 && (
+              <p className="text-sm text-muted-foreground">Create a venue first to configure payment settings.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-destructive/30 bg-card p-5 sm:p-6">
+
         <h3 className="text-base font-semibold">Session</h3>
         <p className="mt-1 text-xs text-muted-foreground">Sign out of your CourtHub account on this device.</p>
         <button
