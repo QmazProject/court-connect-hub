@@ -171,7 +171,15 @@ function Dashboard() {
       {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
       {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
       {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
-      {section === "settings" && <ComingSoon title="Settings" body="Business profile, notifications and preferences." />}
+      {section === "settings" && (
+        <SettingsSection
+          fullName={profileQ.data?.full_name ?? ""}
+          email={user.email ?? ""}
+          role={profileQ.data?.role ?? "tenant"}
+          userId={user.id}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
+        />
+      )}
     </TenantShell>
   );
 }
@@ -1310,6 +1318,93 @@ function VenueEditor({ venue, courtsCount }: { venue: Venue; courtsCount: number
         )}
       </div>
       {delErr && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{delErr}</p>}
+    </div>
+  );
+}
+
+function SettingsSection({
+  fullName, email, role, userId, onSaved,
+}: { fullName: string; email: string; role: string; userId: string; onSaved: () => void }) {
+  const [name, setName] = useState(fullName);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const save = async () => {
+    setSaving(true); setMsg(null); setErr(null);
+    const { error } = await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", userId);
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    setMsg("Saved."); onSaved();
+  };
+
+  const signOut = async () => {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Settings" subtitle="Manage your account and preferences." />
+
+      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <h3 className="text-base font-semibold">Account</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Your profile information.</p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Full name</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              placeholder="Your full name"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Email</span>
+            <input
+              value={email}
+              readOnly
+              className="mt-1 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Role</span>
+            <input
+              value={role}
+              readOnly
+              className="mt-1 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm capitalize text-muted-foreground"
+            />
+          </label>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            onClick={save}
+            disabled={saving || !name.trim() || name.trim() === fullName}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+          {msg && <span className="text-xs text-primary">{msg}</span>}
+          {err && <span className="text-xs text-destructive">{err}</span>}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-destructive/30 bg-card p-5 sm:p-6">
+        <h3 className="text-base font-semibold">Session</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Sign out of your CourtHub account on this device.</p>
+        <button
+          onClick={signOut}
+          disabled={signingOut}
+          className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm font-semibold text-destructive disabled:opacity-60"
+        >
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+      </div>
     </div>
   );
 }
