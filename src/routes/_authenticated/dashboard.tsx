@@ -193,8 +193,6 @@ function Dashboard() {
       )}
       {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
       {section === "bookings" && <ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." />}
-      {section === "courtsList" && <ComingSoon title="Courts" body="A dedicated courts workspace with per-court analytics, rates history and quick edits is on the way." />}
-      {section === "courtGroups" && <ComingSoon title="Court Groups" body="Bundle related courts into groups (e.g. by sport, floor or brand) so you can manage rates, hours and staff at scale." />}
       {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
       {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
       {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
