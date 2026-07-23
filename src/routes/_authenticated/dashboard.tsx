@@ -3711,11 +3711,61 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
   const stBadge = (s: string) => {
     const map: Record<string, string> = {
       confirmed: "bg-primary/10 text-primary",
+      pending: "bg-amber-500/15 text-amber-700",
       cancelled: "bg-destructive/10 text-destructive",
       completed: "bg-emerald-500/15 text-emerald-700",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+    const label = s === "pending" ? "Awaiting payment" : s;
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
+
+  // Group unpaid pending bookings by their shared checkout session (provider_ref)
+  // so "Pay now" retries the full slot batch together.
+  const siblingsForRetry = (bookingId: number): number[] => {
+    const tx = (txQ.data ?? []).find((t) => t.booking_id === bookingId);
+    if (!tx?.provider_ref) return [bookingId];
+    const sameSession = (txQ.data ?? [])
+      .filter((t) => t.provider_ref === tx.provider_ref)
+      .map((t) => t.booking_id);
+    const eligible = rows
+      .filter((r) => sameSession.includes(r.id) && r.payment_status !== "paid" && r.status !== "cancelled")
+      .map((r) => r.id);
+    return eligible.length > 0 ? eligible : [bookingId];
+  };
+
+  const openPay = (b: PlayerBooking) => {
+    const ids = siblingsForRetry(b.id);
+    const bookings = rows.filter((r) => ids.includes(r.id));
+    const hrs = bookings.length;
+    const rate = b.courts?.hourly_rate ?? 0;
+    // Payment amount reflects the venue's payment_mode via retry fn; assume full here for display.
+    const amount = rate * hrs;
+    setPayFor({ ids, amount, courtName: `${b.courts?.venues?.name ?? ""} · ${b.courts?.name ?? ""}` });
+    setPayErr(null);
+  };
+
+  const submitPay = async () => {
+    if (!payFor) return;
+    setPayBusy(true);
+    setPayErr(null);
+    try {
+      const res = await retryFn({
+        data: { bookingIds: payFor.ids, method: payMethod, origin: window.location.origin },
+      });
+      window.location.href = res.checkoutUrl;
+    } catch (e) {
+      setPayErr((e as Error).message);
+      setPayBusy(false);
+    }
+  };
+
+  const cancelPending = async (bookingId: number) => {
+    if (!confirm("Cancel this unpaid booking? It will not be reserved.")) return;
+    const ids = siblingsForRetry(bookingId);
+    await cancelPendingFn({ data: { bookingIds: ids } });
+    qc.invalidateQueries({ queryKey: ["player-bookings", userId] });
+  };
+
 
   return (
     <main className="mx-auto min-h-[100dvh] max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
