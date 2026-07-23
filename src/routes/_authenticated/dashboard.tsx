@@ -2520,6 +2520,8 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           );
         })}
       </div>
+        );
+      })()}
     </div>
   );
 }
