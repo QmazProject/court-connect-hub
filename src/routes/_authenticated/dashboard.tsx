@@ -9,7 +9,7 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle,
 } from "lucide-react";
 
 type SectionKey =
@@ -2614,16 +2614,26 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
       </button>
       {confirm && (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-4" onClick={() => !mut.isPending && setConfirm(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold">Delete group?</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              <b className="text-foreground">{group.name}</b> will be removed. Its courts will remain but each becomes an independent slab again. This can't be undone.
-            </p>
+          <div className="w-full max-w-md rounded-2xl border border-destructive/40 bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold">Delete group permanently?</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  <b className="text-foreground">{group.name}</b> will be <b className="text-destructive">permanently deleted</b>. Its courts remain but each becomes an independent slab again.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              ⚠ This action is <b>permanent</b> and cannot be undone.
+            </div>
             {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
             <div className="mt-4 flex items-center justify-end gap-2">
               <button type="button" disabled={mut.isPending} onClick={() => setConfirm(false)} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
               <button type="button" disabled={mut.isPending} onClick={() => mut.mutate()} className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50">
-                {mut.isPending ? "Deleting…" : "Delete"}
+                {mut.isPending ? "Deleting…" : "Delete permanently"}
               </button>
             </div>
           </div>
