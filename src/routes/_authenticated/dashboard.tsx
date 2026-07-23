@@ -1713,6 +1713,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 
 function VenuesTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<Venue | null>(null);
+  const [viewing, setViewing] = useState<Venue | null>(null);
   return (
     <>
       <table className="w-full min-w-[900px] text-sm">
@@ -1722,7 +1723,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
             <th className="px-3 py-2.5">Venue</th>
             <th className="px-3 py-2.5">Location</th>
             <th className="px-3 py-2.5">Description</th>
-            <th className="px-3 py-2.5 w-32">Map</th>
+            <th className="px-3 py-2.5 w-20 text-center">Map</th>
             <th className="px-3 py-2.5 w-40 text-right">Actions</th>
           </tr>
         </thead>
@@ -1738,27 +1739,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <td className="px-3 py-3 text-muted-foreground max-w-[260px]">
                 {v.description ? <span className="line-clamp-2">{v.description}</span> : <span className="italic opacity-60">No description</span>}
               </td>
-              <td className="px-3 py-3">
+              <td className="px-3 py-3 text-center">
                 {v.latitude != null && v.longitude != null ? (
-                  <a
-                    href={`https://www.google.com/maps?q=${v.latitude},${v.longitude}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setViewing(v)}
                     title="View on map"
-                    className="group block overflow-hidden rounded-md border border-border hover:border-primary"
+                    aria-label={`View ${v.name} on map`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
                   >
-                    <div className="relative h-14 w-28 overflow-hidden">
-                      <iframe
-                        title={`${v.name} map`}
-                        src={osmEmbedUrl(v.latitude, v.longitude)}
-                        className="pointer-events-none absolute left-0 right-0 -top-4 h-24 w-full"
-                        loading="lazy"
-                      />
-                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-[10px] font-semibold text-transparent transition group-hover:bg-black/40 group-hover:text-white">
-                        🔍 View
-                      </span>
-                    </div>
-                  </a>
+                    <MapPin className="h-4 w-4" />
+                  </button>
                 ) : (
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
