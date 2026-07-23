@@ -468,6 +468,8 @@ function VenuesCourtsTable({ venues }: { venues: Venue[] }) {
       </div>
     </div>
   );
+}
+
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
