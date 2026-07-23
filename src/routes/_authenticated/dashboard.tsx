@@ -2905,11 +2905,11 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
 
       {/* KPI tiles */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiTile label="Sales · Today" value={currency(todaySum)} />
-        <KpiTile label="Sales · 7 days" value={currency(weekSum)} />
-        <KpiTile label="Sales · 30 days" value={currency(monthSum)} />
-        <KpiTile label="Paid bookings" value={String(totalBookings)} />
-        <KpiTile label="Unique customers" value={String(uniqueCustomers)} />
+        <PlayerKpi label="Sales · Today" value={currency(todaySum)} />
+        <PlayerKpi label="Sales · 7 days" value={currency(weekSum)} />
+        <PlayerKpi label="Sales · 30 days" value={currency(monthSum)} />
+        <PlayerKpi label="Paid bookings" value={String(totalBookings)} />
+        <PlayerKpi label="Unique customers" value={String(uniqueCustomers)} />
       </div>
 
       {/* Filters */}
@@ -3120,9 +3120,9 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
     <div className="space-y-5">
       <SectionHeader title="Bookings" subtitle="Monitor every reservation across your venues." />
       <div className="grid gap-3 sm:grid-cols-3">
-        <KpiTile label="Upcoming" value={String(totalUpcoming)} />
-        <KpiTile label="Paid" value={String(paidCount)} />
-        <KpiTile label="Awaiting payment" value={String(unpaidCount)} />
+        <PlayerKpi label="Upcoming" value={String(totalUpcoming)} />
+        <PlayerKpi label="Paid" value={String(paidCount)} />
+        <PlayerKpi label="Awaiting payment" value={String(unpaidCount)} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -3238,9 +3238,9 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
     <div className="space-y-5">
       <SectionHeader title="Customers" subtitle="Players who have booked your venues." />
       <div className="grid gap-3 sm:grid-cols-3">
-        <KpiTile label="Total customers" value={String(totalCustomers)} />
-        <KpiTile label="Repeat customers" value={String(repeat)} />
-        <KpiTile label="Lifetime revenue" value={currency(totalSpent)} />
+        <PlayerKpi label="Total customers" value={String(totalCustomers)} />
+        <PlayerKpi label="Repeat customers" value={String(repeat)} />
+        <PlayerKpi label="Lifetime revenue" value={currency(totalSpent)} />
       </div>
       <div className="flex flex-wrap gap-2">
         <select value={venueFilter} onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
@@ -3677,10 +3677,10 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
 
       {/* KPI tiles */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiTile label="Upcoming" value={String(upcoming.length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
-        <KpiTile label="Total bookings" value={String(rows.length)} hint={`${past.length} completed`} />
-        <KpiTile label="Total spent" value={peso(totalSpent)} hint={`${(txQ.data ?? []).filter((t) => t.status === "paid").length} paid`} />
-        <KpiTile label="Cancelled" value={String(cancelled.length)} hint="Lifetime" />
+        <PlayerKpi label="Upcoming" value={String(upcoming.length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
+        <PlayerKpi label="Total bookings" value={String(rows.length)} hint={`${past.length} completed`} />
+        <PlayerKpi label="Total spent" value={peso(totalSpent)} hint={`${(txQ.data ?? []).filter((t) => t.status === "paid").length} paid`} />
+        <PlayerKpi label="Cancelled" value={String(cancelled.length)} hint="Lifetime" />
       </div>
 
       {/* Next up highlight */}
@@ -3790,7 +3790,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
   );
 }
 
-function KpiTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function PlayerKpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
