@@ -3657,14 +3657,21 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("id, booking_id, amount, status, method, paid_at, created_at")
+        .select("id, booking_id, amount, status, method, paid_at, created_at, provider_ref")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(400);
       if (error) throw error;
-      return (data ?? []) as { id: string; booking_id: number; amount: number; status: string; method: string | null; paid_at: string | null; created_at: string }[];
+      return (data ?? []) as { id: string; booking_id: number; amount: number; status: string; method: string | null; paid_at: string | null; created_at: string; provider_ref: string | null }[];
     },
   });
+
+  const retryFn = useServerFn(retryBookingPayment);
+  const cancelPendingFn = useServerFn(cancelPendingBookings);
+  const [payFor, setPayFor] = useState<{ ids: number[]; amount: number; courtName: string } | null>(null);
+  const [payMethod, setPayMethod] = useState<"gcash" | "paymaya" | "grab_pay" | "qrph">("gcash");
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState<string | null>(null);
 
   const cancelMut = useMutation({
     mutationFn: async (bookingId: number) => {
