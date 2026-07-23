@@ -2455,14 +2455,17 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
         {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
       </form>
 
+      {(() => {
+        const groups = (pcQ.data ?? []).filter((pc: any) => (pc.layouts ?? []).length !== 1);
+        return (
       <div className="grid gap-3">
         {pcQ.isLoading ? (
           <div className="h-24 animate-pulse rounded-2xl bg-muted" />
-        ) : (pcQ.data ?? []).length === 0 ? (
+        ) : groups.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No physical surfaces yet. Every existing court was auto-migrated as its own standalone surface.
+            No shared-surface groups yet. Use <b>+ Create group</b> to bundle multiple courts that share the same physical slab.
           </div>
-        ) : (pcQ.data ?? []).map((pc: any) => {
+        ) : groups.map((pc: any) => {
           const totalUsedCapacity = (pc.layouts ?? []).reduce((sum: number, l: any) => sum + (1 / Math.max(1, l.capacity)), 0);
           const overallocated = totalUsedCapacity > 1.001;
           return (
