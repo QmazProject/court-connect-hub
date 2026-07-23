@@ -370,6 +370,31 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
+function VenuesCourtsGlance({ venues }: { venues: Venue[] }) {
+  const venueIds = venues.map((v) => v.id);
+  const q = useQuery({
+    queryKey: ["venues-courts-glance", venueIds.join(",")],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase.from("courts").select("id, is_indoor").in("venue_id", venueIds);
+      const rows = data ?? [];
+      const indoor = rows.filter((c) => c.is_indoor).length;
+      return { total: rows.length, indoor, outdoor: rows.length - indoor };
+    },
+  });
+  const total = q.data?.total ?? 0;
+  const indoor = q.data?.indoor ?? 0;
+  const outdoor = q.data?.outdoor ?? 0;
+  return (
+    <div className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <StatCard label="Total venues" value={venues.length} />
+      <StatCard label="Total courts" value={total} />
+      <StatCard label="Indoor courts" value={indoor} />
+      <StatCard label="Outdoor courts" value={outdoor} />
+    </div>
+  );
+}
+
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
