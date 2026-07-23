@@ -396,6 +396,79 @@ function VenuesCourtsGlance({ venues }: { venues: Venue[] }) {
   );
 }
 
+function VenuesCourtsTable({ venues }: { venues: Venue[] }) {
+  const venueIds = venues.map((v) => v.id);
+  const q = useQuery({
+    queryKey: ["venues-courts-table", venueIds.join(",")],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("courts")
+        .select("id, name, hourly_rate, is_indoor, coming_soon, venue_id, sports(name)")
+        .in("venue_id", venueIds)
+        .order("id", { ascending: true });
+      return (data ?? []) as Array<{ id: number; name: string; hourly_rate: number; is_indoor: boolean; coming_soon: boolean | null; venue_id: number; sports: { name: string } | null }>;
+    },
+  });
+  const courts = q.data ?? [];
+  if (venues.length === 0) return null;
+
+  return (
+    <div className="mb-8 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="font-semibold">Venues & courts</div>
+        <div className="text-xs text-muted-foreground">{venues.length} venue{venues.length === 1 ? "" : "s"} · {courts.length} court{courts.length === 1 ? "" : "s"}</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2 text-left font-semibold">Venue</th>
+              <th className="px-4 py-2 text-left font-semibold">Court</th>
+              <th className="px-4 py-2 text-left font-semibold">Sport</th>
+              <th className="px-4 py-2 text-left font-semibold">Type</th>
+              <th className="px-4 py-2 text-right font-semibold">Rate / hr</th>
+              <th className="px-4 py-2 text-left font-semibold">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {venues.map((v) => {
+              const rows = courts.filter((c) => c.venue_id === v.id);
+              if (rows.length === 0) {
+                return (
+                  <tr key={`v-${v.id}`}>
+                    <td className="px-4 py-3 font-medium">{v.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground" colSpan={5}>No courts yet</td>
+                  </tr>
+                );
+              }
+              return rows.map((c, i) => (
+                <tr key={c.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 font-medium align-top">{i === 0 ? v.name : <span className="text-muted-foreground/60">↳</span>}</td>
+                  <td className="px-4 py-3">{c.name}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${c.is_indoor ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                      {c.is_indoor ? "Indoor" : "Outdoor"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold">₱{Number(c.hourly_rate).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    {c.coming_soon ? (
+                      <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Coming soon</span>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">Live</span>
+                    )}
+                  </td>
+                </tr>
+              ));
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
