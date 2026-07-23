@@ -19,7 +19,7 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "calendar", label: "Calendar", icon: CalendarDays },
   { key: "bookings", label: "Bookings", icon: BookOpen },
-  { key: "courts", label: "Courts", icon: LandPlot },
+  { key: "courts", label: "Venues / Courts", icon: LandPlot },
   { key: "customers", label: "Customers", icon: Users },
   { key: "team", label: "Team", icon: UserCog },
   { key: "transactions", label: "Transactions", icon: Receipt },
@@ -155,7 +155,8 @@ function Dashboard() {
       )}
       {section === "courts" && (
         <>
-          <SectionHeader title="Courts" subtitle="Manage your venues and courts." />
+          <SectionHeader title="Venues / Courts" subtitle="Manage your venues and courts." />
+          <VenuesCourtsGlance venues={venues} />
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
             <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
           ) : (
@@ -366,6 +367,31 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
         <QuickAction title="View bookings" body="See upcoming reservations across your venues." onClick={() => setSection("bookings")} />
       </div>
     </>
+  );
+}
+
+function VenuesCourtsGlance({ venues }: { venues: Venue[] }) {
+  const venueIds = venues.map((v) => v.id);
+  const q = useQuery({
+    queryKey: ["venues-courts-glance", venueIds.join(",")],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase.from("courts").select("id, is_indoor").in("venue_id", venueIds);
+      const rows = data ?? [];
+      const indoor = rows.filter((c) => c.is_indoor).length;
+      return { total: rows.length, indoor, outdoor: rows.length - indoor };
+    },
+  });
+  const total = q.data?.total ?? 0;
+  const indoor = q.data?.indoor ?? 0;
+  const outdoor = q.data?.outdoor ?? 0;
+  return (
+    <div className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <StatCard label="Total venues" value={venues.length} />
+      <StatCard label="Total courts" value={total} />
+      <StatCard label="Indoor courts" value={indoor} />
+      <StatCard label="Outdoor courts" value={outdoor} />
+    </div>
   );
 }
 
