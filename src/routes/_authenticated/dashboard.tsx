@@ -2460,22 +2460,22 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
     enabled: !!venueId,
     queryFn: async () => {
       const { data: pcs, error } = await supabase.from("physical_courts")
-        .select("id, name, map_emoji, description").eq("venue_id", venueId!).order("id");
+        .select("id, venue_id, name, map_emoji, description").eq("venue_id", venueId!).order("id");
       if (error) throw error;
       const pcIds = (pcs ?? []).map((p) => p.id);
-      if (pcIds.length === 0) return [] as Array<{ id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> }>;
+      if (pcIds.length === 0) return [] as GroupRow[];
       const { data: cs, error: cErr } = await supabase.from("courts")
         .select("id, name, capacity, physical_court_id, sports(name)")
         .in("physical_court_id", pcIds);
       if (cErr) throw cErr;
-      const byPc = new Map<number, Array<{ id: number; name: string; capacity: number; sport: string | null }>>();
+      const byPc = new Map<number, GroupRow["layouts"]>();
       (cs ?? []).forEach((c: any) => {
         const arr = byPc.get(c.physical_court_id) ?? [];
         arr.push({ id: c.id, name: c.name, capacity: c.capacity, sport: c.sports?.name ?? null });
         byPc.set(c.physical_court_id, arr);
       });
-      return (pcs ?? []).map((p) => ({ ...p, layouts: byPc.get(p.id) ?? [] }))
-        .filter((g) => g.layouts.length !== 1);
+      return (pcs ?? []).map((p: any) => ({ ...p, layouts: byPc.get(p.id) ?? [] }))
+        .filter((g) => g.layouts.length !== 1) as GroupRow[];
     },
   });
 
@@ -2560,7 +2560,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   );
 }
 
-type GroupRow = { id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> };
+type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> };
 
 function DeleteGroupButton({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
@@ -2638,23 +2638,87 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   const [name, setName] = useState(group.name);
   const [emoji, setEmoji] = useState<string | null>(group.map_emoji);
   const [description, setDescription] = useState(group.description ?? "");
+  const [caps, setCaps] = useState<Record<number, string>>(() =>
+    Object.fromEntries(group.layouts.map((l) => [l.id, String(l.capacity ?? 1)])),
+  );
+  const [addSel, setAddSel] = useState<Set<number>>(new Set());
+  const [addCaps, setAddCaps] = useState<Record<number, string>>({});
   const [err, setErr] = useState<string | null>(null);
+
+  // Courts in same venue that could be added to this group (currently on other slabs)
+  const eligibleQ = useQuery({
+    queryKey: ["group-add-eligible", group.venue_id, group.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts")
+        .select("id, name, capacity, physical_court_id, sports(name)")
+        .eq("venue_id", group.venue_id).order("id");
+      if (error) throw error;
+      return (data ?? []).filter((c: any) => c.physical_court_id !== group.id) as Array<{ id: number; name: string; capacity: number; physical_court_id: number; sports: { name: string } | null }>;
+    },
+  });
+
+  const toggleAdd = (id: number, cur: number) => {
+    setAddSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else { next.add(id); setAddCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      return next;
+    });
+  };
+
+  const removeMember = async (courtId: number) => {
+    setErr(null);
+    // Only allow removing if no bookings on that court
+    const { count, error: cErr } = await supabase.from("bookings")
+      .select("id", { count: "exact", head: true }).eq("court_id", courtId);
+    if (cErr) { setErr(cErr.message); return; }
+    if ((count ?? 0) > 0) { setErr("This court has bookings and cannot be detached from the group."); return; }
+    const { data: pc, error: pcErr } = await supabase.from("physical_courts")
+      .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` }).select("id").single();
+    if (pcErr) { setErr(pcErr.message); return; }
+    const { error: upErr } = await supabase.from("courts")
+      .update({ physical_court_id: pc.id, capacity: 1, footprint: 1 }).eq("id", courtId);
+    if (upErr) { setErr(upErr.message); return; }
+    qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
+    qc.invalidateQueries({ queryKey: ["group-add-eligible", group.venue_id, group.id] });
+  };
 
   const mut = useMutation({
     mutationFn: async () => {
       if (!name.trim()) throw new Error("Group name is required");
+      // Update group fields
       const { error } = await supabase.from("physical_courts")
         .update({ name: name.trim(), map_emoji: emoji, description: description.trim() || null })
         .eq("id", group.id);
       if (error) throw error;
+      // Update capacities of existing members
+      for (const l of group.layouts) {
+        const cap = Math.max(1, Math.floor(Number(caps[l.id] ?? "1") || 1));
+        if (cap !== l.capacity) {
+          const footprint = 1 / cap;
+          const { error: upErr } = await supabase.from("courts")
+            .update({ capacity: cap, footprint }).eq("id", l.id);
+          if (upErr) throw upErr;
+        }
+      }
+      // Attach newly selected courts
+      for (const id of Array.from(addSel)) {
+        const cap = Math.max(1, Math.floor(Number(addCaps[id] ?? "1") || 1));
+        const footprint = 1 / cap;
+        const { error: upErr } = await supabase.from("courts")
+          .update({ physical_court_id: group.id, capacity: cap, footprint }).eq("id", id);
+        if (upErr) throw upErr;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
       qc.invalidateQueries({ queryKey: ["physical-courts"] });
+      qc.invalidateQueries({ queryKey: ["tenant-venues-full"] });
       onClose();
     },
     onError: (e: Error) => setErr(e.message),
   });
+
+  const eligible = eligibleQ.data ?? [];
 
   return (
     <div className="fixed inset-0 z-[70] flex" onClick={onClose}>
@@ -2665,11 +2729,70 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
           <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4 p-5">
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+            Editing the <b className="text-foreground">whole group</b> — group name, emoji, description, and which courts belong to this physical slab.
+          </div>
+
           <Input label="Group name" value={name} onChange={setName} required />
           <div className="rounded-xl border border-border bg-background p-3">
             <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
           </div>
           <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+
+          <div className="rounded-xl border border-border p-3">
+            <div className="text-sm font-semibold">Courts in this group</div>
+            <p className="mt-1 text-xs text-muted-foreground">Adjust capacity (max simultaneous matches per hour) or detach a court from the group.</p>
+            <div className="mt-3 grid gap-2">
+              {group.layouts.length === 0 && <p className="text-xs text-muted-foreground">No courts assigned yet. Attach some below.</p>}
+              {group.layouts.map((l) => (
+                <div key={l.id} className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-2 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-medium">{l.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{l.sport ?? "—"}</div>
+                  </div>
+                  <label className="text-[11px] text-muted-foreground">
+                    Capacity
+                    <input type="number" min={1} value={caps[l.id] ?? String(l.capacity)}
+                      onChange={(e) => setCaps((c) => ({ ...c, [l.id]: e.target.value }))}
+                      className="ml-1 w-16 rounded-md border border-input bg-background px-2 py-1 text-xs" />
+                  </label>
+                  <button type="button" onClick={() => removeMember(l.id)}
+                    className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:border-destructive hover:text-destructive">
+                    Detach
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-dashed border-border p-3">
+            <div className="text-sm font-semibold">Add courts to this group</div>
+            <p className="mt-1 text-xs text-muted-foreground">Tick courts from this venue to attach onto this physical slab.</p>
+            <div className="mt-3 grid gap-2">
+              {eligible.length === 0 && <p className="text-xs text-muted-foreground">No other courts in this venue.</p>}
+              {eligible.map((c) => {
+                const checked = addSel.has(c.id);
+                return (
+                  <label key={c.id} className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm ${checked ? "border-primary bg-primary/5" : "border-border"}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleAdd(c.id, c.capacity)} />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate font-medium">{c.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"}</div>
+                    </div>
+                    {checked && (
+                      <label className="text-[11px] text-muted-foreground">
+                        Capacity
+                        <input type="number" min={1} value={addCaps[c.id] ?? "1"}
+                          onChange={(e) => setAddCaps((v) => ({ ...v, [c.id]: e.target.value }))}
+                          className="ml-1 w-16 rounded-md border border-input bg-background px-2 py-1 text-xs" />
+                      </label>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
           <div className="flex items-center justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
