@@ -2392,14 +2392,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
     onError: (e: Error) => setErr(e.message),
   });
 
-  const deleteMut = useMutation({
-    mutationFn: async (id: number) => {
-      const { error } = await supabase.from("physical_courts").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["physical-courts-full", venueId] }); },
-    onError: (e: Error) => alert(e.message.includes("violates foreign key") ? "This surface still has courts attached. Move or delete those courts first." : e.message),
-  });
+
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6">
