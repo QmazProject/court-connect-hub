@@ -204,7 +204,11 @@ function Dashboard() {
           />
         </div>
       )}
-      {section === "calendar" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." /></div>}
+      {section === "calendar" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <CalendarSection venues={venues} />
+        </div>
+      )}
       {section === "bookings" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <BookingsSection venues={venues} />
