@@ -496,6 +496,167 @@ function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClos
   );
 }
 
+function CreateGroupDrawer({ open, onClose, venues, onCreated }: { open: boolean; onClose: () => void; venues: Venue[]; onCreated: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+  return (
+    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+      <div
+        onClick={onClose}
+        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+      />
+      <aside
+        className={
+          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full")
+        }
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create court group"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+          <h2 className="text-lg font-bold">Create court group</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+        </div>
+        <div className="p-4 sm:p-6">
+          {open && <CreateGroupForm venues={venues} onCreated={onCreated} onCancel={onClose} />}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onCreated: () => void; onCancel: () => void }) {
+  const [venueId, setVenueId] = useState<number>(venues[0]?.id ?? 0);
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  // Existing unassigned-ish courts in the same venue that we can bundle into this new group
+  const courtsQ = useQuery({
+    queryKey: ["group-eligible-courts", venueId],
+    enabled: !!venueId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts")
+        .select("id, name, capacity, hourly_rate, physical_court_id, sports(name)")
+        .eq("venue_id", venueId).order("id");
+      if (error) throw error;
+      return data as unknown as Array<{ id: number; name: string; capacity: number; hourly_rate: number; physical_court_id: number; sports: { name: string } | null }>;
+    },
+  });
+
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [caps, setCaps] = useState<Record<number, string>>({});
+  const toggle = (id: number, cur: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      return next;
+    });
+  };
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      if (!venueId) throw new Error("Pick a venue");
+      if (!name.trim()) throw new Error("Group name is required");
+      const { data: pc, error } = await supabase.from("physical_courts").insert({
+        venue_id: venueId, name: name.trim(), map_emoji: emoji, description: description.trim() || null,
+      }).select("id").single();
+      if (error) throw error;
+      const ids = Array.from(selected);
+      if (ids.length > 0) {
+        for (const id of ids) {
+          const cap = Math.max(1, Math.floor(Number(caps[id] ?? "1") || 1));
+          const footprint = 1 / cap;
+          const { error: upErr } = await supabase.from("courts")
+            .update({ physical_court_id: pc.id, capacity: cap, footprint }).eq("id", id);
+          if (upErr) throw upErr;
+        }
+      }
+    },
+    onSuccess: onCreated,
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+        <div className="font-semibold text-primary">What is a court group?</div>
+        <p className="mt-1 text-muted-foreground">
+          A group represents one <b>physical slab</b> that can be configured for different sports (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically block each other.
+        </p>
+      </div>
+
+      <label className="block">
+        <span className="text-xs font-medium text-muted-foreground">Venue</span>
+        <select value={venueId} onChange={(e) => setVenueId(Number(e.target.value))}
+          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+      </label>
+
+      <Input label='Group name (e.g. "Court 1 — Main Slab")' value={name} onChange={setName} required />
+
+      <div className="rounded-xl border border-border bg-background p-3">
+        <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
+      </div>
+
+      <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+
+      <div className="rounded-xl border border-dashed border-border p-3">
+        <div className="text-sm font-semibold">Assign existing courts to this group</div>
+        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab. Set the max simultaneous matches per hour (capacity) for each.</p>
+        <div className="mt-3 max-h-64 overflow-y-auto nice-scroll">
+          {courtsQ.isLoading ? (
+            <div className="h-16 animate-pulse rounded-lg bg-muted" />
+          ) : (courtsQ.data ?? []).length === 0 ? (
+            <div className="text-xs text-muted-foreground">No courts in this venue yet. You can create the group now and assign courts later from Add / Edit court.</div>
+          ) : (
+            <ul className="grid gap-2">
+              {(courtsQ.data ?? []).map((c) => {
+                const checked = selected.has(c.id);
+                return (
+                  <li key={c.id} className={"flex items-center gap-3 rounded-lg border p-2 text-sm " + (checked ? "border-primary bg-primary/5" : "border-border")}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(c.id, c.capacity ?? 1)} />
+                    <div className="flex-1">
+                      <div className="font-medium">{c.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"} · ₱{Number(c.hourly_rate).toFixed(0)}/hr</div>
+                    </div>
+                    {checked && (
+                      <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        Cap
+                        <input type="number" min={1} value={caps[c.id] ?? String(c.capacity ?? 1)}
+                          onChange={(e) => setCaps((s) => ({ ...s, [c.id]: e.target.value }))}
+                          className="w-16 rounded-md border border-input bg-background px-2 py-1 text-sm" />
+                      </label>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+
+      <div className="flex items-center justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
+        <button disabled={mut.isPending || !name.trim() || !venueId} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          {mut.isPending ? "Creating…" : "Create group"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function VenuesCourtsGlance({ venues }: { venues: Venue[] }) {
   const venueIds = venues.map((v) => v.id);
   const q = useQuery({
