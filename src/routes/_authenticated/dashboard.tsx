@@ -1992,7 +1992,16 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
           Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
-        <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>Court Groups</TabBtn>
+        <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
+          Court Groups
+          <span className="group relative ml-1 inline-flex">
+            <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">?</span>
+            <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-3 text-left text-xs font-normal normal-case text-popover-foreground shadow-lg group-hover:block">
+              <span className="block font-semibold text-primary">What is a Court Group / Physical Surface?</span>
+              <span className="mt-1 block text-muted-foreground">One physical slab can host different sports at different capacities — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.</span>
+            </span>
+          </span>
+        </TabBtn>
       </div>
       <div className="nice-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto">
 
