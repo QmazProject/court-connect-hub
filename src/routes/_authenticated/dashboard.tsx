@@ -3293,3 +3293,284 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
 }
 
 
+
+// ================= Calendar (Day view) =================
+
+type CalBooking = {
+  id: number;
+  court_id: number;
+  user_id: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  payment_status: string;
+  courts: {
+    name: string;
+    venue_id: number;
+    sport_id: number;
+    venues: { name: string } | null;
+    sports: { name: string; slug: string | null } | null;
+  } | null;
+};
+
+const SPORT_COLORS: Record<string, { bg: string; dot: string; text: string; border: string }> = {
+  tennis:      { bg: "bg-emerald-100", dot: "bg-emerald-500", text: "text-emerald-900", border: "border-emerald-200" },
+  basketball:  { bg: "bg-amber-100",   dot: "bg-amber-500",   text: "text-amber-900",   border: "border-amber-200" },
+  badminton:   { bg: "bg-sky-100",     dot: "bg-sky-500",     text: "text-sky-900",     border: "border-sky-200" },
+  volleyball:  { bg: "bg-violet-100",  dot: "bg-violet-500",  text: "text-violet-900",  border: "border-violet-200" },
+  pickleball:  { bg: "bg-pink-100",    dot: "bg-pink-500",    text: "text-pink-900",    border: "border-pink-200" },
+  football:    { bg: "bg-lime-100",    dot: "bg-lime-500",    text: "text-lime-900",    border: "border-lime-200" },
+  squash:      { bg: "bg-rose-100",    dot: "bg-rose-500",    text: "text-rose-900",    border: "border-rose-200" },
+  default:     { bg: "bg-slate-100",   dot: "bg-slate-500",   text: "text-slate-900",   border: "border-slate-200" },
+};
+function sportStyle(slug?: string | null) {
+  if (!slug) return SPORT_COLORS.default;
+  return SPORT_COLORS[slug.toLowerCase()] ?? SPORT_COLORS.default;
+}
+
+function CalendarSection({ venues }: { venues: Venue[] }) {
+  const [venueFilter, setVenueFilter] = useState<number | "all">("all");
+  const [sportFilter, setSportFilter] = useState<string | "all">("all");
+  const [day, setDay] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  const dayStart = new Date(day);
+  const dayEnd = new Date(day);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const venueIds = venueFilter === "all" ? venues.map((v) => v.id) : [venueFilter];
+
+  const courtsQ = useQuery({
+    queryKey: ["cal-courts", venueIds.slice().sort((a, b) => a - b).join(",")],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courts")
+        .select("id, name, venue_id, sport_id, sports(name, slug)")
+        .in("venue_id", venueIds)
+        .order("venue_id", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as unknown as {
+        id: number; name: string; venue_id: number; sport_id: number;
+        sports: { name: string; slug: string | null } | null;
+      }[];
+    },
+  });
+
+  const bookingsQ = useQuery({
+    queryKey: ["cal-bookings", venueIds.slice().sort((a, b) => a - b).join(","), dayStart.toISOString()],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, court_id, user_id, start_time, end_time, status, payment_status, courts!inner(name, venue_id, sport_id, venues(name), sports(name, slug))")
+        .gte("start_time", dayStart.toISOString())
+        .lt("start_time", dayEnd.toISOString())
+        .in("courts.venue_id", venueIds)
+        .neq("status", "cancelled")
+        .order("start_time", { ascending: true });
+      if (error) throw error;
+      return (data as unknown as CalBooking[]) ?? [];
+    },
+  });
+
+  const uids = Array.from(new Set((bookingsQ.data ?? []).map((r) => r.user_id)));
+  const namesQ = useQuery({
+    queryKey: ["cal-profile-names", uids.slice().sort().join(",")],
+    enabled: uids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, full_name").in("id", uids);
+      if (error) throw error;
+      return (data ?? []) as { id: string; full_name: string | null }[];
+    },
+  });
+  const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p.full_name]));
+
+  const allCourts = courtsQ.data ?? [];
+  const sportsInView = Array.from(
+    new Map(
+      allCourts
+        .filter((c) => c.sports)
+        .map((c) => [c.sports!.slug ?? c.sports!.name.toLowerCase(), c.sports!])
+    ).values()
+  );
+
+  const courtsShown = sportFilter === "all"
+    ? allCourts
+    : allCourts.filter((c) => (c.sports?.slug ?? c.sports?.name.toLowerCase()) === sportFilter);
+
+  const bookings = (bookingsQ.data ?? []).filter((b) => {
+    if (sportFilter === "all") return true;
+    const slug = b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase();
+    return slug === sportFilter;
+  });
+
+  const HOUR_START = 6;
+  const HOUR_END = 22;
+  const HOURS = HOUR_END - HOUR_START;
+  const ROW_H = 60;
+  const gridHeight = HOURS * ROW_H;
+
+  const isToday = (() => {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return t.getTime() === day.getTime();
+  })();
+
+  const nudgeDay = (delta: number) => {
+    const d = new Date(day);
+    d.setDate(d.getDate() + delta);
+    setDay(d);
+  };
+
+  const dayLabel = day.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" });
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Calendar" subtitle="Day view across every court and sport." />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded-full border border-border bg-card">
+            <button className="bg-foreground px-4 py-1.5 text-xs font-semibold text-background">Day</button>
+            <button disabled className="px-4 py-1.5 text-xs font-medium text-muted-foreground/60">Schedule</button>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => nudgeDay(-1)} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary" aria-label="Previous day">‹</button>
+            <button
+              onClick={() => { const t = new Date(); t.setHours(0,0,0,0); setDay(t); }}
+              className={`rounded-full px-4 py-1.5 text-xs font-semibold ${isToday ? "bg-primary text-primary-foreground" : "border border-border bg-card hover:bg-secondary"}`}
+            >
+              Today
+            </button>
+            <button onClick={() => nudgeDay(1)} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary" aria-label="Next day">›</button>
+          </div>
+        </div>
+
+        <div className="text-sm font-semibold sm:text-base">{dayLabel}</div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={venueFilter}
+            onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs"
+          >
+            <option value="all">All venues</option>
+            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+          <div className="inline-flex flex-wrap items-center gap-1">
+            <button
+              onClick={() => setSportFilter("all")}
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold ${sportFilter === "all" ? "bg-primary text-primary-foreground" : "border border-border bg-card hover:bg-secondary"}`}
+            >
+              All
+            </button>
+            {sportsInView.map((s) => {
+              const slug = s.slug ?? s.name.toLowerCase();
+              const active = sportFilter === slug;
+              const st = sportStyle(slug);
+              return (
+                <button
+                  key={slug}
+                  onClick={() => setSportFilter(active ? "all" : slug)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ${active ? "bg-foreground text-background" : "border border-border bg-card hover:bg-secondary"}`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${st.dot}`} />
+                  {s.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        {courtsQ.isLoading ? (
+          <div className="p-6 text-sm text-muted-foreground">Loading calendar…</div>
+        ) : courtsShown.length === 0 ? (
+          <div className="p-6 text-sm text-muted-foreground">No courts to display. Add a court to see it here.</div>
+        ) : (
+          <div className="nice-scroll overflow-auto">
+            <div className="min-w-max">
+              <div className="sticky top-0 z-10 flex border-b border-border bg-card/95 backdrop-blur">
+                <div className="w-16 shrink-0" />
+                {courtsShown.map((c) => {
+                  const st = sportStyle(c.sports?.slug ?? c.sports?.name.toLowerCase());
+                  return (
+                    <div key={c.id} className="w-40 shrink-0 border-l border-border px-3 py-2">
+                      <div className="truncate text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {c.name}
+                      </div>
+                      <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                        {c.sports?.name ?? "Sport"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex">
+                <div className="w-16 shrink-0" style={{ height: gridHeight }}>
+                  {Array.from({ length: HOURS }).map((_, i) => {
+                    const h = HOUR_START + i;
+                    const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+                    return (
+                      <div key={h} style={{ height: ROW_H }} className="relative">
+                        <div className="absolute -top-2 right-2 text-[10px] font-medium text-muted-foreground">{label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {courtsShown.map((c) => {
+                  const colBookings = bookings.filter((b) => b.court_id === c.id);
+                  return (
+                    <div key={c.id} className="relative w-40 shrink-0 border-l border-border" style={{ height: gridHeight }}>
+                      {Array.from({ length: HOURS }).map((_, i) => (
+                        <div key={i} style={{ top: i * ROW_H, height: ROW_H }} className="absolute inset-x-0 border-t border-border/60" />
+                      ))}
+
+                      {colBookings.map((b) => {
+                        const s = new Date(b.start_time);
+                        const e = new Date(b.end_time);
+                        const startH = s.getHours() + s.getMinutes() / 60;
+                        const endH = e.getHours() + e.getMinutes() / 60;
+                        const top = Math.max(0, (startH - HOUR_START) * ROW_H);
+                        const height = Math.max(24, (endH - startH) * ROW_H - 4);
+                        const st = sportStyle(b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase());
+                        const sportName = b.courts?.sports?.name ?? "Booking";
+                        const player = nameMap.get(b.user_id) || "Player";
+                        return (
+                          <div
+                            key={b.id}
+                            style={{ top, height }}
+                            className={`absolute inset-x-1 rounded-xl border ${st.bg} ${st.border} ${st.text} px-2.5 py-2 shadow-sm`}
+                          >
+                            <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                              {sportName}
+                            </div>
+                            <div className="mt-0.5 truncate text-[11px] opacity-80">{player}</div>
+                            <div className="mt-0.5 text-[10px] opacity-70">
+                              {s.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })} – {e.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {bookingsQ.isLoading && <div className="text-xs text-muted-foreground">Loading bookings…</div>}
+    </div>
+  );
+}
