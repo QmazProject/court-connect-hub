@@ -1995,7 +1995,31 @@ function SettingsSection({
         </div>
       </div>
 
+      {role === "tenant" && (
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold">Payments</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose how players pay online per venue. Set to <b>Full payment</b> or <b>50% downpayment</b> to enable the GCash / Maya / GrabPay / QR Ph checkout for that venue's courts. Refund cutoff blocks player-initiated refunds inside the window before the booking.
+              </p>
+            </div>
+            <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold">PayMongo · Test mode</span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {paySettingsQ.isLoading && <p className="text-sm text-muted-foreground">Loading venues…</p>}
+            {!paySettingsQ.isLoading && (paySettingsQ.data ?? []).map((v) => (
+              <VenuePaymentRow key={v.id} venue={v} onSave={savePaymentSettings} />
+            ))}
+            {!paySettingsQ.isLoading && (paySettingsQ.data?.length ?? 0) === 0 && (
+              <p className="text-sm text-muted-foreground">Create a venue first to configure payment settings.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-destructive/30 bg-card p-5 sm:p-6">
+
         <h3 className="text-base font-semibold">Session</h3>
         <p className="mt-1 text-xs text-muted-foreground">Sign out of your CourtHub account on this device.</p>
         <button
