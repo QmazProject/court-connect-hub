@@ -23,7 +23,7 @@ type Court = {
   capacity: number;
   physical_court_id: number;
   sports: { name: string } | null;
-  venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null } | null;
+  venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; payment_mode: "none" | "full" | "downpayment_50"; refund_cutoff_hours: number } | null;
 };
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
