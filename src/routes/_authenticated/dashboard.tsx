@@ -1357,6 +1357,7 @@ export function osmEmbedUrl(lat: number, lng: number, delta = 0.005) {
 function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [mapView, setMapView] = useState<"internal" | "google">("internal");
 
   const mut = useMutation({
     mutationFn: async ({ lat, lng }: { lat: number; lng: number }) => {
@@ -1368,11 +1369,28 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
   });
 
   const hasLoc = venue.latitude != null && venue.longitude != null;
+  const googleEmbedUrl = (lat: number, lng: number) => `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
 
   return (
     <div className="w-full sm:w-72">
       {hasLoc ? (
         <div className="overflow-hidden rounded-xl border border-border">
+          <div className="flex items-center gap-1 border-b border-border bg-secondary/40 p-1 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setMapView("internal")}
+              className={`flex-1 rounded-md px-2 py-1 font-medium transition ${mapView === "internal" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              🗺️ Internal
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapView("google")}
+              className={`flex-1 rounded-md px-2 py-1 font-medium transition ${mapView === "google" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              🌐 Google
+            </button>
+          </div>
           <a
             href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`}
             target="_blank"
@@ -1382,9 +1400,14 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
           >
             <div className="relative h-32 w-full overflow-hidden">
               <iframe
+                key={mapView}
                 title={`${venue.name} map`}
-                src={osmEmbedUrl(venue.latitude!, venue.longitude!)}
-                className="pointer-events-none absolute left-0 right-0 -top-6 h-48 w-full"
+                src={mapView === "internal" ? osmEmbedUrl(venue.latitude!, venue.longitude!) : googleEmbedUrl(venue.latitude!, venue.longitude!)}
+                className={
+                  mapView === "internal"
+                    ? "pointer-events-none absolute left-0 right-0 -top-6 h-48 w-full"
+                    : "pointer-events-none absolute inset-0 h-full w-full"
+                }
                 loading="lazy"
               />
             </div>
@@ -1397,6 +1420,7 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
           </div>
         </div>
       ) : (
+
         <button onClick={() => setPickerOpen(true)} className="w-full rounded-xl border-2 border-dashed border-border px-3 py-4 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary">
           📍 Add map location
         </button>
