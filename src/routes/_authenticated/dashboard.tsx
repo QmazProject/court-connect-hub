@@ -9,7 +9,7 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle,
 } from "lucide-react";
 
 type SectionKey =
