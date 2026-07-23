@@ -309,21 +309,25 @@ function CourtBooking() {
 
         <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {slots.map((h) => {
+            const info = slotInfo(h);
+            const otherSport = isBlockedBySport(h);
             const booked = isBooked(h);
             const blockedSlot = isBlocked(h);
             const past = isPast(h);
-            const disabled = booked || blockedSlot || past;
+            const disabled = booked || blockedSlot || past || otherSport;
             const active = selected.includes(h);
-            const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
+            const label = blockedSlot ? "Unavailable" : otherSport ? "Other sport" : booked ? "Full" : past ? "Past" : capacity > 1 ? `${info.remaining}/${capacity} left` : "";
             const stateClass = active
               ? "border-yellow-500 bg-yellow-300 text-yellow-950"
               : booked
                 ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
-                : blockedSlot
-                  ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
-                  : past
-                    ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
-                    : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
+                : otherSport
+                  ? "cursor-not-allowed border-purple-400/60 bg-purple-200/60 text-purple-900"
+                  : blockedSlot
+                    ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
+                    : past
+                      ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
+                      : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
             return (
               <button
                 key={h}
@@ -334,7 +338,7 @@ function CourtBooking() {
                     prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b)
                   );
                 }}
-                title={label}
+                title={otherSport ? "This surface is booked for a different sport at this hour" : label}
                 className={"flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " + stateClass}
               >
                 <span className={"text-xs leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
