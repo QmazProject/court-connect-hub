@@ -1373,26 +1373,26 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
     <div className="w-full sm:w-72">
       {hasLoc ? (
         <div className="overflow-hidden rounded-xl border border-border">
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
+          <a
+            href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`}
+            target="_blank"
+            rel="noreferrer"
             className="group relative block w-full"
-            title="Click to change pin"
+            title="View on map"
           >
-            <iframe
-              title={`${venue.name} map`}
-              src={osmEmbedUrl(venue.latitude!, venue.longitude!)}
-              className="pointer-events-none h-32 w-full"
-              loading="lazy"
-            />
+            <div className="relative h-32 w-full overflow-hidden">
+              <iframe
+                title={`${venue.name} map`}
+                src={osmEmbedUrl(venue.latitude!, venue.longitude!)}
+                className="pointer-events-none absolute left-0 right-0 -top-6 h-48 w-full"
+                loading="lazy"
+              />
+            </div>
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-xs font-semibold text-transparent transition group-hover:bg-black/40 group-hover:text-white">
-              ✎ Change pin
+              🔍 View on map
             </span>
-          </button>
-          <div className="flex items-center justify-between gap-2 bg-secondary/40 px-3 py-2 text-xs">
-            <a href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
-              Open in Google Maps ↗
-            </a>
+          </a>
+          <div className="flex items-center justify-end gap-2 bg-secondary/40 px-3 py-2 text-xs">
             <button onClick={() => setPickerOpen(true)} className="rounded-md border border-border bg-background px-2 py-1 font-medium hover:border-primary hover:text-primary">Edit pin</button>
           </div>
         </div>
