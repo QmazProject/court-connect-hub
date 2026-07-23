@@ -1789,21 +1789,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               </td>
               <td className="px-3 py-3 text-center">
                 {v.latitude != null && v.longitude != null ? (
-                  <div className="relative inline-flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setViewing(v)}
-                      title="View on map"
-                      aria-label={`View ${v.name} on map`}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-                    >
-                      <MapPin className="h-4 w-4" />
-                    </button>
-                    <MapInfoButton
-                      getCenter={() => ({ lat: v.latitude!, lng: v.longitude! })}
-                      className="relative bottom-auto right-auto"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewing(v)}
+                    title="View on map"
+                    aria-label={`View ${v.name} on map`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                  >
+                    <MapPin className="h-4 w-4" />
+                  </button>
                 ) : (
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
