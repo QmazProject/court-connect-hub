@@ -1441,7 +1441,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
         .eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onSuccess: () => { setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); onDoneEditing?.(); },
     onError: (e: Error) => setErr(e.message),
   });
 
