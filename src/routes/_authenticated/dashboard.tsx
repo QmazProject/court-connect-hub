@@ -2380,7 +2380,6 @@ function CourtDrawer({ title, open, onClose, children }: { title: string; open: 
 function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
   useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
-  const qc = useQueryClient();
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6">
