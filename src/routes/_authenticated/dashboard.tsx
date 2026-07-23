@@ -3849,7 +3849,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
               const tx = txByBooking.get(b.id);
               const h = hours(b.start_time, b.end_time);
               const amount = tx?.amount != null ? Number(tx.amount) : (b.courts?.hourly_rate ?? 0) * h;
-              const canCancel = tab === "upcoming" && b.payment_status !== "paid" && new Date(b.start_time) > now;
+              
               return (
                 <li key={b.id} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
