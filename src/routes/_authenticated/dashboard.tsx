@@ -175,11 +175,7 @@ function Dashboard() {
               }
             />
           ) : (
-            <div className="space-y-8">
-              {venues.map((v, i) => (
-                <div key={v.id} id={i === 0 ? "add-court-anchor" : undefined}><VenueSection venue={v} /></div>
-              ))}
-            </div>
+            <div id="add-court-anchor"><VenuesCourtsTabs venues={venues} /></div>
           )}
 
           <CreateVenueDrawer
