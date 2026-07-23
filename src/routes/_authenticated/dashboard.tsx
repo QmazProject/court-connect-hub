@@ -9,9 +9,8 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Bell, User,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin,
 } from "lucide-react";
-
 
 type SectionKey =
   | "dashboard" | "calendar" | "bookings" | "courts"
@@ -268,13 +267,12 @@ function TenantShell({
             <Menu className="h-4 w-4" /> Menu
           </button>
           <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
-          <WorkspaceTopActions setSection={setSection} compact />
+          <span className="w-16" />
         </div>
         <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </div>
       </div>
-
 
     </div>
   );
@@ -334,60 +332,26 @@ function SidebarBody({
           })}
         </ul>
       </nav>
+      {!collapsed && (
+        <div className="border-t border-border px-3 py-3.5">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Tenant
+            </span>
+          </div>
+          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">
+            Workspace
+          </div>
+        </div>
+
+
+      )}
     </>
   );
 }
 
-function WorkspaceTopActions({ setSection, compact = false }: { setSection: (s: SectionKey) => void; compact?: boolean }) {
-  const { data: { user } = { user: null } } = useQuery({
-    queryKey: ["auth-user-topbar"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      return { user: data.user };
-    },
-  });
-  const profileQ = useQuery({
-    queryKey: ["profile", user?.id],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", user!.id).maybeSingle();
-      return data;
-    },
-  });
-  const name = (profileQ.data?.full_name as string | undefined) ?? "";
-  const initial = (name || user?.email || "?").trim().charAt(0).toUpperCase();
-  const btnSize = compact ? "h-8 w-8" : "h-9 w-9";
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        aria-label="Notifications"
-        title="Notifications"
-        className={`relative inline-flex ${btnSize} items-center justify-center rounded-full border border-border bg-card text-foreground/80 transition hover:border-primary hover:text-primary`}
-      >
-        <Bell className="h-4 w-4" />
-        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))]" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setSection("settings")}
-        aria-label="Profile"
-        title={name || "Profile"}
-        className={`inline-flex items-center gap-2 rounded-full border border-border bg-card pr-1 transition hover:border-primary ${compact ? "pl-1" : "pl-1.5"}`}
-      >
-        <span className={`inline-flex ${btnSize} items-center justify-center rounded-full bg-primary/15 font-display text-sm font-bold text-primary`}>
-          {initial || <User className="h-4 w-4" />}
-        </span>
-        {!compact && name && (
-          <span className="hidden max-w-[140px] truncate pr-2 text-sm font-medium text-foreground lg:inline">{name}</span>
-        )}
-      </button>
-    </div>
-  );
-}
-
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-
   return (
     <div className="mb-6">
       <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
