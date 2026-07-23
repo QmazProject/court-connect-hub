@@ -8,11 +8,11 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Grid3x3, Layers,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers,
 } from "lucide-react";
 
 type SectionKey =
-  | "dashboard" | "calendar" | "bookings" | "courts" | "courtsList" | "courtGroups"
+  | "dashboard" | "calendar" | "bookings" | "courts"
   | "customers" | "team" | "transactions" | "settings";
 
 const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -20,8 +20,6 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "calendar", label: "Calendar", icon: CalendarDays },
   { key: "bookings", label: "Bookings", icon: BookOpen },
   { key: "courts", label: "Venues & Courts", icon: LandPlot },
-  { key: "courtsList", label: "Courts", icon: Grid3x3 },
-  { key: "courtGroups", label: "Court Groups", icon: Layers },
   { key: "customers", label: "Customers", icon: Users },
   { key: "team", label: "Team", icon: UserCog },
   { key: "transactions", label: "Transactions", icon: Receipt },
@@ -195,8 +193,6 @@ function Dashboard() {
       )}
       {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
       {section === "bookings" && <ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." />}
-      {section === "courtsList" && <ComingSoon title="Courts" body="A dedicated courts workspace with per-court analytics, rates history and quick edits is on the way." />}
-      {section === "courtGroups" && <ComingSoon title="Court Groups" body="Bundle related courts into groups (e.g. by sport, floor or brand) so you can manage rates, hours and staff at scale." />}
       {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
       {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
       {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
@@ -1670,7 +1666,7 @@ function SettingsSection({
 // ================= Venues & Courts tabs =================
 
 function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
-  const [tab, setTab] = useState<"venues" | "courts">("venues");
+  const [tab, setTab] = useState<"venues" | "courts" | "groups">("venues");
   return (
     <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
@@ -1678,9 +1674,25 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
           Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
+        <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
+          Court Groups <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 ring-1 ring-amber-500/30">Soon</span>
+        </TabBtn>
       </div>
       <div className="nice-scroll max-h-[70vh] min-h-[380px] overflow-y-auto overflow-x-auto">
-        {tab === "venues" ? <VenuesTab venues={venues} /> : <CourtsTab venues={venues} />}
+        {tab === "venues" && <VenuesTab venues={venues} />}
+        {tab === "courts" && <CourtsTab venues={venues} />}
+        {tab === "groups" && (
+          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+            <div className="rounded-2xl bg-primary/10 p-4">
+              <Layers className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-bold">Court Groups</h3>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Bundle related courts into groups (by sport, floor, or brand) to manage rates, hours and staff at scale.
+            </p>
+            <span className="mt-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Coming soon</span>
+          </div>
+        )}
       </div>
     </div>
   );
