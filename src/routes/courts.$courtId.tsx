@@ -2,6 +2,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { startBookingCheckout } from "@/lib/paymongo.functions";
 
 export const Route = createFileRoute("/courts/$courtId")({
   component: CourtBooking,
@@ -22,7 +23,7 @@ type Court = {
   capacity: number;
   physical_court_id: number;
   sports: { name: string } | null;
-  venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null } | null;
+  venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; payment_mode: "none" | "full" | "downpayment_50"; refund_cutoff_hours: number } | null;
 };
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -48,6 +49,13 @@ function fmtHour(h: number) {
   return `${h12}:00 ${period}`;
 }
 
+type PmMethod = "gcash" | "paymaya" | "grab_pay" | "qrph";
+const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
+  { key: "gcash", label: "GCash", emoji: "💙" },
+  { key: "paymaya", label: "Maya", emoji: "💚" },
+  { key: "grab_pay", label: "GrabPay", emoji: "🟢" },
+  { key: "qrph", label: "QR Ph", emoji: "🔳" },
+];
 
 function CourtBooking() {
   const { courtId } = Route.useParams();
@@ -56,6 +64,8 @@ function CourtBooking() {
   const [date, setDate] = useState(todayISO());
   const [selected, setSelected] = useState<number[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
 
 
   const courtQ = useQuery({
@@ -63,7 +73,7 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)")
         .eq("id", Number(courtId))
         .maybeSingle();
 
@@ -368,17 +378,118 @@ function CourtBooking() {
             )}
             <button
               disabled={selected.length === 0 || bookMut.isPending}
-              onClick={() => selected.length > 0 && bookMut.mutate(selected)}
+              onClick={() => {
+                if (selected.length === 0) return;
+                const mode = court.venues?.payment_mode ?? "none";
+                if (mode === "none") {
+                  bookMut.mutate(selected);
+                } else {
+                  setErr(null);
+                  setCheckoutOpen(true);
+                }
+              }}
               className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
-              {bookMut.isPending ? "Booking…" : `Confirm booking${selected.length > 1 ? ` (${selected.length} hrs)` : ""}`}
+              {bookMut.isPending
+                ? "Booking…"
+                : court.venues?.payment_mode && court.venues.payment_mode !== "none"
+                  ? `Continue to payment${selected.length > 1 ? ` (${selected.length} hrs)` : ""}`
+                  : `Confirm booking${selected.length > 1 ? ` (${selected.length} hrs)` : ""}`}
             </button>
           </div>
         </div>
 
-        <p className="mt-2 text-xs text-muted-foreground">Payment will be handled at the venue for now.</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {court.venues?.payment_mode === "full" && "Full payment required online to reserve the slot."}
+          {court.venues?.payment_mode === "downpayment_50" && "50% downpayment online; balance settled on-site."}
+          {(!court.venues?.payment_mode || court.venues.payment_mode === "none") && "Payment will be handled at the venue."}
+        </p>
       </section>
       )}
+
+      {checkoutOpen && (
+        <CheckoutDrawer
+          courtId={Number(courtId)}
+          date={date}
+          hours={selected}
+          hourlyRate={Number(court.hourly_rate)}
+          paymentMode={court.venues?.payment_mode ?? "full"}
+          venueName={court.venues?.name ?? "CourtHub"}
+          courtName={court.name}
+          onClose={() => { setCheckoutOpen(false); setPayLoading(null); }}
+          payLoading={payLoading}
+          setPayLoading={setPayLoading}
+          onError={(m) => { setErr(m); setCheckoutOpen(false); }}
+        />
+      )}
     </main>
+  );
+}
+
+function CheckoutDrawer({
+  courtId, date, hours, hourlyRate, paymentMode, venueName, courtName,
+  onClose, payLoading, setPayLoading, onError,
+}: {
+  courtId: number; date: string; hours: number[]; hourlyRate: number;
+  paymentMode: "full" | "downpayment_50" | "none"; venueName: string; courtName: string;
+  onClose: () => void; payLoading: PmMethod | null;
+  setPayLoading: (m: PmMethod | null) => void;
+  onError: (m: string) => void;
+}) {
+  const fullAmount = hourlyRate * hours.length;
+  const dueNow = paymentMode === "downpayment_50" ? fullAmount * 0.5 : fullAmount;
+
+  const pay = async (method: PmMethod) => {
+    setPayLoading(method);
+    try {
+      const res = await startBookingCheckout({
+        data: { courtId, date, hours, method, origin: window.location.origin },
+      });
+      window.location.href = res.checkoutUrl;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Payment could not be started";
+      onError(msg);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
+      <div className="w-full max-w-md rounded-t-2xl border border-border bg-card p-6 shadow-xl sm:rounded-2xl">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Choose payment method</h2>
+            <p className="mt-1 text-xs text-muted-foreground">{venueName} · {courtName}</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-secondary" aria-label="Close">✕</button>
+        </div>
+
+        <div className="mt-4 rounded-xl bg-secondary/50 p-3 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span>{hours.length}</span></div>
+          <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total</span><span>₱{fullAmount.toFixed(2)}</span></div>
+          {paymentMode === "downpayment_50" && (
+            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now (50%)</span><span className="text-primary">₱{dueNow.toFixed(2)}</span></div>
+          )}
+          {paymentMode === "full" && (
+            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now</span><span className="text-primary">₱{dueNow.toFixed(2)}</span></div>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {PM_METHODS.map((m) => (
+            <button
+              key={m.key}
+              disabled={payLoading !== null}
+              onClick={() => pay(m.key)}
+              className="flex flex-col items-center rounded-xl border border-border bg-background p-3 text-sm font-semibold transition hover:border-primary hover:bg-primary/5 disabled:opacity-50"
+            >
+              <span className="text-2xl">{m.emoji}</span>
+              <span className="mt-1">{payLoading === m.key ? "Redirecting…" : m.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-3 text-[11px] text-muted-foreground">Powered by PayMongo · Test mode. You'll be redirected to a secure checkout page.</p>
+      </div>
+    </div>
   );
 }
