@@ -3566,3 +3566,236 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
     </div>
   );
 }
+
+// ================= Player Dashboard =================
+
+type PlayerBooking = {
+  id: number;
+  court_id: number;
+  start_time: string;
+  end_time: string;
+  status: string;
+  payment_status: string;
+  created_at: string;
+  courts: {
+    name: string;
+    hourly_rate: number;
+    map_emoji: string | null;
+    images: string[] | null;
+    sports: { name: string } | null;
+    venues: { id: number; name: string; address: string | null } | null;
+  } | null;
+};
+
+function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName: string; email: string }) {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<"upcoming" | "past" | "cancelled">("upcoming");
+
+  const bookingsQ = useQuery({
+    queryKey: ["player-bookings", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, court_id, start_time, end_time, status, payment_status, created_at, courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address))")
+        .eq("user_id", userId)
+        .order("start_time", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data as unknown as PlayerBooking[]) ?? [];
+    },
+  });
+
+  const txQ = useQuery({
+    queryKey: ["player-transactions", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id, booking_id, amount, status, method, paid_at, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as { id: string; booking_id: number; amount: number; status: string; method: string | null; paid_at: string | null; created_at: string }[];
+    },
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: async (bookingId: number) => {
+      const { error } = await supabase.from("bookings").update({ status: "cancelled" }).eq("id", bookingId).eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["player-bookings", userId] }),
+  });
+
+  const rows = bookingsQ.data ?? [];
+  const txByBooking = new Map((txQ.data ?? []).map((t) => [t.booking_id, t]));
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  const upcoming = rows.filter((r) => r.end_time >= nowIso && r.status !== "cancelled");
+  const past = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled");
+  const cancelled = rows.filter((r) => r.status === "cancelled");
+
+  const totalSpent = (txQ.data ?? []).filter((t) => t.status === "paid").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const nextUp = upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+
+  const shown = tab === "upcoming" ? upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time)) : tab === "past" ? past : cancelled;
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  const hours = (a: string, b: string) => Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600000));
+  const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const payBadge = (s: string) => {
+    const map: Record<string, string> = {
+      paid: "bg-primary/15 text-primary",
+      unpaid: "bg-amber-500/15 text-amber-700",
+      refunded: "bg-muted text-muted-foreground",
+    };
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+  };
+  const stBadge = (s: string) => {
+    const map: Record<string, string> = {
+      confirmed: "bg-primary/10 text-primary",
+      cancelled: "bg-destructive/10 text-destructive",
+      completed: "bg-emerald-500/15 text-emerald-700",
+    };
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+  };
+
+  return (
+    <main className="mx-auto min-h-[100dvh] max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Player workspace</p>
+          <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Hi, {fullName || email.split("@")[0]} 👋</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Track your court bookings, upcoming games and payment history.</p>
+        </div>
+        <Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+      </div>
+
+      {/* KPI tiles */}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiTile label="Upcoming" value={String(upcoming.length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
+        <KpiTile label="Total bookings" value={String(rows.length)} hint={`${past.length} completed`} />
+        <KpiTile label="Total spent" value={peso(totalSpent)} hint={`${(txQ.data ?? []).filter((t) => t.status === "paid").length} paid`} />
+        <KpiTile label="Cancelled" value={String(cancelled.length)} hint="Lifetime" />
+      </div>
+
+      {/* Next up highlight */}
+      {nextUp && tab === "upcoming" && (
+        <div className="mt-6 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/15 text-2xl">{nextUp.courts?.map_emoji ?? "🎾"}</div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Next game</p>
+                <p className="mt-0.5 font-semibold">{nextUp.courts?.venues?.name ?? "Venue"} · {nextUp.courts?.name}</p>
+                <p className="text-xs text-muted-foreground">{fmtDate(nextUp.start_time)} · {fmtTime(nextUp.start_time)}–{fmtTime(nextUp.end_time)} · {nextUp.courts?.sports?.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {payBadge(nextUp.payment_status)}
+              {stBadge(nextUp.status)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="mt-6 flex gap-2 border-b border-border">
+        {(["upcoming", "past", "cancelled"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold capitalize transition ${tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {t} <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10px]">{t === "upcoming" ? upcoming.length : t === "past" ? past.length : cancelled.length}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      <div className="mt-4">
+        {bookingsQ.isLoading ? (
+          <div className="text-sm text-muted-foreground">Loading your bookings…</div>
+        ) : shown.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-8 text-center">
+            <p className="font-semibold">Nothing here yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {tab === "upcoming" ? "Book a court to see it here." : tab === "past" ? "Your past games will show here." : "No cancelled bookings."}
+            </p>
+            {tab === "upcoming" && (
+              <Link to="/" className="mt-3 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Browse courts</Link>
+            )}
+          </div>
+        ) : (
+          <ul className="grid gap-3">
+            {shown.map((b) => {
+              const tx = txByBooking.get(b.id);
+              const h = hours(b.start_time, b.end_time);
+              const amount = tx?.amount != null ? Number(tx.amount) : (b.courts?.hourly_rate ?? 0) * h;
+              const canCancel = tab === "upcoming" && b.payment_status !== "paid" && new Date(b.start_time) > now;
+              return (
+                <li key={b.id} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{b.courts?.map_emoji ?? "🎾"}</div>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{b.courts?.venues?.name ?? "Venue"} · <span className="text-muted-foreground">{b.courts?.name}</span></p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{b.courts?.sports?.name ?? "Sport"} · {h} hr{h > 1 ? "s" : ""}</p>
+                        <p className="mt-1 text-sm">{fmtDate(b.start_time)}</p>
+                        <p className="text-xs text-muted-foreground">{fmtTime(b.start_time)} – {fmtTime(b.end_time)}</p>
+                        {b.courts?.venues?.address && <p className="mt-1 truncate text-[11px] text-muted-foreground">📍 {b.courts.venues.address}</p>}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <p className="font-semibold text-primary">{peso(amount)}</p>
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {payBadge(b.payment_status)}
+                        {stBadge(b.status)}
+                      </div>
+                      {tx?.method && <p className="text-[10px] uppercase tracking-wider text-muted-foreground">via {tx.method}</p>}
+                    </div>
+                  </div>
+                  {canCancel && (
+                    <div className="mt-3 flex justify-end border-t border-border pt-3">
+                      <button
+                        onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}
+                        disabled={cancelMut.isPending}
+                        className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        Cancel booking
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Sign out row */}
+      <div className="mt-10 flex justify-center">
+        <button
+          onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
+          className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-muted-foreground hover:border-destructive hover:text-destructive"
+        >
+          Sign out
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function KpiTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 font-display text-2xl font-semibold">{value}</p>
+      {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
