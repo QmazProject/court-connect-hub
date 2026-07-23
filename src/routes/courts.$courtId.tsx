@@ -49,6 +49,13 @@ function fmtHour(h: number) {
   return `${h12}:00 ${period}`;
 }
 
+type PmMethod = "gcash" | "paymaya" | "grab_pay" | "qrph";
+const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
+  { key: "gcash", label: "GCash", emoji: "💙" },
+  { key: "paymaya", label: "Maya", emoji: "💚" },
+  { key: "grab_pay", label: "GrabPay", emoji: "🟢" },
+  { key: "qrph", label: "QR Ph", emoji: "🔳" },
+];
 
 function CourtBooking() {
   const { courtId } = Route.useParams();
@@ -57,6 +64,8 @@ function CourtBooking() {
   const [date, setDate] = useState(todayISO());
   const [selected, setSelected] = useState<number[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
 
 
   const courtQ = useQuery({
