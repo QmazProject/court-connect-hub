@@ -154,10 +154,12 @@ function Dashboard() {
   return (
     <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
       {section === "dashboard" && (
-        <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
+        </div>
       )}
       {section === "courts" && (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col">
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
           <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} onAddCourt={() => setAddCourtOpen(true)} />
           <VenuesCourtsGlance venues={venues} />
@@ -176,7 +178,7 @@ function Dashboard() {
               }
             />
           ) : (
-            <div id="add-court-anchor"><VenuesCourtsTabs venues={venues} /></div>
+            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col"><VenuesCourtsTabs venues={venues} /></div>
           )}
 
           <CreateVenueDrawer
@@ -190,25 +192,28 @@ function Dashboard() {
             venues={venues}
             onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); setAddCourtOpen(false); }}
           />
-        </>
+        </div>
       )}
-      {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
-      {section === "bookings" && <ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." />}
-      {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
-      {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
-      {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
+      {section === "calendar" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." /></div>}
+      {section === "bookings" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." /></div>}
+      {section === "customers" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Customers" body="See the players who book your courts, their history and notes." /></div>}
+      {section === "team" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." /></div>}
+      {section === "transactions" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." /></div>}
       {section === "settings" && (
-        <SettingsSection
-          fullName={profileQ.data?.full_name ?? ""}
-          email={user.email ?? ""}
-          role={profileQ.data?.role ?? "tenant"}
-          userId={user.id}
-          onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
-        />
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <SettingsSection
+            fullName={profileQ.data?.full_name ?? ""}
+            email={user.email ?? ""}
+            role={profileQ.data?.role ?? "tenant"}
+            userId={user.id}
+            onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
+          />
+        </div>
       )}
     </TenantShell>
   );
 }
+
 
 function TenantShell({
   children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed,
