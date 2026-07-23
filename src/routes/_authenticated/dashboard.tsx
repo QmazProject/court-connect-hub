@@ -1096,7 +1096,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const sportsQ = useSportsQuery(open);
+  const sportsQ = useSportsQuery(open || !!alwaysOpen);
 
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
