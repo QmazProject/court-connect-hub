@@ -1767,7 +1767,87 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         </tbody>
       </table>
       <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
+      <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
     </>
+  );
+}
+
+function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
+  const open = venue !== null;
+  const elRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open || !venue || venue.latitude == null || venue.longitude == null) return;
+    let map: any = null;
+    let cancelled = false;
+    (async () => {
+      const L = (await import("leaflet")).default ?? (await import("leaflet"));
+      if (!document.getElementById("leaflet-css")) {
+        const link = document.createElement("link");
+        link.id = "leaflet-css";
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
+      if (cancelled || !elRef.current) return;
+      map = L.map(elRef.current, { zoomControl: true, attributionControl: false }).setView(
+        [venue.latitude!, venue.longitude!],
+        16
+      );
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:44px;height:44px;border-radius:9999px;background:#fff;border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 6px 18px rgba(0,0,0,.2);">${venue.map_emoji ?? "🎾"}</div>`,
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+      });
+      L.marker([venue.latitude!, venue.longitude!], { icon }).addTo(map);
+      setTimeout(() => map.invalidateSize(), 80);
+    })();
+    return () => {
+      cancelled = true;
+      if (map) map.remove();
+    };
+  }, [open, venue]);
+
+  if (!open || !venue) return null;
+  return (
+    <div className="fixed inset-0 z-[1300] flex items-center justify-center p-4">
+      <div onClick={onClose} className="absolute inset-0 bg-black/60" />
+      <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xl leading-none">{venue.map_emoji ?? "🎾"}</span>
+              <h2 className="truncate text-base font-bold sm:text-lg">{venue.name}</h2>
+            </div>
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">{venue.address}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+        </div>
+        <div ref={elRef} className="h-[60vh] w-full" />
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-xs sm:px-5">
+          <span className="text-muted-foreground">View only · edits are made from the Edit action.</span>
+          <a
+            href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-primary hover:underline"
+          >
+            Open in Google Maps ↗
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }
 
