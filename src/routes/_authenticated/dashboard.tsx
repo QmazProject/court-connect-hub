@@ -3781,11 +3781,20 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
 
       {/* KPI tiles */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <PlayerKpi label="Upcoming" value={String(upcoming.length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
-        <PlayerKpi label="Total bookings" value={String(rows.length)} hint={`${past.length} completed`} />
+        <PlayerKpi label="Upcoming" value={String(upcoming.filter((r) => r.payment_status === "paid").length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
+        <PlayerKpi label="Awaiting payment" value={String(upcoming.filter((r) => r.payment_status !== "paid").length)} hint="Reserved only after payment" />
         <PlayerKpi label="Total spent" value={peso(totalSpent)} hint={`${(txQ.data ?? []).filter((t) => t.status === "paid").length} paid`} />
         <PlayerKpi label="Cancelled" value={String(cancelled.length)} hint="Lifetime" />
       </div>
+
+      {/* Unpaid banner */}
+      {upcoming.filter((r) => r.payment_status !== "paid").length > 0 && tab === "upcoming" && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="font-medium text-amber-800 dark:text-amber-300">
+            You have unpaid booking{upcoming.filter((r) => r.payment_status !== "paid").length > 1 ? "s" : ""}. Slots are only reserved after payment.
+          </p>
+        </div>
+      )}
 
       {/* Next up highlight */}
       {nextUp && tab === "upcoming" && (
