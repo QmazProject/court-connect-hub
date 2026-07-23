@@ -1125,7 +1125,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
     onError: (e: Error) => setErr(e.message),
   });
 
-  if (!open) {
+  if (!open && !alwaysOpen) {
     return (
       <button onClick={() => setOpen(true)} className="grid min-h-[128px] place-items-center rounded-xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
         + Add court
