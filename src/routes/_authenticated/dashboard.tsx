@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { MapInfoButton } from "@/components/MapInfoButton";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
@@ -1881,7 +1882,13 @@ function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => 
           </div>
           <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
         </div>
-        <div ref={elRef} className="h-[60vh] w-full" />
+        <div className="relative">
+          <div ref={elRef} className="h-[60vh] w-full" />
+          <MapInfoButton
+            getCenter={() => (venue.latitude != null && venue.longitude != null ? { lat: venue.latitude, lng: venue.longitude } : null)}
+            className="bottom-3 right-3"
+          />
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-xs sm:px-5">
           <span className="text-muted-foreground">View only · edits are made from the Edit action.</span>
           <a
