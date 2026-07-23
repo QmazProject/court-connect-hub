@@ -228,7 +228,7 @@ function TenantShell({
 }) {
   const current = NAV.find((n) => n.key === section);
   return (
-    <div className="flex min-h-full w-full">
+    <div className="flex h-[100dvh] w-full">
       {/* Desktop sidebar */}
       <aside
         className={
