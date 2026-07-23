@@ -156,14 +156,18 @@ function Dashboard() {
       {section === "courts" && (
         <>
           <SectionHeader title="Venues / Courts" subtitle="Manage your venues and courts." />
+          <VenuesCourtsActions hasVenues={venues.length > 0} />
           <VenuesCourtsGlance venues={venues} />
           <VenuesCourtsTable venues={venues} />
+
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
-            <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
+            <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} /></div>
           ) : (
             <div className="space-y-8">
-              {venues.map((v) => <VenueSection key={v.id} venue={v} />)}
-              <CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact />
+              {venues.map((v, i) => (
+                <div key={v.id} id={i === 0 ? "add-court-anchor" : undefined}><VenueSection venue={v} /></div>
+              ))}
+              <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact /></div>
             </div>
           )}
         </>
@@ -368,6 +372,46 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
         <QuickAction title="View bookings" body="See upcoming reservations across your venues." onClick={() => setSection("bookings")} />
       </div>
     </>
+  );
+}
+
+function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const onAddCourt = () => {
+    if (!hasVenues) {
+      alert("Create a venue first, then you can add courts to it.");
+      scrollTo("create-venue-anchor");
+      return;
+    }
+    scrollTo("add-court-anchor");
+  };
+  const onCreateGroup = () => {
+    alert("Groups are coming soon — you'll be able to bundle multiple venues under one brand or organization.");
+  };
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+      <button
+        onClick={onCreateGroup}
+        className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
+      >
+        + Create group
+      </button>
+      <button
+        onClick={onAddCourt}
+        className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
+      >
+        + Add court
+      </button>
+      <button
+        onClick={() => scrollTo("create-venue-anchor")}
+        className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+      >
+        + Create venue
+      </button>
+    </div>
   );
 }
 
