@@ -1323,12 +1323,25 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState<string[]>(court.images ?? []);
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
+  const [physicalCourtId, setPhysicalCourtId] = useState<string>(String(court.physical_court_id));
+  const [capacity, setCapacity] = useState(String(court.capacity ?? 1));
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
 
+  const pcQ = useQuery({
+    queryKey: ["physical-courts", court.venue_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", court.venue_id).order("id");
+      if (error) throw error;
+      return data as { id: number; name: string; map_emoji: string | null }[];
+    },
+  });
+
   const mut = useMutation({
     mutationFn: async () => {
+      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
+      const footprint = 1 / cap;
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
@@ -1338,6 +1351,9 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         amenities: parseList(amenities),
         images,
         map_emoji: mapEmoji,
+        physical_court_id: Number(physicalCourtId),
+        capacity: cap,
+        footprint,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -1358,6 +1374,22 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
           Coming soon
         </label>
+      </div>
+      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
+            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
+            </select>
+          </label>
+          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Group with other courts that share the same slab so bookings correctly conflict.
+        </p>
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} />
