@@ -9,8 +9,9 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Bell, User,
 } from "lucide-react";
+
 
 type SectionKey =
   | "dashboard" | "calendar" | "bookings" | "courts"
