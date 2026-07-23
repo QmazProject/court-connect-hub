@@ -1910,6 +1910,26 @@ function SettingsSection({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const qc = useQueryClient();
+
+  const paySettingsQ = useQuery({
+    queryKey: ["venue-payment-settings"],
+    enabled: role === "tenant",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
+      if (error) throw error;
+      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
+    },
+  });
+
+  const savePaymentSettings = async (venueId: number, mode: string, cutoff: number) => {
+    const { error } = await supabase
+      .from("venues")
+      .update({ payment_mode: mode, refund_cutoff_hours: cutoff })
+      .eq("id", venueId);
+    if (error) alert(error.message);
+    else qc.invalidateQueries({ queryKey: ["venue-payment-settings"] });
+  };
 
   const save = async () => {
     setSaving(true); setMsg(null); setErr(null);
@@ -1924,6 +1944,7 @@ function SettingsSection({
     await supabase.auth.signOut();
     window.location.href = "/";
   };
+
 
   return (
     <div className="space-y-6">
