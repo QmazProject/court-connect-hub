@@ -3921,6 +3921,8 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
         >
           Sign out
         </button>
+      </div>
+
 
       {/* Pay now modal */}
       {payFor && (
