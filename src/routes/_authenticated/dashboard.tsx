@@ -417,7 +417,7 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
-function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt }: { hasVenues: boolean; onCreateVenue: () => void; onAddCourt: () => void }) {
+function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt, onCreateGroup }: { hasVenues: boolean; onCreateVenue: () => void; onAddCourt: () => void; onCreateGroup: () => void }) {
   const handleAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
@@ -426,13 +426,18 @@ function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt }: { hasVenu
     }
     onAddCourt();
   };
-  const onCreateGroup = () => {
-    alert("Groups are coming soon — you'll be able to bundle multiple venues under one brand or organization.");
+  const handleCreateGroup = () => {
+    if (!hasVenues) {
+      alert("Create a venue first — court groups belong to a venue.");
+      onCreateVenue();
+      return;
+    }
+    onCreateGroup();
   };
   return (
     <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
       <button
-        onClick={onCreateGroup}
+        onClick={handleCreateGroup}
         className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
       >
         + Create group
