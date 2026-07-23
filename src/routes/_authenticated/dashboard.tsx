@@ -387,7 +387,7 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
-function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
+function VenuesCourtsActions({ hasVenues, onCreateVenue }: { hasVenues: boolean; onCreateVenue: () => void }) {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -395,7 +395,7 @@ function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
   const onAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
-      scrollTo("create-venue-anchor");
+      onCreateVenue();
       return;
     }
     scrollTo("add-court-anchor");
@@ -418,11 +418,49 @@ function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
         + Add court
       </button>
       <button
-        onClick={() => scrollTo("create-venue-anchor")}
+        onClick={onCreateVenue}
         className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
       >
         + Create venue
       </button>
+    </div>
+  );
+}
+
+function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+  return (
+    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+      <div
+        onClick={onClose}
+        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+      />
+      <aside
+        className={
+          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full")
+        }
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create venue"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+          <h2 className="text-lg font-bold">Create venue</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">
+            ✕
+          </button>
+        </div>
+        <div className="p-4 sm:p-6">
+          {open && <CreateVenue onCreated={onCreated} onCancel={onClose} />}
+        </div>
+      </aside>
     </div>
   );
 }
