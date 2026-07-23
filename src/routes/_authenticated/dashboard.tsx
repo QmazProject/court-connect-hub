@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
@@ -103,6 +103,7 @@ function Dashboard() {
   const [section, setSection] = useState<SectionKey>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [createVenueOpen, setCreateVenueOpen] = useState(false);
 
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
@@ -156,20 +157,35 @@ function Dashboard() {
       {section === "courts" && (
         <>
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
-          <VenuesCourtsActions hasVenues={venues.length > 0} />
+          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} />
           <VenuesCourtsGlance venues={venues} />
-          
 
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
-            <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} /></div>
+            <EmptyState
+              title="No venues yet"
+              body="Create your first venue to start adding courts and taking bookings."
+              cta={
+                <button
+                  onClick={() => setCreateVenueOpen(true)}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  + Create venue
+                </button>
+              }
+            />
           ) : (
             <div className="space-y-8">
               {venues.map((v, i) => (
                 <div key={v.id} id={i === 0 ? "add-court-anchor" : undefined}><VenueSection venue={v} /></div>
               ))}
-              <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact /></div>
             </div>
           )}
+
+          <CreateVenueDrawer
+            open={createVenueOpen}
+            onClose={() => setCreateVenueOpen(false)}
+            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); setCreateVenueOpen(false); }}
+          />
         </>
       )}
       {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
@@ -371,7 +387,7 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
-function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
+function VenuesCourtsActions({ hasVenues, onCreateVenue }: { hasVenues: boolean; onCreateVenue: () => void }) {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -379,7 +395,7 @@ function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
   const onAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
-      scrollTo("create-venue-anchor");
+      onCreateVenue();
       return;
     }
     scrollTo("add-court-anchor");
@@ -402,11 +418,49 @@ function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
         + Add court
       </button>
       <button
-        onClick={() => scrollTo("create-venue-anchor")}
+        onClick={onCreateVenue}
         className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
       >
         + Create venue
       </button>
+    </div>
+  );
+}
+
+function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [open, onClose]);
+  return (
+    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+      <div
+        onClick={onClose}
+        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+      />
+      <aside
+        className={
+          "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full")
+        }
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create venue"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+          <h2 className="text-lg font-bold">Create venue</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">
+            ✕
+          </button>
+        </div>
+        <div className="p-4 sm:p-6">
+          {open && <CreateVenue onCreated={onCreated} onCancel={onClose} />}
+        </div>
+      </aside>
     </div>
   );
 }
@@ -539,8 +593,7 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta?: R
   );
 }
 
-function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: boolean }) {
-  const [open, setOpen] = useState(!compact);
+function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -567,21 +620,13 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
       const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); setOpen(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="w-full rounded-2xl border-2 border-dashed border-border p-6 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
-        + Add another venue
-      </button>
-    );
-  }
-
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
-      <h2 className="text-xl font-bold">{compact ? "New venue" : "Create your first venue"}</h2>
+      <h2 className="text-xl font-bold">New venue</h2>
       <p className="mt-1 text-sm text-muted-foreground">A venue holds one or more courts.</p>
       <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="mt-4 grid gap-3 sm:grid-cols-2">
         <Input label="Venue name" value={name} onChange={setName} required />
@@ -661,7 +706,7 @@ function CreateVenue({ onCreated, compact }: { onCreated: () => void; compact?: 
           <button disabled={mut.isPending || pinOutsidePH || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
             {mut.isPending ? "Creating…" : "Create venue"}
           </button>
-          {compact && <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
+          {onCancel && <button type="button" onClick={onCancel} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
         </div>
         {err && <p className="sm:col-span-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       </form>
