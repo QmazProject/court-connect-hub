@@ -8,7 +8,7 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin,
 } from "lucide-react";
 
 type SectionKey =
