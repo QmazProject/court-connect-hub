@@ -3921,7 +3921,70 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
         >
           Sign out
         </button>
-      </div>
+
+      {/* Pay now modal */}
+      {payFor && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold">Complete payment</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{payFor.courtName}</p>
+              </div>
+              <button onClick={() => setPayFor(null)} className="rounded-lg p-1 hover:bg-muted" disabled={payBusy}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl bg-secondary/60 p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">{payFor.ids.length} hour{payFor.ids.length > 1 ? "s" : ""}</span>
+                <span className="font-semibold">{peso(payFor.amount)}</span>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">Final amount depends on venue payment mode (full or 50% down).</p>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment method</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {([
+                  { v: "gcash", l: "GCash" },
+                  { v: "paymaya", l: "Maya" },
+                  { v: "grab_pay", l: "GrabPay" },
+                  { v: "qrph", l: "QR Ph" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.v}
+                    onClick={() => setPayMethod(m.v)}
+                    disabled={payBusy}
+                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${payMethod === m.v ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}
+                  >
+                    {m.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {payErr && <p className="mt-3 text-xs font-medium text-destructive">{payErr}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setPayFor(null)}
+                disabled={payBusy}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+              >
+                Not now
+              </button>
+              <button
+                onClick={submitPay}
+                disabled={payBusy}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {payBusy ? "Redirecting…" : "Continue to pay"}
+              </button>
+            </div>
+            <p className="mt-3 text-[10px] text-muted-foreground">
+              Your slot is only reserved after payment is successful. If cancelled, the booking is removed.
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
