@@ -89,8 +89,11 @@ type Court = {
   blocked_dates: Record<string, number[]> | null;
   coming_soon: boolean | null;
   map_emoji: string | null;
+  physical_court_id: number;
+  capacity: number;
   sports: { name: string; slug?: string } | null;
 };
+type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null };
 
 const DAYS: { key: string; label: string }[] = [
   { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
