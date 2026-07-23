@@ -19,6 +19,8 @@ type Court = {
   amenities: string[] | null;
   images: string[] | null;
   coming_soon: boolean | null;
+  capacity: number;
+  physical_court_id: number;
   sports: { name: string } | null;
   venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null } | null;
 };
@@ -61,7 +63,7 @@ function CourtBooking() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, sports(name), venues(name, address, timezone, latitude, longitude)")
+        .select("id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, sports(name), venues(name, address, timezone, latitude, longitude)")
         .eq("id", Number(courtId))
         .maybeSingle();
 
@@ -73,16 +75,21 @@ function CourtBooking() {
   const dayStart = useMemo(() => new Date(`${date}T00:00:00`), [date]);
   const dayEnd = useMemo(() => new Date(`${date}T23:59:59`), [date]);
 
-  const busyQ = useQuery({
-    queryKey: ["busy", courtId, date],
+  const availQ = useQuery({
+    queryKey: ["avail", courtId, date],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_court_bookings", {
+      const { data, error } = await supabase.rpc("get_court_availability", {
         _court_id: Number(courtId),
         _from: dayStart.toISOString(),
         _to: dayEnd.toISOString(),
       });
       if (error) throw error;
-      return (data ?? []) as { start_time: string; end_time: string }[];
+      const map = new Map<number, { remaining: number; blockedByOther: boolean }>();
+      (data ?? []).forEach((row: { hour_start: string; remaining: number; blocked_by_other_sport: boolean }) => {
+        const h = new Date(row.hour_start).getHours();
+        map.set(h, { remaining: row.remaining, blockedByOther: row.blocked_by_other_sport });
+      });
+      return map;
     },
     enabled: !!courtQ.data,
   });
@@ -140,15 +147,10 @@ function CourtBooking() {
   const dateOverride = court.blocked_dates?.[date];
   const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
-  const isBooked = (hour: number) => {
-    const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
-    const slotEnd = slotStart + 60 * 60 * 1000;
-    return (busyQ.data ?? []).some((b) => {
-      const bs = new Date(b.start_time).getTime();
-      const be = new Date(b.end_time).getTime();
-      return bs < slotEnd && be > slotStart;
-    });
-  };
+  const capacity = Math.max(1, court.capacity ?? 1);
+  const slotInfo = (hour: number) => availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false };
+  const isBooked = (hour: number) => slotInfo(hour).remaining <= 0 && !slotInfo(hour).blockedByOther;
+  const isBlockedBySport = (hour: number) => slotInfo(hour).blockedByOther;
   const isBlocked = (hour: number) => blocked.has(hour);
 
   const isPast = (hour: number) => {
@@ -307,21 +309,25 @@ function CourtBooking() {
 
         <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {slots.map((h) => {
+            const info = slotInfo(h);
+            const otherSport = isBlockedBySport(h);
             const booked = isBooked(h);
             const blockedSlot = isBlocked(h);
             const past = isPast(h);
-            const disabled = booked || blockedSlot || past;
+            const disabled = booked || blockedSlot || past || otherSport;
             const active = selected.includes(h);
-            const label = blockedSlot ? "Unavailable" : booked ? "Booked" : past ? "Past" : "";
+            const label = blockedSlot ? "Unavailable" : otherSport ? "Other sport" : booked ? "Full" : past ? "Past" : capacity > 1 ? `${info.remaining}/${capacity} left` : "";
             const stateClass = active
               ? "border-yellow-500 bg-yellow-300 text-yellow-950"
               : booked
                 ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
-                : blockedSlot
-                  ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
-                  : past
-                    ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
-                    : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
+                : otherSport
+                  ? "cursor-not-allowed border-purple-400/60 bg-purple-200/60 text-purple-900"
+                  : blockedSlot
+                    ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
+                    : past
+                      ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
+                      : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
             return (
               <button
                 key={h}
@@ -332,7 +338,7 @@ function CourtBooking() {
                     prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b)
                   );
                 }}
-                title={label}
+                title={otherSport ? "This surface is booked for a different sport at this hour" : label}
                 className={"flex flex-col items-center rounded-lg border px-2 py-2 text-sm font-medium transition " + stateClass}
               >
                 <span className={"text-xs leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>

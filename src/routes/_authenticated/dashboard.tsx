@@ -89,8 +89,11 @@ type Court = {
   blocked_dates: Record<string, number[]> | null;
   coming_soon: boolean | null;
   map_emoji: string | null;
+  physical_court_id: number;
+  capacity: number;
   sports: { name: string; slug?: string } | null;
 };
+type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null };
 
 const DAYS: { key: string; label: string }[] = [
   { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
@@ -1107,18 +1110,44 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
+  const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
+  const [capacity, setCapacity] = useState("1");
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
+  const pcQ = useQuery({
+    queryKey: ["physical-courts", venueId],
+    enabled: open || !!alwaysOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", venueId).order("id");
+      if (error) throw error;
+      return data as { id: number; name: string; map_emoji: string | null }[];
+    },
+  });
 
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
+      let pcId: number;
+      if (physicalCourtId === "new") {
+        const { data, error } = await supabase.from("physical_courts").insert({
+          venue_id: venueId, name, map_emoji: mapEmoji ?? venueEmoji ?? null,
+        }).select("id").single();
+        if (error) throw error;
+        pcId = data.id;
+      } else {
+        pcId = Number(physicalCourtId);
+      }
+      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
+      const footprint = 1 / cap;
       const { error } = await supabase.from("courts").insert({
         venue_id: venueId,
         sport_id: Number(sportId),
+        physical_court_id: pcId,
+        capacity: cap,
+        footprint,
         name,
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
@@ -1132,7 +1161,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1172,6 +1201,26 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       <p className="mt-2 text-[11px] text-muted-foreground">
         Tick "Coming soon" if this court isn't open yet — players will see a badge and won't be able to book until you untick it.
       </p>
+      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Multiple courts can share one physical slab (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across the same surface are auto-conflict-checked.
+        </p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
+            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+              <option value="new">➕ New standalone surface</option>
+              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
+            </select>
+          </label>
+          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
+        </p>
+      </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
@@ -1274,12 +1323,25 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState<string[]>(court.images ?? []);
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
+  const [physicalCourtId, setPhysicalCourtId] = useState<string>(String(court.physical_court_id));
+  const [capacity, setCapacity] = useState(String(court.capacity ?? 1));
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
 
+  const pcQ = useQuery({
+    queryKey: ["physical-courts", court.venue_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", court.venue_id).order("id");
+      if (error) throw error;
+      return data as { id: number; name: string; map_emoji: string | null }[];
+    },
+  });
+
   const mut = useMutation({
     mutationFn: async () => {
+      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
+      const footprint = 1 / cap;
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
@@ -1289,6 +1351,9 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         amenities: parseList(amenities),
         images,
         map_emoji: mapEmoji,
+        physical_court_id: Number(physicalCourtId),
+        capacity: cap,
+        footprint,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -1309,6 +1374,22 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
           Coming soon
         </label>
+      </div>
+      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
+            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
+            </select>
+          </label>
+          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Group with other courts that share the same slab so bookings correctly conflict.
+        </p>
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="Description" value={description} onChange={setDescription} />
@@ -1744,18 +1825,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
 
         {tab === "venues" && <VenuesTab venues={venues} />}
         {tab === "courts" && <CourtsTab venues={venues} />}
-        {tab === "groups" && (
-          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-            <div className="rounded-2xl bg-primary/10 p-4">
-              <Layers className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-bold">Court Groups</h3>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Bundle related courts into groups (by sport, floor, or brand) to manage rates, hours and staff at scale.
-            </p>
-            <span className="mt-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Coming soon</span>
-          </div>
-        )}
+        {tab === "groups" && <CourtGroupsTab venues={venues} />}
       </div>
     </div>
   );
@@ -2119,6 +2189,161 @@ function CourtDrawer({ title, open, onClose, children }: { title: string; open: 
         </div>
         <div className="p-4 sm:p-6">{open && children}</div>
       </aside>
+    </div>
+  );
+}
+
+// ================= Court Groups (physical courts / shared surfaces) =================
+
+function CourtGroupsTab({ venues }: { venues: Venue[] }) {
+  const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
+  useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
+  const qc = useQueryClient();
+
+  const pcQ = useQuery({
+    queryKey: ["physical-courts-full", venueId],
+    enabled: !!venueId,
+    queryFn: async () => {
+      const { data: pcs, error: e1 } = await supabase
+        .from("physical_courts").select("id, venue_id, name, map_emoji, description")
+        .eq("venue_id", venueId!).order("id");
+      if (e1) throw e1;
+      const ids = (pcs ?? []).map((p) => p.id);
+      if (ids.length === 0) return (pcs ?? []).map((p) => ({ ...p, layouts: [] as Array<{ id: number; name: string; capacity: number; hourly_rate: number; sports: { name: string; slug?: string } | null }> }));
+      const { data: layouts, error: e2 } = await supabase
+        .from("courts").select("id, name, capacity, hourly_rate, physical_court_id, sports(name, slug)")
+        .in("physical_court_id", ids);
+      if (e2) throw e2;
+      const byPc = new Map<number, typeof layouts>();
+      (layouts ?? []).forEach((l: any) => {
+        const arr = byPc.get(l.physical_court_id) ?? [];
+        arr.push(l); byPc.set(l.physical_court_id, arr);
+      });
+      return (pcs ?? []).map((p: any) => ({ ...p, layouts: byPc.get(p.id) ?? [] }));
+    },
+  });
+
+  const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      if (!venueId) throw new Error("Pick a venue");
+      const { error } = await supabase.from("physical_courts").insert({
+        venue_id: venueId, name: newName, map_emoji: newEmoji,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { setNewName(""); setNewEmoji(null); setErr(null); qc.invalidateQueries({ queryKey: ["physical-courts-full", venueId] }); qc.invalidateQueries({ queryKey: ["physical-courts", venueId] }); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase.from("physical_courts").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["physical-courts-full", venueId] }); },
+    onError: (e: Error) => alert(e.message.includes("violates foreign key") ? "This surface still has courts attached. Move or delete those courts first." : e.message),
+  });
+
+  return (
+    <div className="flex flex-col gap-4 p-4 sm:p-6">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+        <div className="font-semibold text-primary">What is a Court Group / Physical Surface?</div>
+        <p className="mt-1 text-muted-foreground">
+          One physical slab can host different sports at different capacities — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Venue</span>
+          <select value={venueId ?? ""} onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
+            className="mt-1 rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); if (!newName.trim()) return; createMut.mutate(); }}
+        className="rounded-2xl border border-dashed border-border bg-secondary/20 p-4">
+        <div className="text-sm font-semibold">+ New physical surface</div>
+        <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+          <Input label='Name (e.g. "Court 1 — Main Slab")' value={newName} onChange={setNewName} required />
+          <div className="rounded-lg border border-border bg-background p-2">
+            <EmojiPicker label="Emoji" value={newEmoji} fallback="🏟️" onChange={setNewEmoji} />
+          </div>
+          <button disabled={createMut.isPending || !newName.trim()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+            {createMut.isPending ? "Creating…" : "Create surface"}
+          </button>
+        </div>
+        {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
+      </form>
+
+      <div className="grid gap-3">
+        {pcQ.isLoading ? (
+          <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+        ) : (pcQ.data ?? []).length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No physical surfaces yet. Every existing court was auto-migrated as its own standalone surface.
+          </div>
+        ) : (pcQ.data ?? []).map((pc: any) => {
+          const totalUsedCapacity = (pc.layouts ?? []).reduce((sum: number, l: any) => sum + (1 / Math.max(1, l.capacity)), 0);
+          const overallocated = totalUsedCapacity > 1.001;
+          return (
+            <div key={pc.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">{pc.map_emoji ?? "🏟️"}</div>
+                  <div>
+                    <div className="font-bold">{pc.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {(pc.layouts ?? []).length} sport layout{(pc.layouts ?? []).length === 1 ? "" : "s"} configured
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { if (confirm(`Delete "${pc.name}"? Courts assigned to it must be moved or deleted first.`)) deleteMut.mutate(pc.id); }}
+                  className="text-xs font-semibold text-destructive hover:underline"
+                >Delete surface</button>
+              </div>
+
+              {overallocated && (
+                <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900">
+                  ⚠ These layouts add up to more than 100% of the surface. That's fine only if you never intend to book them simultaneously — the engine will still enforce one sport at a time.
+                </div>
+              )}
+
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th className="py-1.5">Layout (court)</th>
+                      <th className="py-1.5">Sport</th>
+                      <th className="py-1.5 text-center">Capacity / hour</th>
+                      <th className="py-1.5 text-right">Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(pc.layouts ?? []).length === 0 ? (
+                      <tr><td colSpan={4} className="py-3 text-center text-xs text-muted-foreground">No courts assigned yet. Create/edit a court and pick this surface.</td></tr>
+                    ) : (pc.layouts ?? []).map((l: any) => (
+                      <tr key={l.id} className="border-t border-border">
+                        <td className="py-2 font-medium">{l.name}</td>
+                        <td className="py-2 text-muted-foreground">{l.sports?.name ?? "—"}</td>
+                        <td className="py-2 text-center tabular-nums">{l.capacity}</td>
+                        <td className="py-2 text-right tabular-nums text-primary">₱{Number(l.hourly_rate).toFixed(0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
