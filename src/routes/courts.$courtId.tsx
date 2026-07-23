@@ -19,6 +19,8 @@ type Court = {
   amenities: string[] | null;
   images: string[] | null;
   coming_soon: boolean | null;
+  capacity: number;
+  physical_court_id: number;
   sports: { name: string } | null;
   venues: { name: string; address: string; timezone: string; latitude: number | null; longitude: number | null } | null;
 };
