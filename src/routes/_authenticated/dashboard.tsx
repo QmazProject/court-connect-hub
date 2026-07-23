@@ -157,20 +157,35 @@ function Dashboard() {
       {section === "courts" && (
         <>
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
-          <VenuesCourtsActions hasVenues={venues.length > 0} />
+          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} />
           <VenuesCourtsGlance venues={venues} />
-          
 
           {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
-            <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} /></div>
+            <EmptyState
+              title="No venues yet"
+              body="Create your first venue to start adding courts and taking bookings."
+              cta={
+                <button
+                  onClick={() => setCreateVenueOpen(true)}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  + Create venue
+                </button>
+              }
+            />
           ) : (
             <div className="space-y-8">
               {venues.map((v, i) => (
                 <div key={v.id} id={i === 0 ? "add-court-anchor" : undefined}><VenueSection venue={v} /></div>
               ))}
-              <div id="create-venue-anchor"><CreateVenue onCreated={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} compact /></div>
             </div>
           )}
+
+          <CreateVenueDrawer
+            open={createVenueOpen}
+            onClose={() => setCreateVenueOpen(false)}
+            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); setCreateVenueOpen(false); }}
+          />
         </>
       )}
       {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
