@@ -57,8 +57,10 @@ export type Database = {
           amenities: string[]
           blocked_dates: Json
           blocked_hours: Json
+          capacity: number
           coming_soon: boolean
           description: string | null
+          footprint: number
           hourly_rate: number
           id: number
           images: string[]
@@ -66,6 +68,7 @@ export type Database = {
           map_emoji: string | null
           name: string
           operating_hours: Json
+          physical_court_id: number
           sport_id: number
           venue_id: number
         }
@@ -73,8 +76,10 @@ export type Database = {
           amenities?: string[]
           blocked_dates?: Json
           blocked_hours?: Json
+          capacity?: number
           coming_soon?: boolean
           description?: string | null
+          footprint?: number
           hourly_rate: number
           id?: never
           images?: string[]
@@ -82,6 +87,7 @@ export type Database = {
           map_emoji?: string | null
           name: string
           operating_hours?: Json
+          physical_court_id: number
           sport_id: number
           venue_id: number
         }
@@ -89,8 +95,10 @@ export type Database = {
           amenities?: string[]
           blocked_dates?: Json
           blocked_hours?: Json
+          capacity?: number
           coming_soon?: boolean
           description?: string | null
+          footprint?: number
           hourly_rate?: number
           id?: never
           images?: string[]
@@ -98,10 +106,18 @@ export type Database = {
           map_emoji?: string | null
           name?: string
           operating_hours?: Json
+          physical_court_id?: number
           sport_id?: number
           venue_id?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "courts_physical_court_id_fkey"
+            columns: ["physical_court_id"]
+            isOneToOne: false
+            referencedRelation: "physical_courts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "courts_sport_id_fkey"
             columns: ["sport_id"]
@@ -147,6 +163,44 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      physical_courts: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: number
+          map_emoji: string | null
+          name: string
+          updated_at: string
+          venue_id: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          map_emoji?: string | null
+          name: string
+          updated_at?: string
+          venue_id: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          map_emoji?: string | null
+          name?: string
+          updated_at?: string
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "physical_courts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -263,6 +317,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_court_availability: {
+        Args: { _court_id: number; _from: string; _to: string }
+        Returns: {
+          blocked_by_other_sport: boolean
+          hour_start: string
+          remaining: number
+        }[]
+      }
       get_court_bookings: {
         Args: { _court_id: number; _from: string; _to: string }
         Returns: {
