@@ -154,10 +154,12 @@ function Dashboard() {
   return (
     <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
       {section === "dashboard" && (
-        <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
+        </div>
       )}
       {section === "courts" && (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col">
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
           <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} onAddCourt={() => setAddCourtOpen(true)} />
           <VenuesCourtsGlance venues={venues} />
@@ -176,7 +178,7 @@ function Dashboard() {
               }
             />
           ) : (
-            <div id="add-court-anchor"><VenuesCourtsTabs venues={venues} /></div>
+            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col"><VenuesCourtsTabs venues={venues} /></div>
           )}
 
           <CreateVenueDrawer
@@ -190,25 +192,28 @@ function Dashboard() {
             venues={venues}
             onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); setAddCourtOpen(false); }}
           />
-        </>
+        </div>
       )}
-      {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
-      {section === "bookings" && <ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." />}
-      {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
-      {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
-      {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
+      {section === "calendar" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." /></div>}
+      {section === "bookings" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." /></div>}
+      {section === "customers" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Customers" body="See the players who book your courts, their history and notes." /></div>}
+      {section === "team" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." /></div>}
+      {section === "transactions" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." /></div>}
       {section === "settings" && (
-        <SettingsSection
-          fullName={profileQ.data?.full_name ?? ""}
-          email={user.email ?? ""}
-          role={profileQ.data?.role ?? "tenant"}
-          userId={user.id}
-          onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
-        />
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <SettingsSection
+            fullName={profileQ.data?.full_name ?? ""}
+            email={user.email ?? ""}
+            role={profileQ.data?.role ?? "tenant"}
+            userId={user.id}
+            onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
+          />
+        </div>
       )}
     </TenantShell>
   );
 }
+
 
 function TenantShell({
   children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed,
@@ -223,7 +228,7 @@ function TenantShell({
 }) {
   const current = NAV.find((n) => n.key === section);
   return (
-    <div className="flex min-h-full w-full">
+    <div className="flex h-[100dvh] w-full">
       {/* Desktop sidebar */}
       <aside
         className={
@@ -255,7 +260,7 @@ function TenantShell({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
           <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
@@ -264,10 +269,11 @@ function TenantShell({
           <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
           <span className="w-16" />
         </div>
-        <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </div>
       </div>
+
     </div>
   );
 }
@@ -1716,7 +1722,7 @@ function SettingsSection({
 function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
   const [tab, setTab] = useState<"venues" | "courts" | "groups">("venues");
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
         <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
           Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
@@ -1724,7 +1730,8 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>Court Groups</TabBtn>
       </div>
-      <div className="nice-scroll max-h-[calc(100dvh-220px)] min-h-[380px] overflow-y-auto overflow-x-auto">
+      <div className="nice-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto">
+
         {tab === "venues" && <VenuesTab venues={venues} />}
         {tab === "courts" && <CourtsTab venues={venues} />}
         {tab === "groups" && (
