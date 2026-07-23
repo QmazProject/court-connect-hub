@@ -1666,7 +1666,7 @@ function SettingsSection({
 // ================= Venues & Courts tabs =================
 
 function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
-  const [tab, setTab] = useState<"venues" | "courts">("venues");
+  const [tab, setTab] = useState<"venues" | "courts" | "groups">("venues");
   return (
     <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
@@ -1674,9 +1674,25 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
           Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
+        <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
+          Court Groups <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 ring-1 ring-amber-500/30">Soon</span>
+        </TabBtn>
       </div>
       <div className="nice-scroll max-h-[70vh] min-h-[380px] overflow-y-auto overflow-x-auto">
-        {tab === "venues" ? <VenuesTab venues={venues} /> : <CourtsTab venues={venues} />}
+        {tab === "venues" && <VenuesTab venues={venues} />}
+        {tab === "courts" && <CourtsTab venues={venues} />}
+        {tab === "groups" && (
+          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+            <div className="rounded-2xl bg-primary/10 p-4">
+              <Layers className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-bold">Court Groups</h3>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Bundle related courts into groups (by sport, floor, or brand) to manage rates, hours and staff at scale.
+            </p>
+            <span className="mt-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">Coming soon</span>
+          </div>
+        )}
       </div>
     </div>
   );
