@@ -2820,4 +2820,220 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   );
 }
 
+// ================= Transactions =================
+
+type TxRow = {
+  id: string;
+  booking_id: number;
+  venue_id: number;
+  user_id: string;
+  amount: number;
+  currency: string;
+  method: string;
+  status: string;
+  mode: string;
+  paid_at: string | null;
+  refunded_at: string | null;
+  created_at: string;
+};
+
+function TransactionsSection({ venues }: { venues: Venue[] }) {
+  const qc = useQueryClient();
+  const [venueFilter, setVenueFilter] = useState<number | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">("all");
+
+  const txQ = useQuery({
+    queryKey: ["tenant-transactions", venueFilter, statusFilter],
+    queryFn: async () => {
+      let q = supabase.from("transactions").select("*").order("created_at", { ascending: false }).limit(500);
+      if (venueFilter !== "all") q = q.eq("venue_id", venueFilter);
+      if (statusFilter !== "all") q = q.eq("status", statusFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as TxRow[];
+    },
+  });
+
+  const settingsQ = useQuery({
+    queryKey: ["venue-payment-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
+      if (error) throw error;
+      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
+    },
+  });
+
+  const rows = txQ.data ?? [];
+  const paid = rows.filter((r) => r.status === "paid");
+  const now = Date.now();
+  const sumSince = (ms: number) => paid.filter((r) => new Date(r.paid_at ?? r.created_at).getTime() >= now - ms).reduce((s, r) => s + Number(r.amount), 0);
+  const todaySum = sumSince(24 * 3_600_000);
+  const weekSum = sumSince(7 * 24 * 3_600_000);
+  const monthSum = sumSince(30 * 24 * 3_600_000);
+  const uniqueCustomers = new Set(paid.map((r) => r.user_id)).size;
+  const totalBookings = new Set(paid.map((r) => r.booking_id)).size;
+
+  const savePaymentSettings = async (venueId: number, mode: string, cutoff: number) => {
+    const { error } = await supabase
+      .from("venues")
+      .update({ payment_mode: mode, refund_cutoff_hours: cutoff })
+      .eq("id", venueId);
+    if (error) alert(error.message);
+    else qc.invalidateQueries({ queryKey: ["venue-payment-settings"] });
+  };
+
+  const currency = (n: number) => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = (iso: string) => new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  const statusBadge = (s: string) => {
+    const map: Record<string, string> = {
+      paid: "bg-primary/15 text-primary",
+      pending: "bg-amber-500/15 text-amber-700",
+      failed: "bg-destructive/15 text-destructive",
+      refunded: "bg-muted text-muted-foreground",
+      cancelled: "bg-muted text-muted-foreground",
+    };
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary text-foreground"}`}>{s}</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Transactions" subtitle="Track online payments, refunds and customer activity across your venues." />
+
+      {/* KPI tiles */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <KpiTile label="Sales · Today" value={currency(todaySum)} />
+        <KpiTile label="Sales · 7 days" value={currency(weekSum)} />
+        <KpiTile label="Sales · 30 days" value={currency(monthSum)} />
+        <KpiTile label="Paid bookings" value={String(totalBookings)} />
+        <KpiTile label="Unique customers" value={String(uniqueCustomers)} />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={venueFilter}
+          onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        >
+          <option value="all">All venues</option>
+          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        >
+          <option value="all">All statuses</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="failed">Failed</option>
+          <option value="refunded">Refunded</option>
+        </select>
+        <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-semibold">PayMongo · {paid[0]?.mode === "live" ? "Live" : "Test"} mode</span>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-2xl border border-border bg-card shadow-sm">
+        <div className="nice-scroll max-h-[55vh] overflow-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+              <tr>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Amount</th>
+                <th className="px-4 py-3">Method</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Booking</th>
+                <th className="px-4 py-3">Venue</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txQ.isLoading ? (
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No transactions yet. Once players start paying online, they'll show up here.</td></tr>
+              ) : rows.map((r) => (
+                <tr key={r.id} className="border-t border-border">
+                  <td className="px-4 py-3 whitespace-nowrap">{fmtDate(r.paid_at ?? r.created_at)}</td>
+                  <td className="px-4 py-3 font-semibold">{currency(Number(r.amount))}</td>
+                  <td className="px-4 py-3 capitalize">{r.method.replace("_", " ")}</td>
+                  <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">#{r.booking_id}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Per-venue payment settings */}
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Payment settings per venue</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Choose how players pay online. Refund cutoff blocks player-initiated refunds inside the window before the booking.</p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          {(settingsQ.data ?? []).map((v) => (
+            <VenuePaymentRow key={v.id} venue={v} onSave={savePaymentSettings} />
+          ))}
+          {(settingsQ.data?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">Create a venue first to configure payment settings.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function VenuePaymentRow({
+  venue, onSave,
+}: {
+  venue: { id: number; name: string; payment_mode: string; refund_cutoff_hours: number };
+  onSave: (id: number, mode: string, cutoff: number) => Promise<void>;
+}) {
+  const [mode, setMode] = useState(venue.payment_mode);
+  const [cutoff, setCutoff] = useState(venue.refund_cutoff_hours);
+  const [saving, setSaving] = useState(false);
+  const dirty = mode !== venue.payment_mode || cutoff !== venue.refund_cutoff_hours;
+
+  return (
+    <div className="grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+      <div>
+        <p className="text-sm font-semibold">{venue.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          Current: <span className="font-medium capitalize">{venue.payment_mode.replace("_", " ")}</span> · Refund cutoff {venue.refund_cutoff_hours}h
+        </p>
+      </div>
+      <label className="block">
+        <span className="text-[11px] font-medium text-muted-foreground">Payment mode</span>
+        <select value={mode} onChange={(e) => setMode(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm">
+          <option value="none">No online payment</option>
+          <option value="full">Full payment</option>
+          <option value="downpayment_50">50% downpayment</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium text-muted-foreground">Refund cutoff (hrs)</span>
+        <input type="number" min={0} value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} className="mt-1 w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-sm" />
+      </label>
+      <button
+        disabled={!dirty || saving}
+        onClick={async () => { setSaving(true); await onSave(venue.id, mode, cutoff); setSaving(false); }}
+        className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
+    </div>
+  );
+}
+
 
