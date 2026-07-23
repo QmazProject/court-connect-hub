@@ -375,6 +375,46 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
+function VenuesCourtsActions({ hasVenues }: { hasVenues: boolean }) {
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const onAddCourt = () => {
+    if (!hasVenues) {
+      alert("Create a venue first, then you can add courts to it.");
+      scrollTo("create-venue-anchor");
+      return;
+    }
+    scrollTo("add-court-anchor");
+  };
+  const onCreateGroup = () => {
+    alert("Groups are coming soon — you'll be able to bundle multiple venues under one brand or organization.");
+  };
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+      <button
+        onClick={onCreateGroup}
+        className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
+      >
+        + Create group
+      </button>
+      <button
+        onClick={onAddCourt}
+        className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
+      >
+        + Add court
+      </button>
+      <button
+        onClick={() => scrollTo("create-venue-anchor")}
+        className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+      >
+        + Create venue
+      </button>
+    </div>
+  );
+}
+
 function VenuesCourtsGlance({ venues }: { venues: Venue[] }) {
   const venueIds = venues.map((v) => v.id);
   const q = useQuery({
