@@ -8,11 +8,11 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import chLogo from "@/assets/CHicon.png.asset.json";
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X,
+  Receipt, Settings as SettingsIcon, Menu, X, Grid3x3, Layers,
 } from "lucide-react";
 
 type SectionKey =
-  | "dashboard" | "calendar" | "bookings" | "courts"
+  | "dashboard" | "calendar" | "bookings" | "courts" | "courtsList" | "courtGroups"
   | "customers" | "team" | "transactions" | "settings";
 
 const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -20,6 +20,8 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "calendar", label: "Calendar", icon: CalendarDays },
   { key: "bookings", label: "Bookings", icon: BookOpen },
   { key: "courts", label: "Venues & Courts", icon: LandPlot },
+  { key: "courtsList", label: "Courts", icon: Grid3x3 },
+  { key: "courtGroups", label: "Court Groups", icon: Layers },
   { key: "customers", label: "Customers", icon: Users },
   { key: "team", label: "Team", icon: UserCog },
   { key: "transactions", label: "Transactions", icon: Receipt },
@@ -193,6 +195,8 @@ function Dashboard() {
       )}
       {section === "calendar" && <ComingSoon title="Calendar" body="A unified booking calendar across all your courts is on the way." />}
       {section === "bookings" && <ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." />}
+      {section === "courtsList" && <ComingSoon title="Courts" body="A dedicated courts workspace with per-court analytics, rates history and quick edits is on the way." />}
+      {section === "courtGroups" && <ComingSoon title="Court Groups" body="Bundle related courts into groups (e.g. by sport, floor or brand) so you can manage rates, hours and staff at scale." />}
       {section === "customers" && <ComingSoon title="Customers" body="See the players who book your courts, their history and notes." />}
       {section === "team" && <ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." />}
       {section === "transactions" && <ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." />}
