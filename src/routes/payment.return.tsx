@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { cancelPendingBookings } from "@/lib/paymongo.functions";
 
 type Search = { ref?: string; status?: string };
 
@@ -25,12 +27,34 @@ function PaymentReturn() {
   );
   const [amount, setAmount] = useState<number | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const cancelFn = useServerFn(cancelPendingBookings);
+  const didCancel = useRef(false);
+
+  // If user cancelled the checkout, void the pending unpaid bookings.
+  useEffect(() => {
+    if (status !== "cancel" || !ref || didCancel.current) return;
+    const bookingId = Number(ref.split("_")[1]);
+    if (!bookingId) return;
+    didCancel.current = true;
+    (async () => {
+      const { data } = await supabase
+        .from("transactions")
+        .select("booking_id")
+        .eq("provider_ref", ref);
+      const ids = Array.from(new Set([bookingId, ...((data ?? []).map((r) => r.booking_id as number))]));
+      // Fallback: look up siblings by primary booking's court + range if no tx rows found yet.
+      try {
+        await cancelFn({ data: { bookingIds: ids } });
+      } catch (e) {
+        console.error("cancel pending", e);
+      }
+    })();
+  }, [status, ref, cancelFn]);
 
   useEffect(() => {
     if (!ref || status === "cancel") return;
     let cancelled = false;
     const poll = async () => {
-      // Poll transactions table (webhook updates it). Match by booking id embedded in reference.
       const bookingId = Number(ref.split("_")[1]);
       if (!bookingId) return;
       const { data } = await supabase
@@ -54,7 +78,7 @@ function PaymentReturn() {
     return () => { cancelled = true; clearInterval(timer); };
   }, [ref, status]);
 
-  const stopAt = 20; // ~50s
+  const stopAt = 20;
   const timedOut = pollCount > stopAt && txStatus === "pending";
 
   return (
@@ -64,7 +88,7 @@ function PaymentReturn() {
           <>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-2xl">✕</div>
             <h1 className="mt-4 text-2xl font-bold">Payment cancelled</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Your reservation was not confirmed. You can try again from the court page.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Your reservation was not placed. You can try again anytime from your dashboard.</p>
           </>
         ) : txStatus === "paid" ? (
           <>
@@ -72,20 +96,20 @@ function PaymentReturn() {
             <h1 className="mt-4 text-2xl font-bold">Payment received</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               {amount != null ? <>We received <span className="font-semibold text-foreground">₱{amount.toFixed(2)}</span>. </> : null}
-              Your booking is confirmed.
+              Your booking is now confirmed.
             </p>
           </>
         ) : txStatus === "failed" ? (
           <>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-2xl text-destructive">!</div>
             <h1 className="mt-4 text-2xl font-bold">Payment failed</h1>
-            <p className="mt-2 text-sm text-muted-foreground">The provider reported a failure. Please try booking again.</p>
+            <p className="mt-2 text-sm text-muted-foreground">The provider reported a failure. You can retry from your dashboard.</p>
           </>
         ) : timedOut ? (
           <>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted text-2xl">⏳</div>
             <h1 className="mt-4 text-2xl font-bold">Still processing…</h1>
-            <p className="mt-2 text-sm text-muted-foreground">This can take a minute. Refresh the page — your booking will appear once confirmed.</p>
+            <p className="mt-2 text-sm text-muted-foreground">This can take a minute. Your booking will appear in your dashboard once confirmed.</p>
           </>
         ) : (
           <>
@@ -96,6 +120,9 @@ function PaymentReturn() {
         )}
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Link to="/dashboard" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
+            My bookings
+          </Link>
           <Link to="/" className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary hover:text-primary">
             Back to venues
           </Link>
