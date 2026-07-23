@@ -2,6 +2,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { startBookingCheckout } from "@/lib/paymongo.functions";
 
 export const Route = createFileRoute("/courts/$courtId")({
   component: CourtBooking,

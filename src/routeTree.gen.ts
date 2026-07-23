@@ -13,8 +13,10 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
+import { Route as PaymentReturnRouteImport } from './routes/payment.return'
 import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as ApiPublicPaymongoWebhookRouteImport } from './routes/api/public/paymongo.webhook'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -35,6 +37,11 @@ const VenuesVenueIdRoute = VenuesVenueIdRouteImport.update({
   path: '/venues/$venueId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PaymentReturnRoute = PaymentReturnRouteImport.update({
+  id: '/payment/return',
+  path: '/payment/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CourtsCourtIdRoute = CourtsCourtIdRouteImport.update({
   id: '/courts/$courtId',
   path: '/courts/$courtId',
@@ -45,20 +52,30 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicPaymongoWebhookRoute =
+  ApiPublicPaymongoWebhookRouteImport.update({
+    id: '/api/public/paymongo/webhook',
+    path: '/api/public/paymongo/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
+  '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
+  '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -67,7 +84,9 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
+  '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -76,9 +95,18 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/courts/$courtId'
+    | '/payment/return'
     | '/venues/$venueId'
+    | '/api/public/paymongo/webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/courts/$courtId' | '/venues/$venueId'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/courts/$courtId'
+    | '/payment/return'
+    | '/venues/$venueId'
+    | '/api/public/paymongo/webhook'
   id:
     | '__root__'
     | '/'
@@ -86,7 +114,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/dashboard'
     | '/courts/$courtId'
+    | '/payment/return'
     | '/venues/$venueId'
+    | '/api/public/paymongo/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,7 +124,9 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CourtsCourtIdRoute: typeof CourtsCourtIdRoute
+  PaymentReturnRoute: typeof PaymentReturnRoute
   VenuesVenueIdRoute: typeof VenuesVenueIdRoute
+  ApiPublicPaymongoWebhookRoute: typeof ApiPublicPaymongoWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -127,6 +159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VenuesVenueIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/payment/return': {
+      id: '/payment/return'
+      path: '/payment/return'
+      fullPath: '/payment/return'
+      preLoaderRoute: typeof PaymentReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/courts/$courtId': {
       id: '/courts/$courtId'
       path: '/courts/$courtId'
@@ -140,6 +179,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/paymongo/webhook': {
+      id: '/api/public/paymongo/webhook'
+      path: '/api/public/paymongo/webhook'
+      fullPath: '/api/public/paymongo/webhook'
+      preLoaderRoute: typeof ApiPublicPaymongoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -160,7 +206,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CourtsCourtIdRoute: CourtsCourtIdRoute,
+  PaymentReturnRoute: PaymentReturnRoute,
   VenuesVenueIdRoute: VenuesVenueIdRoute,
+  ApiPublicPaymongoWebhookRoute: ApiPublicPaymongoWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
