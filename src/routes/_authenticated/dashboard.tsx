@@ -1358,6 +1358,8 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [mapView, setMapView] = useState<"internal" | "google">("internal");
+  const [internalOpen, setInternalOpen] = useState(false);
+
 
   const mut = useMutation({
     mutationFn: async ({ lat, lng }: { lat: number; lng: number }) => {
