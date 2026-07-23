@@ -208,7 +208,11 @@ function Dashboard() {
       {section === "bookings" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Bookings" body="Full booking list with filters, statuses and exports — coming soon. Meanwhile check each venue's upcoming bookings under Courts." /></div>}
       {section === "customers" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Customers" body="See the players who book your courts, their history and notes." /></div>}
       {section === "team" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." /></div>}
-      {section === "transactions" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Transactions" body="Payments, refunds and payouts will live here once payments are enabled." /></div>}
+      {section === "transactions" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <TransactionsSection venues={venues} />
+        </div>
+      )}
       {section === "settings" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <SettingsSection
