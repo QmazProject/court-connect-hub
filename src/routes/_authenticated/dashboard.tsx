@@ -268,12 +268,21 @@ function TenantShell({
             <Menu className="h-4 w-4" /> Menu
           </button>
           <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
-          <span className="w-16" />
+          <WorkspaceTopActions setSection={setSection} compact />
+        </div>
+        {/* Desktop top bar */}
+        <div className="hidden items-center justify-between border-b border-border bg-background/80 px-6 py-3 backdrop-blur md:flex">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tenant workspace</div>
+            <div className="truncate font-display text-base font-bold tracking-tight">{current?.label ?? "Dashboard"}</div>
+          </div>
+          <WorkspaceTopActions setSection={setSection} />
         </div>
         <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </div>
       </div>
+
 
     </div>
   );
