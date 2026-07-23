@@ -227,7 +227,7 @@ function TenantShell({
       {/* Desktop sidebar */}
       <aside
         className={
-          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-[calc(100dvh-3rem)] md:flex-col transition-[width] duration-200 " +
+          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-[100dvh] md:flex-col transition-[width] duration-200 " +
           (collapsed ? "md:w-16" : "md:w-60")
         }
       >
