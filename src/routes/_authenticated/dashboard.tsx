@@ -2392,10 +2392,9 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           onClick={() => setColCfgOpen(true)}
           title="Configure columns"
           aria-label="Configure columns"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
         >
-          <Columns3 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Columns</span>
+          <TableProperties className="h-4 w-4" />
         </button>
       </div>
       <table className="w-full min-w-[980px] text-sm">
