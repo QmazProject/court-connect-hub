@@ -2162,14 +2162,44 @@ function useVenueColumns() {
 }
 
 
+type ColumnPreset = { name: string; columns: string[] };
+
+function useColumnPresets() {
+  const [presets, setPresets] = useState<ColumnPreset[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return;
+      const { data } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
+      const list = (data?.prefs as any)?.venues_column_presets as ColumnPreset[] | undefined;
+      if (Array.isArray(list)) setPresets(list);
+    })();
+  }, []);
+  const persist = async (next: ColumnPreset[]) => {
+    setPresets(next);
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) return;
+    const { data: existing } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
+    const merged = { ...(existing?.prefs as any ?? {}), venues_column_presets: next };
+    await supabase.from("user_preferences").upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  };
+  return { presets, persist };
+}
+
 function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void }) {
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
   const [availActive, setAvailActive] = useState<string | null>(null);
   const [selActive, setSelActive] = useState<string | null>(null);
   const [availQuery, setAvailQuery] = useState("");
   const [selQuery, setSelQuery] = useState("");
-  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); } }, [open, selected]);
+  const [presetName, setPresetName] = useState("");
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const { presets, persist } = useColumnPresets();
+  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); } }, [open, selected]);
   if (!open) return null;
+
   const availableCols = VENUE_COLUMNS.filter((c) => !localSelected.includes(c.id));
   const selectedCols = localSelected.map((id) => VENUE_COLUMNS.find((c) => c.id === id)).filter(Boolean) as typeof VENUE_COLUMNS;
   const filteredAvail = availableCols.filter((c) => c.label.toLowerCase().includes(availQuery.toLowerCase()));
