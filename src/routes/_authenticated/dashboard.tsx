@@ -2928,6 +2928,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
     qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+    qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
   };
 
   return (
