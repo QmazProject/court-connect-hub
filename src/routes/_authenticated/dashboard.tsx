@@ -4213,7 +4213,7 @@ type PlayerBooking = {
     map_emoji: string | null;
     images: string[] | null;
     sports: { name: string } | null;
-    venues: { id: number; name: string; address: string | null } | null;
+    venues: { id: number; name: string; address: string | null; is_active: boolean } | null;
   } | null;
 };
 
@@ -4226,7 +4226,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("id, court_id, start_time, end_time, status, payment_status, created_at, courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address))")
+        .select("id, court_id, start_time, end_time, status, payment_status, created_at, courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address, is_active))")
         .eq("user_id", userId)
         .order("start_time", { ascending: false })
         .limit(200);
