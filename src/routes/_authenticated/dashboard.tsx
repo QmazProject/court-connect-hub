@@ -2126,7 +2126,20 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               </td>
               <td className="px-3 py-3 text-muted-foreground min-w-[180px]">{v.address}</td>
               <td className="px-3 py-3 text-muted-foreground max-w-[260px]">
-                {v.description ? <span className="line-clamp-2">{v.description}</span> : <span className="italic opacity-60">No description</span>}
+                {v.description ? (
+                  v.description.length > 80 ? (
+                    <span className="group relative inline-block max-w-full align-top">
+                      <span className="line-clamp-2 cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
+                      <span className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                        {v.description}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="line-clamp-2">{v.description}</span>
+                  )
+                ) : (
+                  <span className="italic opacity-60">No description</span>
+                )}
               </td>
               <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
                 {v.created_at ? (
