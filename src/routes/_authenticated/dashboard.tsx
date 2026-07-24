@@ -1845,7 +1845,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
             )}
           </label>
           <label className="block sm:col-span-2">
-            <span className="text-xs font-medium text-muted-foreground">Description</span>
+            <span className="text-xs font-medium text-muted-foreground">About this Venue</span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
