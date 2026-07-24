@@ -1806,7 +1806,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       const { error } = await supabase.from("venues").delete().eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); },
     onError: (e: Error) => setDelErr(e.message),
   });
 
