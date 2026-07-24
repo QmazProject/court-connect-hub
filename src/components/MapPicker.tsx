@@ -55,40 +55,48 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
-    if (q.length < 3) { setResults([]); return; }
+    if (q.length < 2) { setResults([]); return; }
     if (parseCoords(q)) { setResults([]); return; } // handled via paste-coords button
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       setSearching(true);
       try {
-        // Broader search: PH-biased but not restricted, polygons for area highlight, more results.
-        const params = new URLSearchParams({
+        const buildParams = (extra?: Record<string, string>) => new URLSearchParams({
           format: "jsonv2",
           q,
-          limit: "15",
+          limit: "20",
           addressdetails: "1",
           polygon_geojson: "1",
           "accept-language": "en",
-          countrycodes: "ph",
+          ...(extra ?? {}),
         });
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-          { signal: ctrl.signal, headers: { Accept: "application/json" } }
-        );
-        let data: NomResult[] = res.ok ? await res.json() : [];
-        // Fallback: if PH-only gave nothing, retry worldwide so tenants aren't blocked.
-        if (data.length === 0) {
-          params.delete("countrycodes");
-          const res2 = await fetch(
-            `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+
+        // Run PH-biased and worldwide in parallel so tenants always see matches.
+        const [phRes, wwRes] = await Promise.all([
+          fetch(
+            `https://nominatim.openstreetmap.org/search?${buildParams({ countrycodes: "ph" }).toString()}`,
             { signal: ctrl.signal, headers: { Accept: "application/json" } }
-          );
-          if (res2.ok) data = await res2.json();
+          ).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+          fetch(
+            `https://nominatim.openstreetmap.org/search?${buildParams().toString()}`,
+            { signal: ctrl.signal, headers: { Accept: "application/json" } }
+          ).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        ]);
+
+        // Merge PH-first, then worldwide; dedupe by display_name + rounded coords.
+        const merged: NomResult[] = [...(phRes as NomResult[]), ...(wwRes as NomResult[])];
+        const seen = new Set<string>();
+        const deduped: NomResult[] = [];
+        for (const r of merged) {
+          const key = `${r.display_name}|${Number(r.lat).toFixed(4)}|${Number(r.lon).toFixed(4)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(r);
         }
-        setResults(data);
+        setResults(deduped.slice(0, 20));
       } catch { /* aborted */ }
       finally { setSearching(false); }
-    }, 400);
+    }, 350);
     return () => { ctrl.abort(); clearTimeout(t); };
   }, [query, open]);
 
@@ -341,17 +349,34 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
             {!coordMatch && (results.length > 0 || searching) && (
               <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
                 {searching && <li className="px-3 py-2 text-xs text-muted-foreground">Searching…</li>}
-                {results.map((r, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      onClick={() => { selectResult(r); setResults([]); setQuery(r.display_name.split(",")[0]); }}
-                      className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
-                    >
-                      {r.display_name}
-                    </button>
-                  </li>
-                ))}
+                {results.map((r, i) => {
+                  const a = r.address ?? {};
+                  const primary =
+                    a.name || a.attraction || a.building || a.amenity ||
+                    a.road || a.neighbourhood || a.suburb ||
+                    a.village || a.town || a.city || a.municipality ||
+                    a.county || a.state ||
+                    r.display_name.split(",")[0];
+                  const secondary = r.display_name
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s && s.toLowerCase() !== String(primary).toLowerCase())
+                    .join(", ");
+                  return (
+                    <li key={`${r.lat},${r.lon},${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => { selectResult(r); setResults([]); setQuery(String(primary)); }}
+                        className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
+                      >
+                        <div className="font-medium text-foreground">{primary}</div>
+                        {secondary && (
+                          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{secondary}</div>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
