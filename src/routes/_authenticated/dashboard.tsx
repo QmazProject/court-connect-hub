@@ -79,7 +79,7 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
   return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
 }
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null };
 type Sport = { id: number; name: string; slug?: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
