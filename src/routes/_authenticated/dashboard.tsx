@@ -79,7 +79,7 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
   return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
 }
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null };
 type Sport = { id: number; name: string; slug?: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
@@ -129,7 +129,7 @@ function Dashboard() {
       if (se) throw se;
       const ids = (staffRows ?? []).map((r) => r.venue_id);
       if (ids.length === 0) return [] as Venue[];
-      const { data, error } = await supabase.from("venues").select("*").in("id", ids);
+      const { data, error } = await supabase.from("venues").select("*").in("id", ids).order("created_at", { ascending: false });
       if (error) throw error;
       return data as Venue[];
     },
@@ -2097,28 +2097,44 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   const [viewing, setViewing] = useState<Venue | null>(null);
   return (
     <>
-      <table className="w-full min-w-[900px] text-sm">
+      <table className="w-full min-w-[980px] text-sm">
         <thead className="sticky top-0 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
           <tr>
             <th className="px-4 py-2.5 w-10"></th>
             <th className="px-3 py-2.5">Venue</th>
             <th className="px-3 py-2.5">Location</th>
             <th className="px-3 py-2.5">Description</th>
+            <th className="px-3 py-2.5 w-32">Added</th>
             <th className="px-3 py-2.5 w-20 text-center">Map</th>
             <th className="px-3 py-2.5 w-40 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {venues.map((v) => (
+          {venues.map((v, idx) => (
             <tr key={v.id} className="border-t border-border align-top hover:bg-secondary/20">
               <td className="px-4 py-3 text-xl leading-none">{v.map_emoji ?? "🎾"}</td>
               <td className="px-3 py-3">
-                <div className="font-semibold">{v.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{v.name}</span>
+                  {idx === 0 && venues.length > 1 && (
+                    <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">Newest</span>
+                  )}
+                </div>
                 <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
               </td>
               <td className="px-3 py-3 text-muted-foreground min-w-[180px]">{v.address}</td>
               <td className="px-3 py-3 text-muted-foreground max-w-[260px]">
                 {v.description ? <span className="line-clamp-2">{v.description}</span> : <span className="italic opacity-60">No description</span>}
+              </td>
+              <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
+                {v.created_at ? (
+                  <div className="flex flex-col">
+                    <span className="text-foreground">{new Date(v.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+                    <span className="text-[11px] text-muted-foreground">{new Date(v.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                  </div>
+                ) : (
+                  <span className="italic opacity-60">—</span>
+                )}
               </td>
               <td className="px-3 py-3 text-center">
                 {v.latitude != null && v.longitude != null ? (
