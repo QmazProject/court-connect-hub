@@ -11,7 +11,7 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle, History as HistoryIcon,
 } from "lucide-react";
 
 type SectionKey =
