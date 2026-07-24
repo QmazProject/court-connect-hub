@@ -2255,7 +2255,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   const [courtsFor, setCourtsFor] = useState<Venue | null>(null);
   const [colCfgOpen, setColCfgOpen] = useState(false);
   const { selected: visibleCols, save: saveCols } = useVenueColumns();
-  const isVisible = (id: string) => visibleCols.includes(id);
+  
   const venueIds = venues.map((v) => v.id);
   const courtsCountQ = useQuery({
     queryKey: ["venues-court-counts", venueIds],
