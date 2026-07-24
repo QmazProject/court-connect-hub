@@ -93,6 +93,28 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
           seen.add(key);
           deduped.push(r);
         }
+
+        // Rank: prefer boundary/admin matches whose name equals the query
+        // (Google-Maps-like: "Dumanjug" surfaces the municipality boundary first).
+        const qLower = q.toLowerCase();
+        const nameOf = (r: NomResult) => {
+          const a = r.address ?? {};
+          return (a.name || a.city || a.town || a.village || a.municipality ||
+            a.county || a.state || r.display_name.split(",")[0] || "").toLowerCase();
+        };
+        const rank = (r: NomResult) => {
+          const n = nameOf(r);
+          const isArea = isAreaResult(r);
+          const hasPoly = r.geojson && (r.geojson.type === "Polygon" || r.geojson.type === "MultiPolygon");
+          let score = 0;
+          if (n === qLower) score -= 100;
+          else if (n.startsWith(qLower)) score -= 50;
+          else if (n.includes(qLower)) score -= 20;
+          if (isArea) score -= 30;
+          if (hasPoly) score -= 15;
+          return score;
+        };
+        deduped.sort((a, b) => rank(a) - rank(b));
         setResults(deduped.slice(0, 20));
       } catch { /* aborted */ }
       finally { setSearching(false); }
@@ -313,10 +335,23 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && coordMatch) {
+                if (e.key !== "Enter") return;
+                if (coordMatch) {
                   e.preventDefault();
                   flyTo(coordMatch.lat, coordMatch.lng, 17);
                   setResults([]);
+                  return;
+                }
+                if (results.length > 0) {
+                  e.preventDefault();
+                  const top = results[0];
+                  const a = top.address ?? {};
+                  const primary = a.name || a.city || a.town || a.village ||
+                    a.municipality || a.county || a.state ||
+                    top.display_name.split(",")[0];
+                  selectResult(top);
+                  setResults([]);
+                  setQuery(String(primary));
                 }
               }}
               placeholder="Search a place, or paste coordinates (e.g. 14.5995, 120.9842)…"
