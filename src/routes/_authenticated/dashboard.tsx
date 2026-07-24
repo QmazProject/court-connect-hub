@@ -2221,6 +2221,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
       <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
       <AuditHistoryModal venue={history} onClose={() => setHistory(null)} />
+      <VenueCourtsModal venue={courtsFor} onClose={() => setCourtsFor(null)} />
     </>
   );
 }
