@@ -887,7 +887,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           />
         </div>
         <div className="sm:col-span-2">
-          <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Tell players about your venue — parking, amenities, house rules…" />
+          <Textarea label="About this Venue (optional)" value={description} onChange={setDescription} placeholder="Tell players about your venue — parking, amenities, house rules…" />
         </div>
         <div className="sm:col-span-2">
           <ImageUploader label="Venue photos" pathPrefix={uploadPrefix} images={images} onChange={setImages} />
@@ -2827,7 +2827,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
           <div className="rounded-xl border border-border bg-background p-3">
             <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
           </div>
-          <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+          <Textarea label="About this Group (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
 
           <div className="rounded-xl border border-border p-3">
             <div className="text-sm font-semibold">Courts in this group</div>
