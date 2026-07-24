@@ -354,6 +354,7 @@ export type Database = {
       venues: {
         Row: {
           address: string
+          created_at: string | null
           description: string | null
           id: number
           images: string[]
@@ -367,6 +368,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          created_at?: string | null
           description?: string | null
           id?: never
           images?: string[]
@@ -380,6 +382,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          created_at?: string | null
           description?: string | null
           id?: never
           images?: string[]
