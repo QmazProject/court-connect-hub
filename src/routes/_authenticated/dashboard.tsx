@@ -2154,15 +2154,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                 )}
               </td>
               <td className="px-3 py-3">
-                <div className="flex items-center justify-end gap-1.5">
+                <div className="flex items-center justify-end gap-1">
                   <button
                     type="button"
                     onClick={() => setEditing(v)}
                     title="Edit venue"
                     aria-label={`Edit ${v.name}`}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <DeleteVenueButton venue={v} />
                 </div>
@@ -2301,9 +2301,9 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
         onClick={() => { setConfirming(true); setErr(null); }}
         title="Delete venue"
         aria-label={`Delete ${venue.name}`}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-destructive/40 text-destructive transition hover:bg-destructive/10"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-destructive/40 text-destructive transition hover:bg-destructive/10"
       >
-        <Trash2 className="h-4 w-4" />
+        <Trash2 className="h-3.5 w-3.5" />
       </button>
       {confirming && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!del.isPending) { setConfirming(false); setErr(null); } }}>
