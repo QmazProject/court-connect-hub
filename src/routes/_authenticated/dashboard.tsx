@@ -2259,7 +2259,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
           {presets.length > 0 && (
             <select
               value=""
-              onChange={(e) => { const name = e.target.value; if (!name) return; if (confirm(`Delete preset "${name}"?`)) persist(presets.filter((p) => p.name !== name)); e.currentTarget.value = ""; }}
+              onChange={(e) => { const name = e.target.value; if (!name) return; setDeleteTarget(name); e.currentTarget.value = ""; }}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-destructive outline-none focus:border-destructive"
             >
               <option value="">Delete…</option>
