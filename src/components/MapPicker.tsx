@@ -61,11 +61,31 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
     const t = setTimeout(async () => {
       setSearching(true);
       try {
+        // Broader search: PH-biased but not restricted, polygons for area highlight, more results.
+        const params = new URLSearchParams({
+          format: "jsonv2",
+          q,
+          limit: "15",
+          addressdetails: "1",
+          polygon_geojson: "1",
+          "accept-language": "en",
+          countrycodes: "ph",
+        });
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(q)}`,
+          `https://nominatim.openstreetmap.org/search?${params.toString()}`,
           { signal: ctrl.signal, headers: { Accept: "application/json" } }
         );
-        if (res.ok) setResults(await res.json());
+        let data: NomResult[] = res.ok ? await res.json() : [];
+        // Fallback: if PH-only gave nothing, retry worldwide so tenants aren't blocked.
+        if (data.length === 0) {
+          params.delete("countrycodes");
+          const res2 = await fetch(
+            `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+            { signal: ctrl.signal, headers: { Accept: "application/json" } }
+          );
+          if (res2.ok) data = await res2.json();
+        }
+        setResults(data);
       } catch { /* aborted */ }
       finally { setSearching(false); }
     }, 400);
