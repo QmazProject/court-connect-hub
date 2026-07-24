@@ -980,9 +980,9 @@ function VenueSection({ venue }: { venue: Venue }) {
       <div className="p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(courtsQ.data ?? []).map((c) => (
-            <CourtCard key={c.id} court={c} venueEmoji={venue.map_emoji} onChanged={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+            <CourtCard key={c.id} court={c} venueEmoji={venue.map_emoji} onChanged={() => { qc.invalidateQueries({ queryKey: ["courts", venue.id] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); }} />
           ))}
-          <AddCourt venueId={venue.id} venueEmoji={venue.map_emoji} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+          <AddCourt venueId={venue.id} venueEmoji={venue.map_emoji} onCreated={() => { qc.invalidateQueries({ queryKey: ["courts", venue.id] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); }} />
         </div>
 
 
