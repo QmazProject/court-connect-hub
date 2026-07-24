@@ -414,6 +414,7 @@ export type Database = {
           description: string | null
           id: number
           images: string[]
+          is_active: boolean
           latitude: number | null
           longitude: number | null
           map_emoji: string | null
@@ -428,6 +429,7 @@ export type Database = {
           description?: string | null
           id?: never
           images?: string[]
+          is_active?: boolean
           latitude?: number | null
           longitude?: number | null
           map_emoji?: string | null
@@ -442,6 +444,7 @@ export type Database = {
           description?: string | null
           id?: never
           images?: string[]
+          is_active?: boolean
           latitude?: number | null
           longitude?: number | null
           map_emoji?: string | null
@@ -473,6 +476,14 @@ export type Database = {
         }[]
       }
       is_tenant: { Args: { _user_id: string }; Returns: boolean }
+      venue_has_active_bookings: {
+        Args: { _venue_id: number }
+        Returns: boolean
+      }
+      venue_has_any_confirmed_booking: {
+        Args: { _venue_id: number }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

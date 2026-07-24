@@ -119,6 +119,7 @@ function Landing() {
       let q = supabase
         .from("venues")
         .select(`id, name, address, latitude, longitude, map_emoji, ${courtsSelect}`)
+        .eq("is_active", true)
         .order("name")
         .limit(100);
       if (term) q = q.ilike("name", `%${term}%`);
