@@ -17,13 +17,24 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   const markerRef = useRef<any>(null);
   const streetLayerRef = useRef<any>(null);
   const satelliteLayerRef = useRef<any>(null);
+  const highlightRef = useRef<any>(null);
   const [pos, setPos] = useState<{ lat: number; lng: number } | null>(
     initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng } : null
   );
   const [locBusy, setLocBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
+  type NomResult = {
+    display_name: string;
+    lat: string;
+    lon: string;
+    type?: string;
+    class?: string;
+    boundingbox?: [string, string, string, string];
+    geojson?: any;
+    address?: Record<string, string>;
+  };
+  const [results, setResults] = useState<NomResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [view, setView] = useState<"street" | "satellite">("street");
 
