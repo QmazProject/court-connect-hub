@@ -55,40 +55,48 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
-    if (q.length < 3) { setResults([]); return; }
+    if (q.length < 2) { setResults([]); return; }
     if (parseCoords(q)) { setResults([]); return; } // handled via paste-coords button
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       setSearching(true);
       try {
-        // Broader search: PH-biased but not restricted, polygons for area highlight, more results.
-        const params = new URLSearchParams({
+        const buildParams = (extra?: Record<string, string>) => new URLSearchParams({
           format: "jsonv2",
           q,
-          limit: "15",
+          limit: "20",
           addressdetails: "1",
           polygon_geojson: "1",
           "accept-language": "en",
-          countrycodes: "ph",
+          ...(extra ?? {}),
         });
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-          { signal: ctrl.signal, headers: { Accept: "application/json" } }
-        );
-        let data: NomResult[] = res.ok ? await res.json() : [];
-        // Fallback: if PH-only gave nothing, retry worldwide so tenants aren't blocked.
-        if (data.length === 0) {
-          params.delete("countrycodes");
-          const res2 = await fetch(
-            `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+
+        // Run PH-biased and worldwide in parallel so tenants always see matches.
+        const [phRes, wwRes] = await Promise.all([
+          fetch(
+            `https://nominatim.openstreetmap.org/search?${buildParams({ countrycodes: "ph" }).toString()}`,
             { signal: ctrl.signal, headers: { Accept: "application/json" } }
-          );
-          if (res2.ok) data = await res2.json();
+          ).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+          fetch(
+            `https://nominatim.openstreetmap.org/search?${buildParams().toString()}`,
+            { signal: ctrl.signal, headers: { Accept: "application/json" } }
+          ).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        ]);
+
+        // Merge PH-first, then worldwide; dedupe by display_name + rounded coords.
+        const merged: NomResult[] = [...(phRes as NomResult[]), ...(wwRes as NomResult[])];
+        const seen = new Set<string>();
+        const deduped: NomResult[] = [];
+        for (const r of merged) {
+          const key = `${r.display_name}|${Number(r.lat).toFixed(4)}|${Number(r.lon).toFixed(4)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(r);
         }
-        setResults(data);
+        setResults(deduped.slice(0, 20));
       } catch { /* aborted */ }
       finally { setSearching(false); }
-    }, 400);
+    }, 350);
     return () => { ctrl.abort(); clearTimeout(t); };
   }, [query, open]);
 
