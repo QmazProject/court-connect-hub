@@ -227,6 +227,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
 
       map.on("click", (e: any) => {
         const { lat, lng } = e.latlng;
+        clearHighlight();
         setPos({ lat, lng });
         if (markerRef.current) {
           markerRef.current.setLatLng(e.latlng);
