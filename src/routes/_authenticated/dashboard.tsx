@@ -2097,6 +2097,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<Venue | null>(null);
   const [viewing, setViewing] = useState<Venue | null>(null);
   const [history, setHistory] = useState<Venue | null>(null);
+  const [courtsFor, setCourtsFor] = useState<Venue | null>(null);
   return (
     <>
       <table className="w-full min-w-[980px] text-sm">
@@ -2108,6 +2109,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
             <th className="px-3 py-2.5">ABOUT THIS VENUE</th>
             <th className="px-3 py-2.5 w-32">CREATED AT</th>
             <th className="px-3 py-2.5 w-20 text-center">Map</th>
+            <th className="px-3 py-2.5 w-24 text-center">Courts</th>
             <th className="px-3 py-2.5 w-40 text-right">Actions</th>
             <th className="px-3 py-2.5 w-24 text-center">History</th>
           </tr>
@@ -2176,6 +2178,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
               </td>
+              <td className="px-3 py-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => setCourtsFor(v)}
+                  title="View courts under this venue"
+                  aria-label={`View courts under ${v.name}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Layers className="h-4 w-4" />
+                </button>
+              </td>
               <td className="px-3 py-3">
                 <div className="flex items-center justify-end gap-1">
                   <button
@@ -2208,11 +2221,75 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
       <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
       <AuditHistoryModal venue={history} onClose={() => setHistory(null)} />
+      <VenueCourtsModal venue={courtsFor} onClose={() => setCourtsFor(null)} />
     </>
   );
 }
 
+function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["venue-courts-list", venue?.id],
+    enabled: !!venue,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courts")
+        .select("id, name, hourly_rate, is_indoor, coming_soon, map_emoji, sports(name)")
+        .eq("venue_id", venue!.id)
+        .order("id");
+      if (error) throw error;
+      return data as Array<{ id: number; name: string; hourly_rate: number; is_indoor: boolean; coming_soon: boolean | null; map_emoji: string | null; sports: { name: string } | null }>;
+    },
+  });
+  if (!venue) return null;
+  const courts = data ?? [];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <h3 className="text-lg font-bold">Courts at {venue.name}</h3>
+            <p className="text-xs text-muted-foreground">View only — {courts.length} court{courts.length === 1 ? "" : "s"}</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="max-h-[70vh] overflow-y-auto p-4">
+          {isLoading ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : courts.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground italic">No courts yet under this venue.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {courts.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 py-3">
+                  <span className="text-2xl leading-none">{c.map_emoji ?? "🎾"}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-semibold">{c.name}</span>
+                      {c.coming_soon && (
+                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">Coming soon</span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {c.sports?.name ?? "Sport"} · {c.is_indoor ? "Indoor" : "Outdoor"}
+                    </div>
+                  </div>
+                  <div className="whitespace-nowrap text-sm font-semibold text-primary">
+                    ₱{Number(c.hourly_rate).toFixed(0)}<span className="text-[10px] font-normal text-muted-foreground"> /hr</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type AuditEntry = { id: number; venue_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
+
 
 function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
   const { data, isLoading } = useQuery({
