@@ -335,10 +335,23 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && coordMatch) {
+                if (e.key !== "Enter") return;
+                if (coordMatch) {
                   e.preventDefault();
                   flyTo(coordMatch.lat, coordMatch.lng, 17);
                   setResults([]);
+                  return;
+                }
+                if (results.length > 0) {
+                  e.preventDefault();
+                  const top = results[0];
+                  const a = top.address ?? {};
+                  const primary = a.name || a.city || a.town || a.village ||
+                    a.municipality || a.county || a.state ||
+                    top.display_name.split(",")[0];
+                  selectResult(top);
+                  setResults([]);
+                  setQuery(String(primary));
                 }
               }}
               placeholder="Search a place, or paste coordinates (e.g. 14.5995, 120.9842)…"
