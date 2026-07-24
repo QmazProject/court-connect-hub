@@ -349,17 +349,34 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
             {!coordMatch && (results.length > 0 || searching) && (
               <ul className="absolute left-0 right-0 top-full z-[1000] mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-background shadow-lg">
                 {searching && <li className="px-3 py-2 text-xs text-muted-foreground">Searching…</li>}
-                {results.map((r, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      onClick={() => { selectResult(r); setResults([]); setQuery(r.display_name.split(",")[0]); }}
-                      className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
-                    >
-                      {r.display_name}
-                    </button>
-                  </li>
-                ))}
+                {results.map((r, i) => {
+                  const a = r.address ?? {};
+                  const primary =
+                    a.name || a.attraction || a.building || a.amenity ||
+                    a.road || a.neighbourhood || a.suburb ||
+                    a.village || a.town || a.city || a.municipality ||
+                    a.county || a.state ||
+                    r.display_name.split(",")[0];
+                  const secondary = r.display_name
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s && s.toLowerCase() !== String(primary).toLowerCase())
+                    .join(", ");
+                  return (
+                    <li key={`${r.lat},${r.lon},${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => { selectResult(r); setResults([]); setQuery(String(primary)); }}
+                        className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
+                      >
+                        <div className="font-medium text-foreground">{primary}</div>
+                        {secondary && (
+                          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{secondary}</div>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
