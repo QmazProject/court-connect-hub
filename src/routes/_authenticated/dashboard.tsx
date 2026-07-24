@@ -2094,11 +2094,168 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
+const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean }> = [
+  { id: "emoji", label: "Emoji" },
+  { id: "name", label: "Venue", required: true },
+  { id: "location", label: "Location" },
+  { id: "description", label: "About this Venue" },
+  { id: "created_at", label: "Created At" },
+  { id: "map", label: "Map" },
+  { id: "courts", label: "Courts" },
+  { id: "actions", label: "Actions", required: true },
+  { id: "history", label: "History" },
+];
+const VENUE_COLS_STORAGE_KEY = "venues-tab-columns-v1";
+const DEFAULT_VENUE_COLS = VENUE_COLUMNS.map((c) => c.id);
+
+function useVenueColumns() {
+  const [selected, setSelected] = useState<string[]>(DEFAULT_VENUE_COLS);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(VENUE_COLS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[];
+        const valid = parsed.filter((id) => VENUE_COLUMNS.some((c) => c.id === id));
+        const required = VENUE_COLUMNS.filter((c) => c.required).map((c) => c.id);
+        const merged = [...required.filter((id) => !valid.includes(id)), ...valid];
+        setSelected(merged);
+      }
+    } catch {}
+  }, []);
+  const save = (next: string[]) => {
+    setSelected(next);
+    try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(next)); } catch {}
+  };
+  return { selected, save };
+}
+
+function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void }) {
+  const [localSelected, setLocalSelected] = useState<string[]>(selected);
+  const [availActive, setAvailActive] = useState<string | null>(null);
+  const [selActive, setSelActive] = useState<string | null>(null);
+  const [availQuery, setAvailQuery] = useState("");
+  const [selQuery, setSelQuery] = useState("");
+  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); } }, [open, selected]);
+  if (!open) return null;
+  const availableCols = VENUE_COLUMNS.filter((c) => !localSelected.includes(c.id));
+  const selectedCols = localSelected.map((id) => VENUE_COLUMNS.find((c) => c.id === id)).filter(Boolean) as typeof VENUE_COLUMNS;
+  const filteredAvail = availableCols.filter((c) => c.label.toLowerCase().includes(availQuery.toLowerCase()));
+  const filteredSel = selectedCols.filter((c) => c.label.toLowerCase().includes(selQuery.toLowerCase()));
+  const moveToSelected = () => {
+    if (!availActive) return;
+    setLocalSelected([...localSelected, availActive]);
+    setAvailActive(null);
+  };
+  const moveToAvailable = () => {
+    if (!selActive) return;
+    const col = VENUE_COLUMNS.find((c) => c.id === selActive);
+    if (col?.required) return;
+    setLocalSelected(localSelected.filter((id) => id !== selActive));
+    setSelActive(null);
+  };
+  const moveUp = () => {
+    if (!selActive) return;
+    const idx = localSelected.indexOf(selActive);
+    if (idx <= 0) return;
+    const next = [...localSelected];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    setLocalSelected(next);
+  };
+  const moveDown = () => {
+    if (!selActive) return;
+    const idx = localSelected.indexOf(selActive);
+    if (idx < 0 || idx >= localSelected.length - 1) return;
+    const next = [...localSelected];
+    [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+    setLocalSelected(next);
+  };
+  const resetDefault = () => setLocalSelected(DEFAULT_VENUE_COLS);
+  const apply = () => { onApply(localSelected); onClose(); };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h3 className="text-base font-semibold">Column Configuration</h3>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary" aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-[1fr_auto_1fr]">
+          {/* Available */}
+          <div className="flex min-h-0 flex-col">
+            <div className="mb-1 text-xs font-medium text-muted-foreground">Available Columns</div>
+            <div className="relative mb-2">
+              <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input value={availQuery} onChange={(e) => setAvailQuery(e.target.value)} placeholder="Search…" className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:border-primary" />
+            </div>
+            <ul className="h-56 overflow-y-auto rounded-md border border-border bg-secondary/20">
+              {filteredAvail.length === 0 && <li className="p-3 text-center text-xs italic text-muted-foreground">No columns</li>}
+              {filteredAvail.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => setAvailActive(c.id)}
+                    onDoubleClick={() => { setLocalSelected([...localSelected, c.id]); setAvailActive(null); }}
+                    className={"block w-full px-3 py-1.5 text-left text-xs transition " + (availActive === c.id ? "bg-primary/15 text-foreground" : "text-foreground/80 hover:bg-secondary")}
+                  >
+                    {c.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          {/* Arrows */}
+          <div className="flex flex-row items-center justify-center gap-2 sm:flex-col">
+            <button type="button" onClick={moveToSelected} disabled={!availActive} title="Add" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" onClick={moveToAvailable} disabled={!selActive || VENUE_COLUMNS.find((c) => c.id === selActive)?.required} title="Remove" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronLeft className="h-4 w-4" /></button>
+          </div>
+          {/* Selected */}
+          <div className="flex min-h-0 flex-col">
+            <div className="mb-1 text-xs font-medium text-muted-foreground">Selected Columns</div>
+            <div className="relative mb-2 flex items-center gap-2">
+              <div className="relative flex-1">
+                <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input value={selQuery} onChange={(e) => setSelQuery(e.target.value)} placeholder="Search…" className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:border-primary" />
+              </div>
+              <button type="button" onClick={moveUp} disabled={!selActive} title="Move up" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40"><ChevronUp className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={moveDown} disabled={!selActive} title="Move down" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40"><ChevronDown className="h-3.5 w-3.5" /></button>
+            </div>
+            <ul className="h-56 overflow-y-auto rounded-md border border-border bg-secondary/20">
+              {filteredSel.length === 0 && <li className="p-3 text-center text-xs italic text-muted-foreground">No columns</li>}
+              {filteredSel.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelActive(c.id)}
+                    onDoubleClick={() => { if (!c.required) { setLocalSelected(localSelected.filter((id) => id !== c.id)); setSelActive(null); } }}
+                    className={"flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition " + (selActive === c.id ? "bg-primary/15 text-foreground" : "text-foreground/80 hover:bg-secondary")}
+                  >
+                    <span>{c.label}</span>
+                    {c.required && <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Required</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+          <button type="button" onClick={resetDefault} className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide hover:bg-secondary">Reset to Default</button>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide hover:bg-secondary">Cancel</button>
+            <button type="button" onClick={apply} className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground hover:bg-primary/90">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VenuesTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<Venue | null>(null);
   const [viewing, setViewing] = useState<Venue | null>(null);
   const [history, setHistory] = useState<Venue | null>(null);
   const [courtsFor, setCourtsFor] = useState<Venue | null>(null);
+  const [colCfgOpen, setColCfgOpen] = useState(false);
+  const { selected: visibleCols, save: saveCols } = useVenueColumns();
+  const isVisible = (id: string) => visibleCols.includes(id);
   const venueIds = venues.map((v) => v.id);
   const courtsCountQ = useQuery({
     queryKey: ["venues-court-counts", venueIds],
@@ -2112,142 +2269,148 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
     },
   });
   const countFor = (id: number) => courtsCountQ.data?.[id] ?? 0;
+
+  const renderHeader = (id: string) => {
+    switch (id) {
+      case "emoji": return <th key={id} className="px-4 py-2.5 w-10"></th>;
+      case "name": return <th key={id} className="px-3 py-2.5">Venue</th>;
+      case "location": return <th key={id} className="px-3 py-2.5">Location</th>;
+      case "description": return <th key={id} className="px-3 py-2.5">ABOUT THIS VENUE</th>;
+      case "created_at": return <th key={id} className="px-3 py-2.5 w-32">CREATED AT</th>;
+      case "map": return <th key={id} className="px-3 py-2.5 w-20 text-center">Map</th>;
+      case "courts": return <th key={id} className="px-3 py-2.5 w-24 text-center">Courts</th>;
+      case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
+      case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
+      default: return null;
+    }
+  };
+
+  const renderCell = (id: string, v: Venue, idx: number) => {
+    switch (id) {
+      case "emoji":
+        return <td key={id} className="px-4 py-3 text-xl leading-none">{v.map_emoji ?? "🎾"}</td>;
+      case "name":
+        return (
+          <td key={id} className="px-3 py-3 whitespace-nowrap">
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="font-semibold whitespace-nowrap">{v.name}</span>
+              {idx === 0 && venues.length > 1 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />Newest</span>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
+          </td>
+        );
+      case "location":
+        return <td key={id} className="px-3 py-3 text-muted-foreground min-w-[180px]">{v.address}</td>;
+      case "description":
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[240px] min-w-[240px] max-w-[240px]">
+            {v.description ? (
+              v.description.length > 40 ? (
+                <HoverCard openDelay={100} closeDelay={80}>
+                  <HoverCardTrigger asChild>
+                    <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
+                  </HoverCardTrigger>
+                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                    {v.description}
+                  </HoverCardContent>
+                </HoverCard>
+              ) : (
+                <span className="block w-full truncate">{v.description}</span>
+              )
+            ) : (
+              <span className="italic opacity-60">No description</span>
+            )}
+          </td>
+        );
+      case "created_at":
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap">
+            {v.created_at ? (
+              <div className="flex flex-col">
+                <span className="text-foreground">{new Date(v.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+                <span className="text-[11px] text-muted-foreground">{new Date(v.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+              </div>
+            ) : (
+              <span className="italic opacity-60">—</span>
+            )}
+          </td>
+        );
+      case "map":
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            {v.latitude != null && v.longitude != null ? (
+              <button type="button" onClick={() => setViewing(v)} title="View on map" aria-label={`View ${v.name} on map`} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+                <MapPin className="h-4 w-4" />
+              </button>
+            ) : (
+              <span className="text-xs text-muted-foreground italic">No pin</span>
+            )}
+          </td>
+        );
+      case "courts": {
+        const n = countFor(v.id);
+        const has = n > 0;
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <button type="button" onClick={() => setCourtsFor(v)} title={has ? `View ${n} court${n === 1 ? "" : "s"} under this venue` : "No courts yet"} aria-label={`View courts under ${v.name}`} className={"relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition " + (has ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/20" : "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary")}>
+              <Layers className="h-4 w-4" />
+              {has && (<span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">{n}</span>)}
+            </button>
+          </td>
+        );
+      }
+      case "actions":
+        return (
+          <td key={id} className="px-3 py-3">
+            <div className="flex items-center justify-end gap-1">
+              <button type="button" onClick={() => setEditing(v)} title="Edit venue" aria-label={`Edit ${v.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <DeleteVenueButton venue={v} />
+            </div>
+          </td>
+        );
+      case "history":
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <button type="button" onClick={() => setHistory(v)} title="Audit history" aria-label={`View audit history for ${v.name}`} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+              <HistoryIcon className="h-4 w-4" />
+            </button>
+          </td>
+        );
+      default: return null;
+    }
+  };
+
   return (
     <>
+      <div className="flex items-center justify-end gap-2 px-2 py-2">
+        <button
+          type="button"
+          onClick={() => setColCfgOpen(true)}
+          title="Configure columns"
+          aria-label="Configure columns"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+        >
+          <Columns3 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Columns</span>
+        </button>
+      </div>
       <table className="w-full min-w-[980px] text-sm">
         <thead className="sticky top-0 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
-          <tr>
-            <th className="px-4 py-2.5 w-10"></th>
-            <th className="px-3 py-2.5">Venue</th>
-            <th className="px-3 py-2.5">Location</th>
-            <th className="px-3 py-2.5">ABOUT THIS VENUE</th>
-            <th className="px-3 py-2.5 w-32">CREATED AT</th>
-            <th className="px-3 py-2.5 w-20 text-center">Map</th>
-            <th className="px-3 py-2.5 w-24 text-center">Courts</th>
-            <th className="px-3 py-2.5 w-40 text-right">Actions</th>
-            <th className="px-3 py-2.5 w-24 text-center">History</th>
-          </tr>
+          <tr>{visibleCols.map((id) => renderHeader(id))}</tr>
         </thead>
         <tbody>
           {venues.map((v, idx) => (
             <tr key={v.id} className="border-t border-border align-top hover:bg-secondary/20">
-              <td className="px-4 py-3 text-xl leading-none">{v.map_emoji ?? "🎾"}</td>
-              <td className="px-3 py-3 whitespace-nowrap">
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <span className="font-semibold whitespace-nowrap">{v.name}</span>
-                  {idx === 0 && venues.length > 1 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />Newest</span>
-                  )}
-                </div>
-                <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
-              </td>
-              <td className="px-3 py-3 text-muted-foreground min-w-[180px]">{v.address}</td>
-              <td className="px-3 py-3 text-muted-foreground w-[240px] min-w-[240px] max-w-[240px]">
-                {v.description ? (
-                  v.description.length > 40 ? (
-                    <HoverCard openDelay={100} closeDelay={80}>
-                      <HoverCardTrigger asChild>
-                        <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
-                      </HoverCardTrigger>
-                      <HoverCardContent
-                        side="top"
-                        align="start"
-                        collisionPadding={16}
-                        avoidCollisions
-                        className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed"
-                        style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                      >
-                        {v.description}
-                      </HoverCardContent>
-                    </HoverCard>
-                  ) : (
-                    <span className="block w-full truncate">{v.description}</span>
-                  )
-                ) : (
-                  <span className="italic opacity-60">No description</span>
-                )}
-              </td>
-              <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
-                {v.created_at ? (
-                  <div className="flex flex-col">
-                    <span className="text-foreground">{new Date(v.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-                    <span className="text-[11px] text-muted-foreground">{new Date(v.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
-                  </div>
-                ) : (
-                  <span className="italic opacity-60">—</span>
-                )}
-              </td>
-              <td className="px-3 py-3 text-center">
-                {v.latitude != null && v.longitude != null ? (
-                  <button
-                    type="button"
-                    onClick={() => setViewing(v)}
-                    title="View on map"
-                    aria-label={`View ${v.name} on map`}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-                  >
-                    <MapPin className="h-4 w-4" />
-                  </button>
-                ) : (
-                  <span className="text-xs text-muted-foreground italic">No pin</span>
-                )}
-              </td>
-              <td className="px-3 py-3 text-center">
-                {(() => {
-                  const n = countFor(v.id);
-                  const has = n > 0;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setCourtsFor(v)}
-                      title={has ? `View ${n} court${n === 1 ? "" : "s"} under this venue` : "No courts yet"}
-                      aria-label={`View courts under ${v.name}`}
-                      className={
-                        "relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition " +
-                        (has
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/20"
-                          : "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary")
-                      }
-                    >
-                      <Layers className="h-4 w-4" />
-                      {has && (
-                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">
-                          {n}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })()}
-              </td>
-              <td className="px-3 py-3">
-                <div className="flex items-center justify-end gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(v)}
-                    title="Edit venue"
-                    aria-label={`Edit ${v.name}`}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <DeleteVenueButton venue={v} />
-                </div>
-              </td>
-              <td className="px-3 py-3 text-center">
-                <button
-                  type="button"
-                  onClick={() => setHistory(v)}
-                  title="Audit history"
-                  aria-label={`View audit history for ${v.name}`}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-                >
-                  <HistoryIcon className="h-4 w-4" />
-                </button>
-              </td>
+              {visibleCols.map((id) => renderCell(id, v, idx))}
             </tr>
           ))}
         </tbody>
       </table>
+      <ColumnConfigModal open={colCfgOpen} onClose={() => setColCfgOpen(false)} selected={visibleCols} onApply={saveCols} />
       <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
       <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
       <AuditHistoryModal venue={history} onClose={() => setHistory(null)} />
@@ -2255,6 +2418,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
     </>
   );
 }
+
 
 function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
   const { data, isLoading } = useQuery({
