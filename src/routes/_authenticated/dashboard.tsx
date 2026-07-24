@@ -8,6 +8,7 @@ import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MapInfoButton } from "@/components/MapInfoButton";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
@@ -2128,12 +2129,21 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <td className="px-3 py-3 text-muted-foreground w-[240px] min-w-[240px] max-w-[240px]">
                 {v.description ? (
                   v.description.length > 40 ? (
-                    <span className="group relative block w-full">
-                      <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
-                      <span className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 w-72 max-w-[18rem] whitespace-pre-wrap break-all rounded-lg border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                    <HoverCard openDelay={100} closeDelay={80}>
+                      <HoverCardTrigger asChild>
+                        <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="top"
+                        align="start"
+                        collisionPadding={16}
+                        avoidCollisions
+                        className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed"
+                        style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                      >
                         {v.description}
-                      </span>
-                    </span>
+                      </HoverCardContent>
+                    </HoverCard>
                   ) : (
                     <span className="block w-full truncate">{v.description}</span>
                   )
