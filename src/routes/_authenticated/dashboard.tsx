@@ -191,7 +191,7 @@ function Dashboard() {
             open={addCourtOpen}
             onClose={() => setAddCourtOpen(false)}
             venues={venues}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); setAddCourtOpen(false); }}
+            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); setAddCourtOpen(false); }}
           />
           <CreateGroupDrawer
             open={createGroupOpen}
