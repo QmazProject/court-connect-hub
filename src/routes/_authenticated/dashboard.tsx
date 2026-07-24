@@ -815,6 +815,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
+  const [isActive, setIsActive] = useState(true);
   const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const suggested = suggestTimezone(lat, lng);
