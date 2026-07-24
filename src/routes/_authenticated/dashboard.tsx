@@ -805,9 +805,12 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
+  const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const suggested = suggestTimezone(lat, lng);
   const pinInPH = isInPhilippines(lat, lng);
@@ -819,10 +822,10 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
       if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji });
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setErr(null); setTzConfirmed(false); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -882,6 +885,12 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
             onChange={setMapEmoji}
             hint="Shown on the landing-page map. Individual courts can override this."
           />
+        </div>
+        <div className="sm:col-span-2">
+          <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Tell players about your venue — parking, amenities, house rules…" />
+        </div>
+        <div className="sm:col-span-2">
+          <ImageUploader label="Venue photos" pathPrefix={uploadPrefix} images={images} onChange={setImages} />
         </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
