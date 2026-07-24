@@ -2110,24 +2110,57 @@ const DEFAULT_VENUE_COLS = VENUE_COLUMNS.map((c) => c.id);
 
 function useVenueColumns() {
   const [selected, setSelected] = useState<string[]>(DEFAULT_VENUE_COLS);
+  const sanitize = (arr: string[]) => {
+    const valid = arr.filter((id) => VENUE_COLUMNS.some((c) => c.id === id));
+    const required = VENUE_COLUMNS.filter((c) => c.required).map((c) => c.id);
+    return [...required.filter((id) => !valid.includes(id)), ...valid];
+  };
   useEffect(() => {
+    // 1) instant paint from localStorage
     try {
       const raw = localStorage.getItem(VENUE_COLS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as string[];
-        const valid = parsed.filter((id) => VENUE_COLUMNS.some((c) => c.id === id));
-        const required = VENUE_COLUMNS.filter((c) => c.required).map((c) => c.id);
-        const merged = [...required.filter((id) => !valid.includes(id)), ...valid];
-        setSelected(merged);
-      }
+      if (raw) setSelected(sanitize(JSON.parse(raw) as string[]));
     } catch {}
+    // 2) authoritative load from Supabase (per-user, follows sign-in)
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return;
+      const { data } = await supabase
+        .from("user_preferences")
+        .select("prefs")
+        .eq("user_id", uid)
+        .maybeSingle();
+      const cols = (data?.prefs as any)?.venues_columns as string[] | undefined;
+      if (Array.isArray(cols) && cols.length) {
+        const merged = sanitize(cols);
+        setSelected(merged);
+        try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(merged)); } catch {}
+      }
+    })();
   }, []);
   const save = (next: string[]) => {
-    setSelected(next);
-    try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(next)); } catch {}
+    const clean = sanitize(next);
+    setSelected(clean);
+    try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(clean)); } catch {}
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return;
+      const { data: existing } = await supabase
+        .from("user_preferences")
+        .select("prefs")
+        .eq("user_id", uid)
+        .maybeSingle();
+      const merged = { ...(existing?.prefs as any ?? {}), venues_columns: clean };
+      await supabase
+        .from("user_preferences")
+        .upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    })();
   };
   return { selected, save };
 }
+
 
 function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void }) {
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
