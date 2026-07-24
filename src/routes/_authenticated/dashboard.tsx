@@ -2054,7 +2054,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
         <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
-          Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
+          Venues <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{venues.length}</span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
