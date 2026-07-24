@@ -2130,7 +2130,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   v.description.length > 40 ? (
                     <span className="group relative block w-full">
                       <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
-                      <span className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 w-72 whitespace-normal rounded-lg border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+                      <span className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 w-72 max-w-[18rem] whitespace-pre-wrap break-all rounded-lg border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground opacity-0 shadow-xl transition-opacity duration-150 group-hover:visible group-hover:opacity-100" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                         {v.description}
                       </span>
                     </span>
