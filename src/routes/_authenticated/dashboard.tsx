@@ -129,7 +129,7 @@ function Dashboard() {
       if (se) throw se;
       const ids = (staffRows ?? []).map((r) => r.venue_id);
       if (ids.length === 0) return [] as Venue[];
-      const { data, error } = await supabase.from("venues").select("*").in("id", ids).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("venues").select("*").in("id", ids).order("id", { ascending: false });
       if (error) throw error;
       return data as Venue[];
     },
