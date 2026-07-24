@@ -2178,6 +2178,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   <span className="text-xs text-muted-foreground italic">No pin</span>
                 )}
               </td>
+              <td className="px-3 py-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => setCourtsFor(v)}
+                  title="View courts under this venue"
+                  aria-label={`View courts under ${v.name}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Layers className="h-4 w-4" />
+                </button>
+              </td>
               <td className="px-3 py-3">
                 <div className="flex items-center justify-end gap-1">
                   <button
