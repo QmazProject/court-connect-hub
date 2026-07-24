@@ -1890,14 +1890,31 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
               hint="Shown on the landing-page map. Individual courts can override this."
             />
           </div>
+          <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 accent-primary" />
+              Active
+            </label>
+            <span
+              tabIndex={0}
+              role="button"
+              aria-label="About the active status"
+              title={ACTIVE_INFO_TEXT}
+              className="grid h-4 w-4 cursor-help place-items-center rounded-full border border-muted-foreground/40 text-[10px] font-bold text-muted-foreground hover:border-primary hover:text-primary"
+            >
+              ?
+            </span>
+            <span className="ml-auto text-[11px] text-muted-foreground">Untick to hide this venue from players.</span>
+          </div>
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
+
       </div>
     );
   }
