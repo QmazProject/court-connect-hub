@@ -2098,6 +2098,19 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   const [viewing, setViewing] = useState<Venue | null>(null);
   const [history, setHistory] = useState<Venue | null>(null);
   const [courtsFor, setCourtsFor] = useState<Venue | null>(null);
+  const venueIds = venues.map((v) => v.id);
+  const courtsCountQ = useQuery({
+    queryKey: ["venues-court-counts", venueIds],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts").select("venue_id").in("venue_id", venueIds);
+      if (error) throw error;
+      const map: Record<number, number> = {};
+      (data ?? []).forEach((c: any) => { map[c.venue_id] = (map[c.venue_id] ?? 0) + 1; });
+      return map;
+    },
+  });
+  const countFor = (id: number) => courtsCountQ.data?.[id] ?? 0;
   return (
     <>
       <table className="w-full min-w-[980px] text-sm">
