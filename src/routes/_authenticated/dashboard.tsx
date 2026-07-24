@@ -919,7 +919,6 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
             </label>
           </div>
         )}
-        <div className="sm:col-span-2 flex flex-wrap gap-2">
         <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2">
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 accent-primary" />
