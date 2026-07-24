@@ -351,6 +351,44 @@ export type Database = {
           },
         ]
       }
+      venue_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          changes: Json | null
+          created_at: string
+          id: number
+          venue_id: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          changes?: Json | null
+          created_at?: string
+          id?: number
+          venue_id: number
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          changes?: Json | null
+          created_at?: string
+          id?: number
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_audit_log_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           address: string
