@@ -2120,7 +2120,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                 <div className="flex items-center gap-2 whitespace-nowrap">
                   <span className="font-semibold whitespace-nowrap">{v.name}</span>
                   {idx === 0 && venues.length > 1 && (
-                    <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">Newest</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />Newest</span>
                   )}
                 </div>
                 <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
