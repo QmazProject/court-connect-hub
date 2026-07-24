@@ -13,7 +13,7 @@ const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
   Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle, History as HistoryIcon,
-  Columns3, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon,
+  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon,
 } from "lucide-react";
 
 type SectionKey =
