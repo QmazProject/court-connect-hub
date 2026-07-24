@@ -93,6 +93,28 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
           seen.add(key);
           deduped.push(r);
         }
+
+        // Rank: prefer boundary/admin matches whose name equals the query
+        // (Google-Maps-like: "Dumanjug" surfaces the municipality boundary first).
+        const qLower = q.toLowerCase();
+        const nameOf = (r: NomResult) => {
+          const a = r.address ?? {};
+          return (a.name || a.city || a.town || a.village || a.municipality ||
+            a.county || a.state || r.display_name.split(",")[0] || "").toLowerCase();
+        };
+        const rank = (r: NomResult) => {
+          const n = nameOf(r);
+          const isArea = isAreaResult(r);
+          const hasPoly = r.geojson && (r.geojson.type === "Polygon" || r.geojson.type === "MultiPolygon");
+          let score = 0;
+          if (n === qLower) score -= 100;
+          else if (n.startsWith(qLower)) score -= 50;
+          else if (n.includes(qLower)) score -= 20;
+          if (isArea) score -= 30;
+          if (hasPoly) score -= 15;
+          return score;
+        };
+        deduped.sort((a, b) => rank(a) - rank(b));
         setResults(deduped.slice(0, 20));
       } catch { /* aborted */ }
       finally { setSearching(false); }
