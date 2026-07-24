@@ -2175,7 +2175,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   aria-label={`View audit history for ${v.name}`}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
                 >
-                  <History className="h-4 w-4" />
+                  <HistoryIcon className="h-4 w-4" />
                 </button>
               </td>
             </tr>
