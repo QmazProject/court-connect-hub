@@ -920,7 +920,25 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           </div>
         )}
         <div className="sm:col-span-2 flex flex-wrap gap-2">
+        <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 accent-primary" />
+            Active
+          </label>
+          <span
+            tabIndex={0}
+            role="button"
+            aria-label="About the active status"
+            title={ACTIVE_INFO_TEXT}
+            className="grid h-4 w-4 cursor-help place-items-center rounded-full border border-muted-foreground/40 text-[10px] font-bold text-muted-foreground hover:border-primary hover:text-primary"
+          >
+            ?
+          </span>
+          <span className="ml-auto text-[11px] text-muted-foreground">Ticked by default — the venue will appear on the landing page.</span>
+        </div>
+        <div className="sm:col-span-2 flex flex-wrap gap-2">
           <button disabled={mut.isPending || pinOutsidePH || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+
             {mut.isPending ? "Creating…" : "Create venue"}
           </button>
           {onCancel && <button type="button" onClick={onCancel} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
