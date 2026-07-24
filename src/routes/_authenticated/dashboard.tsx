@@ -2197,8 +2197,9 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
   const [selQuery, setSelQuery] = useState("");
   const [presetName, setPresetName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const { presets, persist } = useColumnPresets();
-  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); } }, [open, selected]);
+  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); setDeleteTarget(null); } }, [open, selected]);
   if (!open) return null;
 
   const availableCols = VENUE_COLUMNS.filter((c) => !localSelected.includes(c.id));
