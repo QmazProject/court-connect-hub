@@ -9,6 +9,7 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MapInfoButton } from "@/components/MapInfoButton";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
@@ -2196,8 +2197,9 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
   const [selQuery, setSelQuery] = useState("");
   const [presetName, setPresetName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const { presets, persist } = useColumnPresets();
-  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); } }, [open, selected]);
+  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); setDeleteTarget(null); } }, [open, selected]);
   if (!open) return null;
 
   const availableCols = VENUE_COLUMNS.filter((c) => !localSelected.includes(c.id));
@@ -2257,7 +2259,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
           {presets.length > 0 && (
             <select
               value=""
-              onChange={(e) => { const name = e.target.value; if (!name) return; if (confirm(`Delete preset "${name}"?`)) persist(presets.filter((p) => p.name !== name)); e.currentTarget.value = ""; }}
+              onChange={(e) => { const name = e.target.value; if (!name) return; setDeleteTarget(name); e.currentTarget.value = ""; }}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-destructive outline-none focus:border-destructive"
             >
               <option value="">Delete…</option>
@@ -2360,6 +2362,25 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
           </div>
         </div>
       </div>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete preset?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the preset <span className="font-semibold text-foreground">"{deleteTarget}"</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (deleteTarget) persist(presets.filter((p) => p.name !== deleteTarget)); setDeleteTarget(null); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
