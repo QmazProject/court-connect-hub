@@ -2053,7 +2053,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
-        <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
+        <TabBtn active={tab === "venues"} onClick={() => setTab("venues")} activeClassName="text-foreground">
           Venues <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-semibold">{venues.length}</span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
@@ -2078,17 +2078,19 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
   );
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function TabBtn({ active, onClick, children, activeClassName }: { active: boolean; onClick: () => void; children: React.ReactNode; activeClassName?: string }) {
+  const activeColor = activeClassName ?? "text-primary";
+  const indicatorColor = activeClassName ? "bg-foreground" : "bg-primary";
   return (
     <button
       onClick={onClick}
       className={
         "relative px-4 sm:px-6 py-3 text-sm font-semibold transition " +
-        (active ? "text-primary" : "text-muted-foreground hover:text-foreground")
+        (active ? activeColor : "text-muted-foreground hover:text-foreground")
       }
     >
       {children}
-      {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
+      {active && <span className={"absolute inset-x-2 -bottom-px h-0.5 rounded-full " + indicatorColor} />}
     </button>
   );
 }
