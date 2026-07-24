@@ -2078,19 +2078,17 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
   );
 }
 
-function TabBtn({ active, onClick, children, activeClassName }: { active: boolean; onClick: () => void; children: React.ReactNode; activeClassName?: string }) {
-  const activeColor = activeClassName ?? "text-primary";
-  const indicatorColor = activeClassName ? "bg-foreground" : "bg-primary";
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
       className={
         "relative px-4 sm:px-6 py-3 text-sm font-semibold transition " +
-        (active ? activeColor : "text-muted-foreground hover:text-foreground")
+        (active ? "text-foreground" : "text-muted-foreground hover:text-foreground")
       }
     >
       {children}
-      {active && <span className={"absolute inset-x-2 -bottom-px h-0.5 rounded-full " + indicatorColor} />}
+      {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
     </button>
   );
 }
