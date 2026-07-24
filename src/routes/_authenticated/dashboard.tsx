@@ -9,6 +9,7 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MapInfoButton } from "@/components/MapInfoButton";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
