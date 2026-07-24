@@ -191,7 +191,7 @@ function Dashboard() {
             open={addCourtOpen}
             onClose={() => setAddCourtOpen(false)}
             venues={venues}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); setAddCourtOpen(false); }}
+            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); setAddCourtOpen(false); }}
           />
           <CreateGroupDrawer
             open={createGroupOpen}
@@ -980,9 +980,9 @@ function VenueSection({ venue }: { venue: Venue }) {
       <div className="p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(courtsQ.data ?? []).map((c) => (
-            <CourtCard key={c.id} court={c} venueEmoji={venue.map_emoji} onChanged={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+            <CourtCard key={c.id} court={c} venueEmoji={venue.map_emoji} onChanged={() => { qc.invalidateQueries({ queryKey: ["courts", venue.id] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); }} />
           ))}
-          <AddCourt venueId={venue.id} venueEmoji={venue.map_emoji} onCreated={() => qc.invalidateQueries({ queryKey: ["courts", venue.id] })} />
+          <AddCourt venueId={venue.id} venueEmoji={venue.map_emoji} onCreated={() => { qc.invalidateQueries({ queryKey: ["courts", venue.id] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); }} />
         </div>
 
 
@@ -1806,7 +1806,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       const { error } = await supabase.from("venues").delete().eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); },
     onError: (e: Error) => setDelErr(e.message),
   });
 
@@ -2718,7 +2718,7 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
       const { error } = await supabase.from("venues").delete().eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { setConfirming(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); },
+    onSuccess: () => { setConfirming(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -2928,6 +2928,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
     qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+    qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
   };
 
   return (
