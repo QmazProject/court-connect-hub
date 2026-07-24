@@ -2103,7 +2103,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
             <th className="px-4 py-2.5 w-10"></th>
             <th className="px-3 py-2.5">Venue</th>
             <th className="px-3 py-2.5">Location</th>
-            <th className="px-3 py-2.5">Description</th>
+            <th className="px-3 py-2.5">ABOUT THIS VENUE</th>
             <th className="px-3 py-2.5 w-32">CREATED AT</th>
             <th className="px-3 py-2.5 w-20 text-center">Map</th>
             <th className="px-3 py-2.5 w-40 text-right">Actions</th>
