@@ -1414,7 +1414,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         </p>
       </div>
       <div className="mt-3 grid gap-3">
-        <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
+        <Textarea label="About this Court" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
         <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
         <div className="rounded-xl border border-border bg-background p-3">
