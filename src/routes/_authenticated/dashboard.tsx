@@ -2362,6 +2362,25 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
           </div>
         </div>
       </div>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete preset?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the preset <span className="font-semibold text-foreground">"{deleteTarget}"</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (deleteTarget) persist(presets.filter((p) => p.name !== deleteTarget)); setDeleteTarget(null); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
