@@ -8,6 +8,7 @@ import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MapInfoButton } from "@/components/MapInfoButton";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
