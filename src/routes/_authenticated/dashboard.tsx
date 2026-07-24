@@ -618,7 +618,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
         <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
       </div>
 
-      <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+      <Textarea label="About this Group" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
