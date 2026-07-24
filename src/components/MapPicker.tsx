@@ -113,6 +113,69 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
     }
   };
 
+  const clearHighlight = () => {
+    if (highlightRef.current && mapRef.current) {
+      mapRef.current.removeLayer(highlightRef.current);
+      highlightRef.current = null;
+    }
+  };
+
+  const isAreaResult = (r: NomResult) => {
+    const cls = r.class ?? "";
+    const t = r.type ?? "";
+    if (cls === "boundary" || cls === "place") return true;
+    return ["city", "town", "village", "municipality", "suburb", "neighbourhood", "county", "state", "region", "administrative"].includes(t);
+  };
+
+  const selectResult = async (r: NomResult) => {
+    const L = (await import("leaflet")).default ?? (await import("leaflet"));
+    if (!mapRef.current) return;
+    clearHighlight();
+
+    const lat = Number(r.lat), lng = Number(r.lon);
+    const area = isAreaResult(r);
+
+    // Draw polygon/rectangle highlight when we have geometry or bbox
+    if (r.geojson && (r.geojson.type === "Polygon" || r.geojson.type === "MultiPolygon")) {
+      highlightRef.current = L.geoJSON(r.geojson, {
+        style: { color: "#09e6d2", weight: 2, fillColor: "#09e6d2", fillOpacity: 0.15 },
+        interactive: false,
+      }).addTo(mapRef.current);
+    } else if (r.boundingbox) {
+      const [s, n, w, e] = r.boundingbox.map(Number);
+      highlightRef.current = L.rectangle([[s, w], [n, e]], {
+        color: "#09e6d2", weight: 2, fillColor: "#09e6d2", fillOpacity: 0.15, interactive: false,
+      }).addTo(mapRef.current);
+    }
+
+    // Fit view to bbox if present, else zoom to point
+    if (r.boundingbox) {
+      const [s, n, w, e] = r.boundingbox.map(Number);
+      mapRef.current.fitBounds([[s, w], [n, e]], { padding: [24, 24], maxZoom: area ? 15 : 18 });
+    } else {
+      mapRef.current.setView([lat, lng], area ? 13 : 17);
+    }
+
+    // Drop pin only for specific places, not for whole areas
+    if (!area) {
+      setPos({ lat, lng });
+      if (markerRef.current) markerRef.current.setLatLng([lat, lng]);
+      else {
+        const icon = L.icon({
+          iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+          iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+          shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+          iconSize: [25, 41], iconAnchor: [12, 41],
+        });
+        markerRef.current = L.marker([lat, lng], { icon, draggable: true }).addTo(mapRef.current);
+        markerRef.current.on("dragend", () => {
+          const p = markerRef.current.getLatLng();
+          setPos({ lat: p.lat, lng: p.lng });
+        });
+      }
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
