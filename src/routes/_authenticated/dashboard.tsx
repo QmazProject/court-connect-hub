@@ -2115,9 +2115,9 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           {venues.map((v, idx) => (
             <tr key={v.id} className="border-t border-border align-top hover:bg-secondary/20">
               <td className="px-4 py-3 text-xl leading-none">{v.map_emoji ?? "🎾"}</td>
-              <td className="px-3 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{v.name}</span>
+              <td className="px-3 py-3 whitespace-nowrap">
+                <div className="flex items-center gap-2 whitespace-nowrap">
+                  <span className="font-semibold whitespace-nowrap">{v.name}</span>
                   {idx === 0 && venues.length > 1 && (
                     <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">Newest</span>
                   )}
