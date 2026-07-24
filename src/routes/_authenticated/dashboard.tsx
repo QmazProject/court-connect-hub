@@ -2095,6 +2095,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 function VenuesTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<Venue | null>(null);
   const [viewing, setViewing] = useState<Venue | null>(null);
+  const [history, setHistory] = useState<Venue | null>(null);
   return (
     <>
       <table className="w-full min-w-[980px] text-sm">
