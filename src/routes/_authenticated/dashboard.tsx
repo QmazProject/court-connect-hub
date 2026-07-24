@@ -2098,6 +2098,19 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   const [viewing, setViewing] = useState<Venue | null>(null);
   const [history, setHistory] = useState<Venue | null>(null);
   const [courtsFor, setCourtsFor] = useState<Venue | null>(null);
+  const venueIds = venues.map((v) => v.id);
+  const courtsCountQ = useQuery({
+    queryKey: ["venues-court-counts", venueIds],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts").select("venue_id").in("venue_id", venueIds);
+      if (error) throw error;
+      const map: Record<number, number> = {};
+      (data ?? []).forEach((c: any) => { map[c.venue_id] = (map[c.venue_id] ?? 0) + 1; });
+      return map;
+    },
+  });
+  const countFor = (id: number) => courtsCountQ.data?.[id] ?? 0;
   return (
     <>
       <table className="w-full min-w-[980px] text-sm">
@@ -2179,15 +2192,31 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                 )}
               </td>
               <td className="px-3 py-3 text-center">
-                <button
-                  type="button"
-                  onClick={() => setCourtsFor(v)}
-                  title="View courts under this venue"
-                  aria-label={`View courts under ${v.name}`}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-                >
-                  <Layers className="h-4 w-4" />
-                </button>
+                {(() => {
+                  const n = countFor(v.id);
+                  const has = n > 0;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setCourtsFor(v)}
+                      title={has ? `View ${n} court${n === 1 ? "" : "s"} under this venue` : "No courts yet"}
+                      aria-label={`View courts under ${v.name}`}
+                      className={
+                        "relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition " +
+                        (has
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/20"
+                          : "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary")
+                      }
+                    >
+                      <Layers className="h-4 w-4" />
+                      {has && (
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">
+                          {n}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })()}
               </td>
               <td className="px-3 py-3">
                 <div className="flex items-center justify-end gap-1">
