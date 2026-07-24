@@ -344,7 +344,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
                   <li key={i}>
                     <button
                       type="button"
-                      onClick={() => { flyTo(Number(r.lat), Number(r.lon)); setResults([]); setQuery(r.display_name.split(",")[0]); }}
+                      onClick={() => { selectResult(r); setResults([]); setQuery(r.display_name.split(",")[0]); }}
                       className="block w-full px-3 py-2 text-left text-xs hover:bg-secondary"
                     >
                       {r.display_name}
