@@ -1584,7 +1584,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         </p>
       </div>
       <div className="mt-3 grid gap-3">
-        <Textarea label="Description" value={description} onChange={setDescription} />
+        <Textarea label="About this Court" value={description} onChange={setDescription} />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
         <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
         <div className="rounded-xl border border-border bg-background p-3">
