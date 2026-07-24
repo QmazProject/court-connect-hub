@@ -2237,7 +2237,8 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
   const resetDefault = () => setLocalSelected(DEFAULT_VENUE_COLS);
   const apply = () => { onApply(localSelected); onClose(); };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true">
+
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-base font-semibold">Column Configuration</h3>
