@@ -2189,6 +2189,76 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   );
 }
 
+type AuditEntry = { id: number; venue_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
+
+function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["venue-audit", venue?.id],
+    enabled: !!venue,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("venue_audit_log" as never)
+        .select("*")
+        .eq("venue_id", venue!.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AuditEntry[];
+    },
+  });
+
+  if (!venue) return null;
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Audit history</div>
+            <div className="font-semibold">{venue.name}</div>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto px-5 py-4">
+          {isLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : !data || data.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground italic">No history yet.</div>
+          ) : (
+            <ol className="relative space-y-4 border-l border-border pl-5">
+              {data.map((e) => (
+                <li key={e.id} className="relative">
+                  <span className={`absolute -left-[26px] top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
+                      {e.action === "created" ? "Created" : "Last modified"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{fmt(e.created_at)}</span>
+                  </div>
+                  <div className="mt-1 text-sm">
+                    <span className="text-muted-foreground">by </span>
+                    <span className="font-medium">{e.actor_name?.trim() || "Unknown"}</span>
+                  </div>
+                  {e.action === "updated" && e.changes && Object.keys(e.changes).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {Object.keys(e.changes).map((k) => (
+                        <span key={k} className="inline-flex rounded-md bg-secondary/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">{k}</span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DeleteVenueButton({ venue }: { venue: Venue }) {
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState(false);
