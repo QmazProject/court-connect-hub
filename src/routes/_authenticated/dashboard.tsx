@@ -1788,6 +1788,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [err, setErr] = useState<string | null>(null);
   const [delErr, setDelErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
+  const [isActive, setIsActive] = useState(venue.is_active !== false);
 
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
@@ -1797,7 +1798,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive })
         .eq("id", venue.id);
       if (error) throw error;
     },
