@@ -618,7 +618,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
         <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
       </div>
 
-      <Textarea label="Description (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+      <Textarea label="About this Group" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
@@ -1414,7 +1414,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         </p>
       </div>
       <div className="mt-3 grid gap-3">
-        <Textarea label="Description" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
+        <Textarea label="About this Court" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
         <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
         <div className="rounded-xl border border-border bg-background p-3">
@@ -1584,7 +1584,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         </p>
       </div>
       <div className="mt-3 grid gap-3">
-        <Textarea label="Description" value={description} onChange={setDescription} />
+        <Textarea label="About this Court" value={description} onChange={setDescription} />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
         <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
         <div className="rounded-xl border border-border bg-background p-3">
@@ -1845,7 +1845,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
             )}
           </label>
           <label className="block sm:col-span-2">
-            <span className="text-xs font-medium text-muted-foreground">Description</span>
+            <span className="text-xs font-medium text-muted-foreground">About this Venue</span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
