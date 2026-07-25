@@ -610,6 +610,15 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
   const noCourtsForSport =
     !!selectedSport && !loading && courts.length === 0;
 
+  // Sidebar collapse (persisted)
+  const [sportsCollapsed, setSportsCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("venue:sportsCollapsed") === "1";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("venue:sportsCollapsed", sportsCollapsed ? "1" : "0"); } catch {}
+  }, [sportsCollapsed]);
+
   // Player location (with venue as fallback anchor)
   const [playerLoc, setPlayerLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [geoDenied, setGeoDenied] = useState(false);
@@ -722,28 +731,74 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </div>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
-        {/* Desktop: vertical sport list */}
+      <div className={`mt-6 grid gap-6 ${allSports.length > 0 ? (sportsCollapsed ? "lg:grid-cols-[56px_1fr]" : "lg:grid-cols-[220px_1fr]") : ""}`}>
+        {/* Desktop: vertical sport list (collapsible) */}
         {allSports.length > 0 && (
           <aside className="hidden lg:block">
             <div className="sticky top-24 rounded-2xl border border-border bg-card p-3 shadow-sm">
-              <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sports</p>
-              <SportItem
-                active={!selectedSport}
-                emoji="✨"
-                label="All"
-                onClick={() => onSelectSport(null)}
-              />
-              {allSports.map((s) => (
-                <SportItem
-                  key={s.slug}
-                  active={selectedSport === s.slug}
-                  emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
-                  label={s.name}
-                  offered={venueSportSlugs.has(s.slug)}
-                  onClick={() => onSelectSport(s.slug)}
-                />
-              ))}
+              {sportsCollapsed ? (
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSportsCollapsed(false)}
+                    aria-label="Expand sports"
+                    title="Expand sports"
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSelectSport(null)}
+                    title="All sports"
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg transition ${!selectedSport ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-muted"}`}
+                  >
+                    ✨
+                  </button>
+                  {allSports.map((s) => (
+                    <button
+                      key={s.slug}
+                      type="button"
+                      onClick={() => onSelectSport(s.slug)}
+                      title={s.name}
+                      className={`relative flex h-9 w-9 items-center justify-center rounded-lg text-lg transition ${selectedSport === s.slug ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-muted"} ${venueSportSlugs.has(s.slug) ? "" : "opacity-60"}`}
+                    >
+                      {SPORT_EMOJI[s.slug] ?? "🏟️"}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="mb-2 flex items-center justify-between px-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sports</p>
+                    <button
+                      type="button"
+                      onClick={() => setSportsCollapsed(true)}
+                      aria-label="Collapse sports"
+                      title="Collapse"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <SportItem
+                    active={!selectedSport}
+                    emoji="✨"
+                    label="All"
+                    onClick={() => onSelectSport(null)}
+                  />
+                  {allSports.map((s) => (
+                    <SportItem
+                      key={s.slug}
+                      active={selectedSport === s.slug}
+                      emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
+                      label={s.name}
+                      offered={venueSportSlugs.has(s.slug)}
+                      onClick={() => onSelectSport(s.slug)}
+                    />
+                  ))}
+                </>
+              )}
             </div>
           </aside>
         )}
