@@ -2449,7 +2449,19 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
 
   const renderHeader = (id: string) => {
     switch (id) {
-      case "emoji": return <th key={id} className="px-4 py-2.5 w-10"></th>;
+      case "emoji": return (
+        <th key={id} className="px-2 py-2 w-10">
+          <button
+            type="button"
+            onClick={() => setColCfgOpen(true)}
+            title="Configure columns"
+            aria-label="Configure columns"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+          >
+            <TableProperties className="h-4 w-4" />
+          </button>
+        </th>
+      );
       case "name": return <th key={id} className="px-3 py-2.5">Venue</th>;
       case "location": return <th key={id} className="px-3 py-2.5">Location</th>;
       case "description": return <th key={id} className="px-3 py-2.5">ABOUT THIS VENUE</th>;
