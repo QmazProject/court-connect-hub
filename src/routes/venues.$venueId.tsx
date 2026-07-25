@@ -693,6 +693,83 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
 
   const selectedSportName = selectedSport ? allSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
 
+  // ---- Real-time availability for a selected date ----
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  }, []);
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
+  const bookableCourtIds = useMemo(
+    () => courts.filter((c) => !c.coming_soon).map((c) => c.id),
+    [courts]
+  );
+
+  const dayBounds = useMemo(() => {
+    const start = new Date(`${selectedDate}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  }, [selectedDate]);
+
+  const bookingsQ = useQuery({
+    queryKey: ["venue-day-bookings", venue?.id, selectedDate, bookableCourtIds.join(",")],
+    enabled: bookableCourtIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("court_id, start_time, end_time, status")
+        .in("court_id", bookableCourtIds)
+        .eq("status", "confirmed")
+        .lt("start_time", dayBounds.endISO)
+        .gt("end_time", dayBounds.startISO);
+      if (error) throw error;
+      return (data ?? []) as { court_id: number; start_time: string; end_time: string }[];
+    },
+  });
+
+  const weekdayKey = useMemo(() => {
+    const d = new Date(`${selectedDate}T00:00:00`);
+    return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
+  }, [selectedDate]);
+
+  function parseOpHours(oh: Record<string, string> | null | undefined): [number, number] {
+    const raw = oh?.[weekdayKey] ?? "00:00-24:00";
+    const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(raw.trim());
+    if (!m) return [0, 24];
+    const start = Math.max(0, Math.min(24, parseInt(m[1], 10)));
+    const end = Math.max(0, Math.min(24, parseInt(m[3], 10)));
+    if (end <= start) return [0, 24];
+    return [start, end];
+  }
+
+  const availability = useMemo(() => {
+    const byCourt = new Map<number, { total: number; booked: number }>();
+    const dayStart = new Date(`${selectedDate}T00:00:00`).getTime();
+    for (const c of courts) {
+      if (c.coming_soon) continue;
+      const [oh0, oh1] = parseOpHours(c.operating_hours);
+      const total = oh1 - oh0;
+      const bookedSet = new Set<number>();
+      for (const b of bookingsQ.data ?? []) {
+        if (b.court_id !== c.id) continue;
+        const s = Math.max(new Date(b.start_time).getTime(), dayStart + oh0 * 3600_000);
+        const e = Math.min(new Date(b.end_time).getTime(), dayStart + oh1 * 3600_000);
+        if (e <= s) continue;
+        const startHr = Math.floor((s - dayStart) / 3600_000);
+        const endHr = Math.ceil((e - dayStart) / 3600_000);
+        for (let h = startHr; h < endHr; h++) bookedSet.add(h);
+      }
+      byCourt.set(c.id, { total, booked: Math.min(bookedSet.size, total) });
+    }
+    return byCourt;
+  }, [courts, bookingsQ.data, selectedDate, weekdayKey]);
+
+  const isPastDate = selectedDate < todayStr;
+
+
   return (
     <section className="mx-auto mt-10 max-w-6xl px-4 sm:mt-14 sm:px-6">
       {/* Heading */}
