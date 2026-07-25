@@ -101,6 +101,7 @@ type Court = {
   map_emoji: string | null;
   physical_court_id: number;
   capacity: number;
+  voucher_enabled?: boolean | null;
   sports: { name: string; slug?: string } | null;
 };
 type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null };
