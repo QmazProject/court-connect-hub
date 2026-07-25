@@ -24,6 +24,7 @@ type Court = {
   map_emoji: string | null;
   surface_type: string | null;
   player_capacity: number | null;
+  voucher_enabled: boolean | null;
   sports: { name: string } | null;
   venues: {
     name: string;
