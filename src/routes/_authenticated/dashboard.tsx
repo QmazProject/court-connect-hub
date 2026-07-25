@@ -887,6 +887,12 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [facilityServices, setFacilityServices] = useState<string[]>([]);
   const [fees, setFees] = useState<FeeItem[]>([]);
   const [feesNotes, setFeesNotes] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [operatingHoursText, setOperatingHoursText] = useState("");
+  const [cancellationHours, setCancellationHours] = useState<number>(24);
+  const [cancellationNotes, setCancellationNotes] = useState("");
+  const [rules, setRules] = useState("");
   const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const suggested = suggestTimezone(lat, lng);
@@ -900,10 +906,10 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const cleanFees = fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) }));
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null });
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); setContactPhone(""); setContactEmail(""); setOperatingHoursText(""); setCancellationHours(24); setCancellationNotes(""); setRules(""); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
