@@ -1564,12 +1564,14 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         map_emoji: mapEmoji,
         surface_type: surfaceType.trim() || null,
         player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
+        blocked_hours: weeklyToPayload(availWeekly),
+        blocked_dates: datesToPayload(availDates),
       });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
