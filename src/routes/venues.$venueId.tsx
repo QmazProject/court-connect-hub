@@ -73,7 +73,9 @@ type Court = {
   images: string[] | null;
   coming_soon: boolean | null;
   operating_hours: Record<string, string> | null;
+  map_emoji: string | null;
   sports: { name: string; slug: string } | null;
+
 };
 
 type ChipKey =
@@ -118,7 +120,7 @@ function VenueDetail() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, description, amenities, images, coming_soon, operating_hours, sports!inner(name, slug)")
+        .select("id, name, hourly_rate, is_indoor, description, amenities, images, coming_soon, operating_hours, map_emoji, sports!inner(name, slug)")
         .eq("venue_id", Number(venueId))
         .order("coming_soon", { ascending: true })
         .order("id");
@@ -1047,9 +1049,11 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                     </button>
                     <div className="p-5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
-                          {c.sports?.name ?? "Sport"}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
+                          {c.map_emoji && <span aria-hidden>{c.map_emoji}</span>}
+                          <span>{c.sports?.name ?? "Sport"}</span>
                         </span>
+
                         <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
                       </div>
                       <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
