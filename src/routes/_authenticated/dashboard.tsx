@@ -2745,6 +2745,84 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
             </button>
           </td>
         );
+      case "amenities":
+      case "food_beverages":
+      case "facility_services": {
+        const arr = (id === "amenities" ? v.amenities : id === "food_beverages" ? v.food_beverages : v.facility_services) ?? [];
+        if (!arr.length) return <td key={id} className="px-3 py-3 text-muted-foreground"><span className="italic opacity-60">—</span></td>;
+        const text = arr.join(", ");
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] text-xs">
+                <div className="flex flex-wrap gap-1">
+                  {arr.map((t, i) => <span key={i} className="rounded-full bg-secondary px-2 py-0.5">{t}</span>)}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
+      case "fees": {
+        const feesArr = Array.isArray(v.fees) ? v.fees as FeeItem[] : [];
+        if (!feesArr.length && !v.fees_notes) return <td key={id} className="px-3 py-3 text-center text-muted-foreground"><span className="italic opacity-60">—</span></td>;
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="center" className="w-64 text-xs">
+                <ul className="space-y-1">
+                  {feesArr.map((f, i) => <li key={i} className="flex justify-between gap-2"><span>{f.label}</span><span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span></li>)}
+                </ul>
+                {v.fees_notes && <p className="mt-2 border-t border-border pt-2 text-muted-foreground whitespace-pre-wrap">{v.fees_notes}</p>}
+              </HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
+      case "contact_phone":
+        return <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{v.contact_phone || <span className="italic opacity-60">—</span>}</td>;
+      case "contact_email":
+        return <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{v.contact_email || <span className="italic opacity-60">—</span>}</td>;
+      case "operating_hours":
+      case "rules": {
+        const text = id === "operating_hours" ? v.operating_hours_text : v.rules;
+        if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
+      case "cancellation": {
+        const hrs = (v as any).refund_cutoff_hours as number | null | undefined;
+        const notes = v.cancellation_notes;
+        if (hrs == null && !notes) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
+        const summary = hrs != null ? `Cancel up to ${hrs}h before` : "See notes";
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] text-xs">
+                <p className="font-semibold text-foreground">{summary}</p>
+                {notes && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{notes}</p>}
+              </HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
       default: return null;
     }
   };
