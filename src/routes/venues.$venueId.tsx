@@ -809,9 +809,56 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </div>
       )}
 
+      {/* Date picker for real-time availability */}
+      <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-primary/10 p-2 text-primary">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-foreground">Check court availability</div>
+              <p className="text-xs text-muted-foreground">Select a date to view real-time court availability.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedDate(todayStr)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedDate === todayStr ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:border-primary/50"}`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date(`${todayStr}T00:00:00`);
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(d.toISOString().slice(0, 10));
+              }}
+              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/50"
+            >
+              Tomorrow
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              min={todayStr}
+              onChange={(e) => setSelectedDate(e.target.value || todayStr)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+        {isPastDate && (
+          <p className="mt-2 text-xs text-amber-600">This date is in the past — availability is read-only.</p>
+        )}
+      </div>
+
       <div className="mt-6">
         {/* Courts grid */}
         <div>
+
+
 
           {loading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
