@@ -1058,6 +1058,16 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                               +{c.images!.length - 1} photos
                             </span>
                           )}
+                          {!soon && (
+                            <span
+                              aria-hidden
+                              className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
+                            >
+                              <span className="rounded-full bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-rose-500 px-4 py-2 font-display text-[12px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+                                Click to view court images
+                              </span>
+                            </span>
+                          )}
                         </>
                       ) : (
                         <div className={`court-pattern h-40 ${soon ? "opacity-70" : ""}`} />
