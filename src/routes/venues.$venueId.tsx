@@ -613,9 +613,10 @@ type ExploreCourtsProps = {
   loading: boolean;
   selectedSport: string | undefined;
   onSelectSport: (slug: string | null) => void;
+  onOpenCourt: (id: number) => void;
 };
 
-function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }: ExploreCourtsProps) {
+function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, onOpenCourt }: ExploreCourtsProps) {
   // ALL sports the system supports (system-wide list)
   const allSportsQ = useQuery({
     queryKey: ["all-sports"],
