@@ -36,7 +36,7 @@ type Court = {
   } | null;
 };
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="border-b border-border px-4 py-2.5 last:border-b-0 sm:odd:border-r">
       <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
