@@ -2456,6 +2456,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "created_at": return <th key={id} className="px-3 py-2.5 w-32">CREATED AT</th>;
       case "map": return <th key={id} className="px-3 py-2.5 w-20 text-center">Map</th>;
       case "courts": return <th key={id} className="px-3 py-2.5 w-24 text-center">Courts</th>;
+      case "status": return <th key={id} className="px-3 py-2.5 w-28 text-center">Status</th>;
       case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
       case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
       default: return null;
