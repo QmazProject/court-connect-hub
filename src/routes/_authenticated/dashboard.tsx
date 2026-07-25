@@ -970,6 +970,18 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         <div className="sm:col-span-2">
           <ImageUploader label="Venue photos" pathPrefix={uploadPrefix} images={images} onChange={setImages} />
         </div>
+        <div className="sm:col-span-2">
+          <TagInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Parking, Showers, Wi-Fi" hint="Press Enter or comma to add. Shown to players on the venue page." />
+        </div>
+        <div className="sm:col-span-2">
+          <TagInput label="Food & Beverages" values={foodBeverages} onChange={setFoodBeverages} placeholder="e.g. Cafe, Vending machine, Water refill" />
+        </div>
+        <div className="sm:col-span-2">
+          <TagInput label="Facility Services" values={facilityServices} onChange={setFacilityServices} placeholder="e.g. Racket rental, Coaching, Ball machine" />
+        </div>
+        <div className="sm:col-span-2">
+          <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
+        </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <strong>Location not supported.</strong> CourtHub is currently available for venues in the <strong>Philippines</strong> only. Please move your pin within the Philippines to continue.
