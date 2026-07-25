@@ -15,12 +15,12 @@ const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
   Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle, History as HistoryIcon,
-  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark,
+  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent,
 } from "lucide-react";
 
 type SectionKey =
   | "dashboard" | "calendar" | "bookings" | "courts"
-  | "customers" | "team" | "transactions" | "settings";
+  | "customers" | "team" | "transactions" | "vouchers" | "settings";
 
 const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,6 +30,7 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "customers", label: "Customers", icon: Users },
   { key: "team", label: "Team", icon: UserCog },
   { key: "transactions", label: "Transactions", icon: Receipt },
+  { key: "vouchers", label: "Vouchers", icon: TicketPercent },
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
