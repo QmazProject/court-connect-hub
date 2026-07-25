@@ -287,12 +287,28 @@ function VenueDetail() {
                 <dd className="font-medium select-text">{venue.contact_phone}</dd>
               </div>
             )}
-            {venue.contact_email && (
-              <div className="flex items-center justify-between gap-3">
-                <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>✉️</span>Email</dt>
-                <dd className="font-medium select-text break-all">{venue.contact_email}</dd>
-              </div>
-            )}
+            {venue.contact_email && (() => {
+              const email = venue.contact_email.trim();
+              const isGmail = /@gmail\.com$/i.test(email);
+              const href = isGmail
+                ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`
+                : `mailto:${email}`;
+              return (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>✉️</span>Email</dt>
+                  <dd className="font-medium break-all">
+                    <a
+                      href={href}
+                      target={isGmail ? "_blank" : undefined}
+                      rel={isGmail ? "noreferrer" : undefined}
+                      className="text-primary hover:underline"
+                    >
+                      {email}
+                    </a>
+                  </dd>
+                </div>
+              );
+            })()}
           </dl>
         );
       case "hours":
