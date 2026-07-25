@@ -2812,15 +2812,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         const summary = hrs != null ? `Cancel up to ${hrs}h before` : "See notes";
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
-            <HoverCard openDelay={100} closeDelay={80}>
-              <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 text-xs hover:text-foreground">{summary}{notes ? ` — ${notes}` : ""}</button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto text-xs">
                 <p className="font-semibold text-foreground">{summary}</p>
                 {notes && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{notes}</p>}
-              </HoverCardContent>
-            </HoverCard>
+              </PopoverContent>
+            </Popover>
           </td>
         );
       }
