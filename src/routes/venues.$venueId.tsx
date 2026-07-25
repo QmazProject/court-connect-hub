@@ -506,6 +506,8 @@ function VenueDetail() {
           navigate({ to: "/venues/$venueId", params: { venueId }, search: slug ? { sport: slug } : {} })
         }
         onOpenCourt={(id) => openCourt(id)}
+        openCourtId={openCourtId ?? null}
+
       />
 
 
