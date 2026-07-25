@@ -1860,6 +1860,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
         blocked_hours: weeklyToPayload(availWeekly),
         blocked_dates: datesToPayload(availDates),
+        voucher_enabled: voucherEnabled,
       }).eq("id", court.id);
       if (error) throw error;
     },
