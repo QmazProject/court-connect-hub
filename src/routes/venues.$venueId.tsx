@@ -1087,8 +1087,8 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                                 </span>
                               )}
                             </span>
-                            {avail && avail.total > 0 && (
-                              <span className="text-muted-foreground">{avail.booked}/{avail.total} booked</span>
+                            {avail && avail.total > 0 && avail.booked > 0 && (
+                              <span className="text-muted-foreground">{avail.booked} hr{avail.booked === 1 ? "" : "s"} booked</span>
                             )}
                           </div>
                           {avail && avail.total > 0 && (
