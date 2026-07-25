@@ -1103,13 +1103,17 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                               ) : (
                                 <span>
                                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${availTone}`}>
-                                    {remaining} hr{remaining === 1 ? "" : "s"} open
+                                    {remaining} slot{remaining === 1 ? "" : "s"} open
                                   </span>
                                 </span>
                               )}
                             </span>
-                            {avail && avail.total > 0 && avail.booked > 0 && (
-                              <span className="text-muted-foreground">{avail.booked} hr{avail.booked === 1 ? "" : "s"} booked</span>
+                            {avail && avail.total > 0 && (avail.booked > 0 || avail.past > 0) && (
+                              <span className="text-muted-foreground">
+                                {avail.booked > 0 && <>{avail.booked} booked</>}
+                                {avail.booked > 0 && avail.past > 0 && " · "}
+                                {avail.past > 0 && <>{avail.past} passed</>}
+                              </span>
                             )}
                           </div>
                           {avail && avail.total > 0 && (
