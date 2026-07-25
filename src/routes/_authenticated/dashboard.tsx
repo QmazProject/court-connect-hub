@@ -1237,14 +1237,40 @@ function fmtHourShort(x: number) {
   return `${h12}${p}`;
 }
 
-function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
-  const [mode, setMode] = useState<"weekly" | "date">("weekly");
-  const [err, setErr] = useState<string | null>(null);
+// Serializable payloads used by create/edit forms
+export type BlockedHoursMap = Record<string, number[]>;
+export type BlockedDatesMap = Record<string, number[]>;
 
-  // --- Weekly state
-  const initialWeekly: Record<string, Set<number>> = {};
-  for (const d of DAYS) initialWeekly[d.key] = new Set(court.blocked_hours?.[d.key] ?? []);
-  const [weekly, setWeekly] = useState(initialWeekly);
+function buildInitialWeekly(source: Record<string, number[]> | null | undefined) {
+  const out: Record<string, Set<number>> = {};
+  for (const d of DAYS) out[d.key] = new Set(source?.[d.key] ?? []);
+  return out;
+}
+function buildInitialDates(source: Record<string, number[]> | null | undefined) {
+  const map: Record<string, Set<number>> = {};
+  for (const [date, hrs] of Object.entries(source ?? {})) map[date] = new Set(hrs);
+  return map;
+}
+export function weeklyToPayload(weekly: Record<string, Set<number>>): BlockedHoursMap {
+  const out: BlockedHoursMap = {};
+  for (const d of DAYS) out[d.key] = Array.from(weekly[d.key] ?? []).sort((a, b) => a - b);
+  return out;
+}
+export function datesToPayload(dateBlocks: Record<string, Set<number>>): BlockedDatesMap {
+  const out: BlockedDatesMap = {};
+  for (const [date, set] of Object.entries(dateBlocks)) out[date] = Array.from(set).sort((a, b) => a - b);
+  return out;
+}
+
+function AvailabilityGrid({
+  weekly, setWeekly, dateBlocks, setDateBlocks,
+}: {
+  weekly: Record<string, Set<number>>;
+  setWeekly: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
+  dateBlocks: Record<string, Set<number>>;
+  setDateBlocks: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
+}) {
+  const [mode, setMode] = useState<"weekly" | "date">("weekly");
   const toggleWeekly = (day: string, hour: number) => {
     setWeekly((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
@@ -1256,15 +1282,9 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
     setWeekly((prev) => ({ ...prev, [day]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
   };
 
-  // --- Per-date state
   const localISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const shiftDate = (iso: string, days: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + days); return localISO(d); };
   const [selectedDate, setSelectedDate] = useState<string>(localISO(new Date()));
-  const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() => {
-    const map: Record<string, Set<number>> = {};
-    for (const [date, hrs] of Object.entries(court.blocked_dates ?? {})) map[date] = new Set(hrs);
-    return map;
-  });
   const hasOverride = Object.prototype.hasOwnProperty.call(dateBlocks, selectedDate);
   const currentDateSet = dateBlocks[selectedDate] ?? new Set<number>();
   const toggleDate = (hour: number) => {
@@ -1285,41 +1305,18 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
     });
   };
 
-  const mut = useMutation({
-    mutationFn: async () => {
-      const weeklyPayload: Record<string, number[]> = {};
-      for (const d of DAYS) weeklyPayload[d.key] = Array.from(weekly[d.key]).sort((a, b) => a - b);
-      const datesPayload: Record<string, number[]> = {};
-      for (const [date, set] of Object.entries(dateBlocks)) datesPayload[date] = Array.from(set).sort((a, b) => a - b);
-      const { error } = await supabase.from("courts").update({ blocked_hours: weeklyPayload, blocked_dates: datesPayload }).eq("id", court.id);
-      if (error) throw error;
-    },
-    onSuccess: onDone,
-    onError: (e: Error) => setErr(e.message),
-  });
-
   return (
-    <div className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold">Availability · {court.name}</h3>
-          <p className="text-xs text-muted-foreground">Weekly rules repeat every week. Specific-date overrides apply to that date only and do NOT inherit weekly blocks.</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
-          <button onClick={() => mut.mutate()} disabled={mut.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
-            {mut.isPending ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-3 inline-flex rounded-lg border border-border bg-background p-0.5 text-xs">
+    <div>
+      <div className="inline-flex rounded-lg border border-border bg-background p-0.5 text-xs">
         <button type="button" onClick={() => setMode("weekly")} className={"rounded-md px-3 py-1.5 font-semibold " + (mode === "weekly" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Weekly pattern</button>
         <button type="button" onClick={() => setMode("date")} className={"rounded-md px-3 py-1.5 font-semibold " + (mode === "date" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Specific date</button>
       </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Tap an hour to block it (red = closed to players). Weekly rules repeat every week. Specific-date overrides apply only to that date and do NOT inherit weekly blocks. Past hours and hours already booked by players are also unavailable automatically.
+      </p>
 
       {mode === "weekly" ? (
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-3">
           {DAYS.map((d) => (
             <div key={d.key} className="rounded-lg border border-border bg-background p-3">
               <div className="flex items-center justify-between">
@@ -1331,7 +1328,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
               </div>
               <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 24 }, (_, h) => h).map((h) => {
-                  const isBlocked = weekly[d.key].has(h);
+                  const isBlocked = weekly[d.key]?.has(h);
                   return (
                     <button key={h} type="button" onClick={() => toggleWeekly(d.key, h)}
                       className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
@@ -1344,7 +1341,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
           ))}
         </div>
       ) : (
-        <div className="mt-4 rounded-lg border border-border bg-background p-3">
+        <div className="mt-3 rounded-lg border border-border bg-background p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground">Date:</span>
             <button type="button" onClick={() => setSelectedDate(shiftDate(selectedDate, -1))} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
@@ -1362,8 +1359,6 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
               <button type="button" onClick={clearOverride} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Remove override (use weekly)</button>
             )}
           </div>
-
-          <p className="mt-2 text-[11px] text-muted-foreground">Tapping any hour creates a fresh override for this date starting empty — weekly blocked hours do NOT carry over.</p>
 
           <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 24 }, (_, h) => h).map((h) => {
@@ -1393,8 +1388,83 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
           )}
         </div>
       )}
+    </div>
+  );
+}
 
+function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [weekly, setWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(court.blocked_hours));
+  const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("courts").update({
+        blocked_hours: weeklyToPayload(weekly),
+        blocked_dates: datesToPayload(dateBlocks),
+      }).eq("id", court.id);
+      if (error) throw error;
+    },
+    onSuccess: onDone,
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  return (
+    <div className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="font-semibold">Availability · {court.name}</h3>
+          <p className="text-xs text-muted-foreground">Manage weekly recurring closures and specific-date overrides. Player views reflect this in real time.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => mut.mutate()} disabled={mut.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+            {mut.isPending ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-3">
+        <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} />
+      </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+    </div>
+  );
+}
+
+function InlineAvailability({
+  weekly, setWeekly, dateBlocks, setDateBlocks,
+}: {
+  weekly: Record<string, Set<number>>;
+  setWeekly: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
+  dateBlocks: Record<string, Set<number>>;
+  setDateBlocks: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
+}) {
+  const [open, setOpen] = useState(false);
+  const weeklyBlocked = DAYS.reduce((s, d) => s + (weekly[d.key]?.size ?? 0), 0);
+  const dateOverrides = Object.keys(dateBlocks).length;
+  return (
+    <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+        aria-expanded={open}
+      >
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Manage availability (optional)</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            {weeklyBlocked === 0 && dateOverrides === 0
+              ? "All hours open by default. Tap to block specific weekly hours or add date overrides."
+              : `${weeklyBlocked} weekly blocked hour${weeklyBlocked === 1 ? "" : "s"} · ${dateOverrides} date override${dateOverrides === 1 ? "" : "s"}`}
+          </div>
+        </div>
+        <span className={"text-primary transition-transform " + (open ? "rotate-180" : "")}>▾</span>
+      </button>
+      {open && (
+        <div className="border-t border-primary/20 p-3">
+          <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} />
+        </div>
+      )}
     </div>
   );
 }
