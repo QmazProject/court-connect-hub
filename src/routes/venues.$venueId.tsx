@@ -839,12 +839,25 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   }
 
   const availability = useMemo(() => {
-    const byCourt = new Map<number, { total: number; booked: number }>();
+    const byCourt = new Map<number, { total: number; booked: number; past: number }>();
     const dayStart = new Date(`${selectedDate}T00:00:00`).getTime();
+    const now = Date.now();
+    const isToday = selectedDate === todayStr;
+    const isPast = selectedDate < todayStr;
+    // First past-hour boundary today: any hour whose end <= now is unavailable.
+    const nowHrCeil = isToday ? Math.min(24, Math.ceil((now - dayStart) / 3600_000)) : 0;
     for (const c of courts) {
       if (c.coming_soon) continue;
       const [oh0, oh1] = parseOpHours(c.operating_hours);
       const total = oh1 - oh0;
+      const unavailable = new Set<number>();
+      // Mark past hours within operating window
+      if (isPast) {
+        for (let h = oh0; h < oh1; h++) unavailable.add(h);
+      } else if (isToday) {
+        for (let h = oh0; h < oh1 && h < nowHrCeil; h++) unavailable.add(h);
+      }
+      const pastCount = unavailable.size;
       const bookedSet = new Set<number>();
       for (const b of bookingsQ.data ?? []) {
         if (b.court_id !== c.id) continue;
@@ -853,12 +866,19 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
         if (e <= s) continue;
         const startHr = Math.floor((s - dayStart) / 3600_000);
         const endHr = Math.ceil((e - dayStart) / 3600_000);
-        for (let h = startHr; h < endHr; h++) bookedSet.add(h);
+        for (let h = startHr; h < endHr; h++) {
+          if (h >= oh0 && h < oh1 && !unavailable.has(h)) bookedSet.add(h);
+          unavailable.add(h);
+        }
       }
-      byCourt.set(c.id, { total, booked: Math.min(bookedSet.size, total) });
+      byCourt.set(c.id, {
+        total,
+        booked: bookedSet.size,
+        past: pastCount,
+      });
     }
     return byCourt;
-  }, [courts, bookingsQ.data, selectedDate, weekdayKey]);
+  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr]);
 
   const isPastDate = selectedDate < todayStr;
 
