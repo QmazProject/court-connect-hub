@@ -90,8 +90,10 @@ type ChipKey =
 
 function VenueDetail() {
   const { venueId } = Route.useParams();
-  const { sport } = Route.useSearch();
+  const { sport, court: openCourtId } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
+  const openCourt = (id: number | null) =>
+    navigate({ search: (prev) => ({ ...prev, court: id ?? undefined }), replace: !id });
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openChip, setOpenChip] = useState<ChipKey | null>(null);
