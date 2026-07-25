@@ -36,6 +36,15 @@ type Court = {
   } | null;
 };
 
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="border-b border-border px-4 py-2.5 last:border-b-0 sm:odd:border-r">
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
+    </div>
+  );
+}
+
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function toISODate(d: Date) {
