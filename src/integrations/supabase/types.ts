@@ -411,6 +411,9 @@ export type Database = {
         Row: {
           address: string
           amenities: string[]
+          cancellation_notes: string | null
+          contact_email: string | null
+          contact_phone: string | null
           created_at: string | null
           description: string | null
           facility_services: string[]
@@ -424,13 +427,18 @@ export type Database = {
           longitude: number | null
           map_emoji: string | null
           name: string
+          operating_hours_text: string | null
           payment_mode: string
           refund_cutoff_hours: number
+          rules: string | null
           timezone: string
         }
         Insert: {
           address: string
           amenities?: string[]
+          cancellation_notes?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string | null
           description?: string | null
           facility_services?: string[]
@@ -444,13 +452,18 @@ export type Database = {
           longitude?: number | null
           map_emoji?: string | null
           name: string
+          operating_hours_text?: string | null
           payment_mode?: string
           refund_cutoff_hours?: number
+          rules?: string | null
           timezone?: string
         }
         Update: {
           address?: string
           amenities?: string[]
+          cancellation_notes?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string | null
           description?: string | null
           facility_services?: string[]
@@ -464,8 +477,10 @@ export type Database = {
           longitude?: number | null
           map_emoji?: string | null
           name?: string
+          operating_hours_text?: string | null
           payment_mode?: string
           refund_cutoff_hours?: number
+          rules?: string | null
           timezone?: string
         }
         Relationships: []

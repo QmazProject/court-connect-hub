@@ -28,6 +28,12 @@ type Venue = {
   facility_services: string[] | null;
   fees: FeeItem[] | null;
   fees_notes: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  operating_hours_text: string | null;
+  refund_cutoff_hours: number | null;
+  cancellation_notes: string | null;
+  rules: string | null;
 };
 
 type Court = {
@@ -55,7 +61,7 @@ function VenueDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("venues")
-        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes")
+        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes, contact_phone, contact_email, operating_hours_text, refund_cutoff_hours, cancellation_notes, rules")
         .eq("id", Number(venueId))
         .maybeSingle();
       if (error) throw error;
@@ -184,7 +190,15 @@ function VenueDetail() {
           const hasFS = (venue.facility_services?.length ?? 0) > 0;
           const feesList = Array.isArray(venue.fees) ? venue.fees : [];
           const hasFees = feesList.length > 0 || !!venue.fees_notes;
-          const hasAny = hasAmenities || hasFB || hasFS || hasFees;
+          const hasInquiries = !!(venue.contact_phone || venue.contact_email);
+          const hasHours = !!venue.operating_hours_text;
+          const hasCancellation = (venue.refund_cutoff_hours ?? null) != null || !!venue.cancellation_notes;
+          const rulesList = (venue.rules ?? "")
+            .split(/\r?\n/)
+            .map((s) => s.replace(/^\s*[-•]\s*/, "").trim())
+            .filter(Boolean);
+          const hasRules = rulesList.length > 0;
+          const hasAny = hasAmenities || hasFB || hasFS || hasFees || hasInquiries || hasHours || hasCancellation || hasRules;
           if (!hasAny) return null;
           const Chips = ({ items }: { items: string[] }) => (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -195,6 +209,31 @@ function VenueDetail() {
           );
           return (
             <section className="mt-8 grid gap-4 sm:grid-cols-2">
+              {hasInquiries && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Inquiries</h3>
+                  <dl className="mt-2 space-y-1 text-sm">
+                    {venue.contact_phone && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted-foreground">Phone</dt>
+                        <dd className="font-medium text-foreground">{venue.contact_phone}</dd>
+                      </div>
+                    )}
+                    {venue.contact_email && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted-foreground">Email</dt>
+                        <dd className="font-medium text-foreground">{venue.contact_email}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              )}
+              {hasHours && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Operating Hours</h3>
+                  <p className="mt-2 whitespace-pre-line text-sm text-foreground">{venue.operating_hours_text}</p>
+                </div>
+              )}
               {hasAmenities && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Amenities</h3>
@@ -229,6 +268,29 @@ function VenueDetail() {
                   {venue.fees_notes && (
                     <p className="mt-3 whitespace-pre-line text-xs text-muted-foreground">{venue.fees_notes}</p>
                   )}
+                </div>
+              )}
+              {hasCancellation && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Cancellation Policy</h3>
+                  {(venue.refund_cutoff_hours ?? null) != null && (
+                    <p className="mt-2 text-sm text-foreground">
+                      {venue.refund_cutoff_hours! > 0
+                        ? <>Cancel up to <span className="font-semibold text-primary">{venue.refund_cutoff_hours}h</span> before start time.</>
+                        : <>Last-minute cancellations allowed.</>}
+                    </p>
+                  )}
+                  {venue.cancellation_notes && (
+                    <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">{venue.cancellation_notes}</p>
+                  )}
+                </div>
+              )}
+              {hasRules && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 sm:col-span-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Venue Rules</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground">
+                    {rulesList.map((r, i) => (<li key={i}>{r}</li>))}
+                  </ul>
                 </div>
               )}
             </section>

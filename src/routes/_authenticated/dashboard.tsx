@@ -83,7 +83,7 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
 }
 
 export type FeeItem = { label: string; amount: number };
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null; contact_phone?: string | null; contact_email?: string | null; operating_hours_text?: string | null; refund_cutoff_hours?: number | null; cancellation_notes?: string | null; rules?: string | null };
 
 const ACTIVE_INFO_TEXT = "A venue can only be set inactive when none of its courts have upcoming or in-progress confirmed bookings. If bookings exist, wait until their end time passes. Any pending (awaiting-payment) bookings will be automatically cancelled and those players will be notified to pick another venue. Inactive venues are hidden from the landing page map and list.";
 type Sport = { id: number; name: string; slug?: string };
@@ -887,6 +887,12 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [facilityServices, setFacilityServices] = useState<string[]>([]);
   const [fees, setFees] = useState<FeeItem[]>([]);
   const [feesNotes, setFeesNotes] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [operatingHoursText, setOperatingHoursText] = useState("");
+  const [cancellationHours, setCancellationHours] = useState<number>(24);
+  const [cancellationNotes, setCancellationNotes] = useState("");
+  const [rules, setRules] = useState("");
   const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const suggested = suggestTimezone(lat, lng);
@@ -900,10 +906,10 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const cleanFees = fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) }));
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null });
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); setContactPhone(""); setContactEmail(""); setOperatingHoursText(""); setCancellationHours(24); setCancellationNotes(""); setRules(""); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -981,6 +987,22 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         </div>
         <div className="sm:col-span-2">
           <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
+        </div>
+        <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
+        <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
+        <div className="sm:col-span-2">
+          <Textarea label="Operating hours" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="e.g. Mon–Fri 8AM–10PM, Sat–Sun 6AM–12AM" />
+        </div>
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
+          <input type="number" min={0} step={1} value={cancellationHours} onChange={(e) => setCancellationHours(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+          <span className="mt-1 block text-[11px] text-muted-foreground">Default 24h. Set to 0 to allow last-minute cancellations.</span>
+        </label>
+        <div className="sm:col-span-2">
+          <Textarea label="Cancellation policy notes (optional)" value={cancellationNotes} onChange={setCancellationNotes} placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start." />
+        </div>
+        <div className="sm:col-span-2">
+          <Textarea label="Venue rules (one per line)" value={rules} onChange={setRules} placeholder={"e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"} />
         </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -1878,6 +1900,12 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [facilityServices, setFacilityServices] = useState<string[]>(venue.facility_services ?? []);
   const [fees, setFees] = useState<FeeItem[]>(Array.isArray(venue.fees) ? venue.fees : []);
   const [feesNotes, setFeesNotes] = useState(venue.fees_notes ?? "");
+  const [contactPhone, setContactPhone] = useState(venue.contact_phone ?? "");
+  const [contactEmail, setContactEmail] = useState(venue.contact_email ?? "");
+  const [operatingHoursText, setOperatingHoursText] = useState(venue.operating_hours_text ?? "");
+  const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
+  const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
+  const [rules, setRules] = useState(venue.rules ?? "");
 
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
@@ -1887,7 +1915,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null })
         .eq("id", venue.id);
       if (error) throw error;
     },
@@ -1982,6 +2010,22 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <div className="sm:col-span-2">
             <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
           </div>
+          <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
+          <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
+          <div className="sm:col-span-2">
+            <Textarea label="Operating hours" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="e.g. Mon–Fri 8AM–10PM, Sat–Sun 6AM–12AM" />
+          </div>
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
+            <input type="number" min={0} step={1} value={cancellationHours} onChange={(e) => setCancellationHours(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <span className="mt-1 block text-[11px] text-muted-foreground">Default 24h. Set to 0 to allow last-minute cancellations.</span>
+          </label>
+          <div className="sm:col-span-2">
+            <Textarea label="Cancellation policy notes (optional)" value={cancellationNotes} onChange={setCancellationNotes} placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start." />
+          </div>
+          <div className="sm:col-span-2">
+            <Textarea label="Venue rules (one per line)" value={rules} onChange={setRules} placeholder={"e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"} />
+          </div>
           <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
             <EmojiPicker
               label="Map emoji (venue pin)"
@@ -2013,7 +2057,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setContactPhone(venue.contact_phone ?? ""); setContactEmail(venue.contact_email ?? ""); setOperatingHoursText(venue.operating_hours_text ?? ""); setCancellationHours(venue.refund_cutoff_hours ?? 24); setCancellationNotes(venue.cancellation_notes ?? ""); setRules(venue.rules ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
 
       </div>
