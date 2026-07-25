@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.preview_voucher(TEXT, BIGINT, NUMERIC) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.preview_voucher(TEXT, BIGINT, NUMERIC) TO authenticated;
