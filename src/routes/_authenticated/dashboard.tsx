@@ -1887,7 +1887,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null })
         .eq("id", venue.id);
       if (error) throw error;
     },
