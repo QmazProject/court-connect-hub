@@ -670,6 +670,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   const [geoDenied, setGeoDenied] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [manualPickerOpen, setManualPickerOpen] = useState(false);
+  const [courtImageView, setCourtImageView] = useState<{ images: string[]; name: string; idx: number } | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
   const [locResolved, setLocResolved] = useState(false); // user made a choice this session
 
@@ -1017,10 +1018,10 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                   <div key={c.id} className={`${baseCls} ${soon ? "cursor-not-allowed" : ""}`} aria-disabled={soon}>
                     <button
                       type="button"
-                      onClick={() => !soon && onOpenCourt(c.id)}
-                      disabled={soon}
+                      onClick={() => !soon && hasImages && setCourtImageView({ images: c.images!, name: c.name, idx: 0 })}
+                      disabled={soon || !hasImages}
                       className="relative block w-full text-left"
-                      aria-label={`View ${c.name} images and details`}
+                      aria-label={hasImages ? `View ${c.name} images` : c.name}
                     >
                       {hasImages ? (
                         <>
@@ -1205,6 +1206,65 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
         }}
         title="Pick your location"
       />
+
+      {courtImageView && (
+        <div
+          className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/95 p-4"
+          onClick={() => setCourtImageView(null)}
+        >
+          <div className="absolute left-4 top-4 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+            {courtImageView.name} · {courtImageView.idx + 1} / {courtImageView.images.length}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setCourtImageView(null); }}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {courtImageView.images.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCourtImageView((s) => s && ({ ...s, idx: (s.idx - 1 + s.images.length) % s.images.length }));
+              }}
+              className="absolute left-4 rounded-full bg-white/10 p-3 text-2xl leading-none text-white hover:bg-white/20"
+              aria-label="Previous"
+            >‹</button>
+          )}
+          <img
+            src={courtImageView.images[courtImageView.idx]}
+            alt={`${courtImageView.name} photo ${courtImageView.idx + 1}`}
+            className="max-h-[88vh] max-w-[94vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {courtImageView.images.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCourtImageView((s) => s && ({ ...s, idx: (s.idx + 1) % s.images.length }));
+              }}
+              className="absolute right-4 rounded-full bg-white/10 p-3 text-2xl leading-none text-white hover:bg-white/20"
+              aria-label="Next"
+            >›</button>
+          )}
+          {courtImageView.images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-black/60 p-2">
+              {courtImageView.images.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setCourtImageView((s) => s && ({ ...s, idx: i })); }}
+                  className={"h-2 w-2 rounded-full transition " + (i === courtImageView.idx ? "bg-white" : "bg-white/40 hover:bg-white/70")}
+                  aria-label={`Go to image ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
