@@ -462,7 +462,7 @@ function VenueDetail() {
       </section>
 
       <ExploreCourts
-        venue={venue}
+        venue={venue ?? undefined}
         courts={courts}
         loading={courtsQ.isLoading}
         selectedSport={sport}
