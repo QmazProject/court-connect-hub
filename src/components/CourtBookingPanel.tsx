@@ -520,14 +520,14 @@ export function CourtBookingPanel({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full max-w-xl overflow-hidden p-0 pl-9 sm:max-w-xl"
+        className="w-full max-w-xl overflow-hidden p-0 pl-11 sm:max-w-xl"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-9 items-center justify-center border-r border-border bg-gradient-to-b from-primary/15 via-background to-primary/10"
+          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center border-r border-border bg-gradient-to-b from-indigo-600 via-fuchsia-600 to-rose-500 shadow-[inset_-6px_0_12px_-8px_rgba(0,0,0,0.35)]"
         >
           <span
-            className="whitespace-nowrap font-display text-[11px] font-bold uppercase tracking-[0.35em] text-primary [writing-mode:vertical-rl] [transform:rotate(180deg)]"
+            className="whitespace-nowrap font-display text-[17px] font-extrabold uppercase italic tracking-[0.4em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] [writing-mode:vertical-rl] [transform:rotate(180deg)]"
           >
             Court Profile
           </span>
