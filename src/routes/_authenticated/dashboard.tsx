@@ -1876,6 +1876,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           />
         </div>
       </div>
+      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} />
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
         <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
