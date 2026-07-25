@@ -839,12 +839,25 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   }
 
   const availability = useMemo(() => {
-    const byCourt = new Map<number, { total: number; booked: number }>();
+    const byCourt = new Map<number, { total: number; booked: number; past: number }>();
     const dayStart = new Date(`${selectedDate}T00:00:00`).getTime();
+    const now = Date.now();
+    const isToday = selectedDate === todayStr;
+    const isPast = selectedDate < todayStr;
+    // First past-hour boundary today: any hour whose end <= now is unavailable.
+    const nowHrCeil = isToday ? Math.min(24, Math.ceil((now - dayStart) / 3600_000)) : 0;
     for (const c of courts) {
       if (c.coming_soon) continue;
       const [oh0, oh1] = parseOpHours(c.operating_hours);
       const total = oh1 - oh0;
+      const unavailable = new Set<number>();
+      // Mark past hours within operating window
+      if (isPast) {
+        for (let h = oh0; h < oh1; h++) unavailable.add(h);
+      } else if (isToday) {
+        for (let h = oh0; h < oh1 && h < nowHrCeil; h++) unavailable.add(h);
+      }
+      const pastCount = unavailable.size;
       const bookedSet = new Set<number>();
       for (const b of bookingsQ.data ?? []) {
         if (b.court_id !== c.id) continue;
@@ -853,12 +866,19 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
         if (e <= s) continue;
         const startHr = Math.floor((s - dayStart) / 3600_000);
         const endHr = Math.ceil((e - dayStart) / 3600_000);
-        for (let h = startHr; h < endHr; h++) bookedSet.add(h);
+        for (let h = startHr; h < endHr; h++) {
+          if (h >= oh0 && h < oh1 && !unavailable.has(h)) bookedSet.add(h);
+          unavailable.add(h);
+        }
       }
-      byCourt.set(c.id, { total, booked: Math.min(bookedSet.size, total) });
+      byCourt.set(c.id, {
+        total,
+        booked: bookedSet.size,
+        past: pastCount,
+      });
     }
     return byCourt;
-  }, [courts, bookingsQ.data, selectedDate, weekdayKey]);
+  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr]);
 
   const isPastDate = selectedDate < todayStr;
 
@@ -1008,8 +1028,9 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
               {courts.map((c) => {
                 const soon = !!c.coming_soon;
                 const avail = availability.get(c.id);
-                const remaining = avail ? Math.max(avail.total - avail.booked, 0) : null;
-                const pct = avail && avail.total > 0 ? Math.round((avail.booked / avail.total) * 100) : 0;
+                const unavailable = avail ? Math.min(avail.booked + avail.past, avail.total) : 0;
+                const remaining = avail ? Math.max(avail.total - unavailable, 0) : null;
+                const pct = avail && avail.total > 0 ? Math.round((unavailable / avail.total) * 100) : 0;
                 const availTone =
                   remaining == null
                     ? "bg-muted text-muted-foreground"
@@ -1082,13 +1103,17 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                               ) : (
                                 <span>
                                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${availTone}`}>
-                                    {remaining} hr{remaining === 1 ? "" : "s"} open
+                                    {remaining} slot{remaining === 1 ? "" : "s"} open
                                   </span>
                                 </span>
                               )}
                             </span>
-                            {avail && avail.total > 0 && avail.booked > 0 && (
-                              <span className="text-muted-foreground">{avail.booked} hr{avail.booked === 1 ? "" : "s"} booked</span>
+                            {avail && avail.total > 0 && (avail.booked > 0 || avail.past > 0) && (
+                              <span className="text-muted-foreground">
+                                {avail.booked > 0 && <>{avail.booked} booked</>}
+                                {avail.booked > 0 && avail.past > 0 && " · "}
+                                {avail.past > 0 && <>{avail.past} passed</>}
+                              </span>
                             )}
                           </div>
                           {avail && avail.total > 0 && (
