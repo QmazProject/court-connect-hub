@@ -241,6 +241,21 @@ function VenueDetail() {
     </ul>
   );
 
+  const chipSubtitle = (key: ChipKey, venueName: string): string => {
+    switch (key) {
+      case "about": return `Get to know ${venueName}`;
+      case "location": return "Where to find us";
+      case "inquiries": return "Reach out to the venue";
+      case "hours": return "When we're open for play";
+      case "amenities": return "What's included on-site";
+      case "fb": return "Food & drinks available";
+      case "fs": return "Services offered here";
+      case "fees": return "Additional charges to note";
+      case "cancellation": return "Refund & cancellation policy";
+      case "rules": return "Please follow these guidelines";
+    }
+  };
+
   const renderChipModalBody = (key: ChipKey): ReactNode => {
     if (!venue) return null;
     switch (key) {
