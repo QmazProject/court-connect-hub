@@ -1766,6 +1766,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
       ? ""
       : String((court as unknown as { player_capacity?: number | null }).player_capacity ?? "")
   );
+  const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(court.blocked_hours));
+  const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
