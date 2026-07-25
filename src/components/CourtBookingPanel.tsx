@@ -67,6 +67,27 @@ function fmtHour(h: number) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:00 ${period}`;
 }
+// Group adjacent selected hours into contiguous [startHour, endHour) ranges.
+// e.g. [17,18,19,20,21] -> [{ start: 17, end: 22 }] shown as "5:00 PM – 10:00 PM".
+function groupHourRanges(hours: number[]): { start: number; end: number }[] {
+  if (hours.length === 0) return [];
+  const sorted = [...hours].sort((a, b) => a - b);
+  const out: { start: number; end: number }[] = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const h = sorted[i];
+    if (h === prev + 1) {
+      prev = h;
+    } else {
+      out.push({ start, end: prev + 1 });
+      start = h;
+      prev = h;
+    }
+  }
+  out.push({ start, end: prev + 1 });
+  return out;
+}
 
 type PmMethod = "gcash" | "paymaya" | "grab_pay" | "qrph";
 const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
