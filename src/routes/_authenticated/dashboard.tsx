@@ -1444,6 +1444,8 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
   const [capacity, setCapacity] = useState("1");
+  const [surfaceType, setSurfaceType] = useState("");
+  const [playerCapacity, setPlayerCapacity] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
