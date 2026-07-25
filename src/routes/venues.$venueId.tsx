@@ -178,6 +178,63 @@ function VenueDetail() {
 
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        {venue && (() => {
+          const hasAmenities = (venue.amenities?.length ?? 0) > 0;
+          const hasFB = (venue.food_beverages?.length ?? 0) > 0;
+          const hasFS = (venue.facility_services?.length ?? 0) > 0;
+          const feesList = Array.isArray(venue.fees) ? venue.fees : [];
+          const hasFees = feesList.length > 0 || !!venue.fees_notes;
+          const hasAny = hasAmenities || hasFB || hasFS || hasFees;
+          if (!hasAny) return null;
+          const Chips = ({ items }: { items: string[] }) => (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {items.map((v) => (
+                <span key={v} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">{v}</span>
+              ))}
+            </div>
+          );
+          return (
+            <section className="mt-8 grid gap-4 sm:grid-cols-2">
+              {hasAmenities && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Amenities</h3>
+                  <Chips items={venue.amenities!} />
+                </div>
+              )}
+              {hasFB && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Food & Beverages</h3>
+                  <Chips items={venue.food_beverages!} />
+                </div>
+              )}
+              {hasFS && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Facility Services</h3>
+                  <Chips items={venue.facility_services!} />
+                </div>
+              )}
+              {hasFees && (
+                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Fees & Charges</h3>
+                  {feesList.length > 0 && (
+                    <ul className="mt-2 divide-y divide-border">
+                      {feesList.map((f, i) => (
+                        <li key={i} className="flex items-center justify-between py-1.5 text-sm">
+                          <span className="text-foreground">{f.label}</span>
+                          <span className="font-semibold text-primary">₱{Number(f.amount).toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {venue.fees_notes && (
+                    <p className="mt-3 whitespace-pre-line text-xs text-muted-foreground">{venue.fees_notes}</p>
+                  )}
+                </div>
+              )}
+            </section>
+          );
+        })()}
+
       <h2 className="mt-8 text-xl font-bold">
         {sport ? "Courts for this sport" : "All courts"}{" "}
         <span className="text-muted-foreground">({courts.length})</span>
