@@ -3783,11 +3783,14 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
 
   const removeMember = async (courtId: number) => {
     setErr(null);
-    // Only allow removing if no bookings on that court
+    // Only allow removing if no upcoming confirmed bookings on that court
     const { count, error: cErr } = await supabase.from("bookings")
-      .select("id", { count: "exact", head: true }).eq("court_id", courtId);
+      .select("id", { count: "exact", head: true })
+      .eq("court_id", courtId)
+      .eq("status", "confirmed")
+      .gte("end_time", new Date().toISOString());
     if (cErr) { setErr(cErr.message); return; }
-    if ((count ?? 0) > 0) { setErr("This court has bookings and cannot be detached from the group."); return; }
+    if ((count ?? 0) > 0) { setErr("This court has upcoming confirmed bookings and cannot be detached from the group until they finish or are cancelled."); return; }
     const { data: pc, error: pcErr } = await supabase.from("physical_courts")
       .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` }).select("id").single();
     if (pcErr) { setErr(pcErr.message); return; }
