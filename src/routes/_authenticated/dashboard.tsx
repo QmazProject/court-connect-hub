@@ -2626,6 +2626,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "status": return <th key={id} className="px-3 py-2.5 w-28 text-center">Status</th>;
       case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
       case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
+      case "amenities": return <th key={id} className="px-3 py-2.5 w-[200px]">Amenities</th>;
+      case "food_beverages": return <th key={id} className="px-3 py-2.5 w-[200px]">Food & Beverages</th>;
+      case "facility_services": return <th key={id} className="px-3 py-2.5 w-[200px]">Facility Services</th>;
+      case "fees": return <th key={id} className="px-3 py-2.5 w-24 text-center">Fees</th>;
+      case "contact_phone": return <th key={id} className="px-3 py-2.5 w-36">Inquiry Phone</th>;
+      case "contact_email": return <th key={id} className="px-3 py-2.5 w-48">Inquiry Email</th>;
+      case "operating_hours": return <th key={id} className="px-3 py-2.5 w-[200px]">Operating Hours</th>;
+      case "cancellation": return <th key={id} className="px-3 py-2.5 w-[200px]">Cancellation</th>;
+      case "rules": return <th key={id} className="px-3 py-2.5 w-[200px]">Rules</th>;
       default: return null;
     }
   };
