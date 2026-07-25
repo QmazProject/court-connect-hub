@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { startBookingCheckout } from "@/lib/paymongo.functions";
@@ -504,13 +504,30 @@ export function CourtBookingPanel({
 }) {
   const isMobile = useIsMobile();
 
-  if (!courtId) return null;
+  // Retain last courtId during close animation so the sheet can slide out
+  // instead of unmounting instantly when the parent clears the id.
+  const [renderedId, setRenderedId] = useState<number | null>(courtId);
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (courtId) {
+      if (clearTimer.current) clearTimeout(clearTimer.current);
+      setRenderedId(courtId);
+    } else if (renderedId !== null) {
+      clearTimer.current = setTimeout(() => setRenderedId(null), 550);
+    }
+    return () => {
+      if (clearTimer.current) clearTimeout(clearTimer.current);
+    };
+  }, [courtId, renderedId]);
+
+  if (!renderedId) return null;
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="h-[92vh] p-0 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
-          <CourtBookingContent courtId={courtId} onClose={() => onOpenChange(false)} />
+          <CourtBookingContent courtId={renderedId} onClose={() => onOpenChange(false)} />
         </DrawerContent>
       </Drawer>
     );
@@ -532,7 +549,7 @@ export function CourtBookingPanel({
             Court Profile
           </span>
         </div>
-        <CourtBookingContent courtId={courtId} onClose={() => onOpenChange(false)} />
+        <CourtBookingContent courtId={renderedId} onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
   );
