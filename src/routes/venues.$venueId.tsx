@@ -922,32 +922,45 @@ function SportChip({ active, emoji, label, offered = true, onClick }: { active: 
   );
 }
 
-function SportItem({ active, emoji, label, offered = true, onClick }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void }) {
+function SportItem({ active, emoji, label, offered = true, onClick, index = 0 }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void; index?: number }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={offered ? undefined : `Not offered here — tap to see nearby venues with ${label}`}
-      className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+      style={{ animationDelay: `${50 + index * 45}ms` }}
+      className={`sport-stagger group flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-all duration-300 ${
         active
-          ? "bg-primary text-primary-foreground shadow-sm"
+          ? "bg-primary/10 font-semibold text-foreground"
           : offered
-            ? "text-foreground hover:bg-primary/10"
-            : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+            ? "text-muted-foreground hover:-translate-y-0.5 hover:translate-x-1 hover:bg-muted/60 hover:text-foreground"
+            : "cursor-pointer text-muted-foreground/70 hover:bg-muted/40"
       }`}
     >
-      <span className="flex items-center gap-2">
-        <span aria-hidden className="text-base">{emoji}</span>
-        <span>{label}</span>
+      <span className="flex items-center gap-3">
+        <span
+          aria-hidden
+          className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all duration-300 ${
+            active
+              ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(9,230,210,0.35)]"
+              : offered
+                ? "bg-transparent group-hover:scale-110 group-hover:bg-primary/10"
+                : "opacity-70 grayscale group-hover:grayscale-0"
+          }`}
+        >
+          {emoji}
+        </span>
+        <span className="text-sm">{label}</span>
       </span>
       {!offered && !active && (
-        <span className="rounded-full border border-dashed border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           Nearby
         </span>
       )}
     </button>
   );
 }
+
 
 
 function EmptySport({
