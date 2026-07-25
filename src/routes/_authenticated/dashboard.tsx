@@ -1534,15 +1534,31 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
+  // Suggest capacity when picking an existing surface that already hosts this sport
+  const siblingsQ = useQuery({
+    queryKey: ["pc-siblings", physicalCourtId, sportId],
+    enabled: (open || !!alwaysOpen) && physicalCourtId !== "new" && !!sportId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts")
+        .select("id, name, capacity, sport_id, sports(name)")
+        .eq("physical_court_id", Number(physicalCourtId));
+      if (error) throw error;
+      return data as unknown as Array<{ id: number; name: string; capacity: number; sport_id: number; sports: { name: string } | null }>;
+    },
+  });
+  const sameSportSibling = (siblingsQ.data ?? []).find((c) => String(c.sport_id) === sportId);
+
   const mut = useMutation({
     mutationFn: async () => {
       let pcId: number;
+      let createdPcId: number | null = null;
       if (physicalCourtId === "new") {
         const { data, error } = await supabase.from("physical_courts").insert({
-          venue_id: venueId, name, map_emoji: mapEmoji ?? venueEmoji ?? null,
+          venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
         }).select("id").single();
         if (error) throw error;
         pcId = data.id;
+        createdPcId = data.id;
       } else {
         pcId = Number(physicalCourtId);
       }
@@ -1568,10 +1584,16 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         blocked_dates: datesToPayload(availDates),
       });
 
-      if (error) throw error;
+      if (error) {
+        // Clean up the orphan physical_courts row so we don't leak empty surfaces
+        if (createdPcId !== null) {
+          await supabase.from("physical_courts").delete().eq("id", createdPcId);
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
