@@ -1270,6 +1270,8 @@ function EmptySport({
   usingPlayerLoc: boolean;
   anchorLabel: string;
 }) {
+  const count = suggestions.length;
+  const closest = suggestions[0];
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card/50 p-6 sm:p-8">
       <div className="text-center">
@@ -1280,17 +1282,41 @@ function EmptySport({
           No {sportName ?? "courts"} at this venue yet
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          {sportName ? `Here are venues nearby offering ${sportName}` : "Try a different sport"}
-          {usingPlayerLoc ? " — sorted by distance from your location." : ` — sorted by distance from ${anchorLabel}.`}
+          But don't worry — {sportName ?? "this sport"} is available at other venues on CourtHub.
         </p>
+
+        {!suggestLoading && count > 0 && (
+          <div className="mx-auto mt-4 max-w-md rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-left">
+            <p className="text-sm font-semibold text-foreground">
+              ✅ Found {count} nearby {count === 1 ? "venue" : "venues"} offering {sportName}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {usingPlayerLoc
+                ? "Sorted by distance from your current location."
+                : `Sorted by distance from ${anchorLabel}.`}
+              {closest?.distanceKm != null && (
+                <>
+                  {" "}Closest is <span className="font-medium text-foreground">{closest.name}</span>
+                  {" "}·{" "}
+                  {closest.distanceKm < 1
+                    ? `${Math.round(closest.distanceKm * 1000)} m away`
+                    : `${closest.distanceKm.toFixed(1)} km away`}
+                  {" "}· from ₱{closest.minRate.toFixed(0)}/hr.
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onClearFilter}
-          className="mt-3 text-xs font-semibold text-primary hover:underline"
+          className="mt-4 text-xs font-semibold text-primary hover:underline"
         >
           Or view all courts at this venue →
         </button>
       </div>
+
 
       {suggestLoading ? (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
