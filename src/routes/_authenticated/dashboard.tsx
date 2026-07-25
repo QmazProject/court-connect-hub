@@ -2278,20 +2278,30 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean }> = [
-  { id: "emoji", label: "Emoji" },
-  { id: "name", label: "Venue", required: true },
-  { id: "location", label: "Location" },
-  { id: "description", label: "About this Venue" },
-  { id: "created_at", label: "Created At" },
-  { id: "map", label: "Map" },
-  { id: "courts", label: "Courts" },
-  { id: "status", label: "Venue Status" },
-  { id: "actions", label: "Actions", required: true },
-  { id: "history", label: "History" },
+const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean; defaultOn?: boolean }> = [
+  { id: "emoji", label: "Emoji", defaultOn: true },
+  { id: "name", label: "Venue", required: true, defaultOn: true },
+  { id: "location", label: "Location", defaultOn: true },
+  { id: "description", label: "About this Venue", defaultOn: true },
+  { id: "created_at", label: "Created At", defaultOn: true },
+  { id: "map", label: "Map", defaultOn: true },
+  { id: "courts", label: "Courts", defaultOn: true },
+  { id: "status", label: "Venue Status", defaultOn: true },
+  { id: "actions", label: "Actions", required: true, defaultOn: true },
+  { id: "history", label: "History", defaultOn: true },
+  // Optional (off by default) — surfaced from create/edit venue panels
+  { id: "amenities", label: "Amenities" },
+  { id: "food_beverages", label: "Food & Beverages" },
+  { id: "facility_services", label: "Facility Services" },
+  { id: "fees", label: "Fees & Charges" },
+  { id: "contact_phone", label: "Inquiry Phone" },
+  { id: "contact_email", label: "Inquiry Email" },
+  { id: "operating_hours", label: "Operating Hours" },
+  { id: "cancellation", label: "Cancellation Policy" },
+  { id: "rules", label: "Venue Rules" },
 ];
 const VENUE_COLS_STORAGE_KEY = "venues-tab-columns-v1";
-const DEFAULT_VENUE_COLS = VENUE_COLUMNS.map((c) => c.id);
+const DEFAULT_VENUE_COLS = VENUE_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
 
 function useVenueColumns() {
   const [selected, setSelected] = useState<string[]>(DEFAULT_VENUE_COLS);
@@ -2616,6 +2626,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "status": return <th key={id} className="px-3 py-2.5 w-28 text-center">Status</th>;
       case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
       case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
+      case "amenities": return <th key={id} className="px-3 py-2.5 w-[200px]">Amenities</th>;
+      case "food_beverages": return <th key={id} className="px-3 py-2.5 w-[200px]">Food & Beverages</th>;
+      case "facility_services": return <th key={id} className="px-3 py-2.5 w-[200px]">Facility Services</th>;
+      case "fees": return <th key={id} className="px-3 py-2.5 w-24 text-center">Fees</th>;
+      case "contact_phone": return <th key={id} className="px-3 py-2.5 w-36">Inquiry Phone</th>;
+      case "contact_email": return <th key={id} className="px-3 py-2.5 w-48">Inquiry Email</th>;
+      case "operating_hours": return <th key={id} className="px-3 py-2.5 w-[200px]">Operating Hours</th>;
+      case "cancellation": return <th key={id} className="px-3 py-2.5 w-[200px]">Cancellation</th>;
+      case "rules": return <th key={id} className="px-3 py-2.5 w-[200px]">Rules</th>;
       default: return null;
     }
   };
@@ -2726,6 +2745,84 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
             </button>
           </td>
         );
+      case "amenities":
+      case "food_beverages":
+      case "facility_services": {
+        const arr = (id === "amenities" ? v.amenities : id === "food_beverages" ? v.food_beverages : v.facility_services) ?? [];
+        if (!arr.length) return <td key={id} className="px-3 py-3 text-muted-foreground"><span className="italic opacity-60">—</span></td>;
+        const text = arr.join(", ");
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] text-xs">
+                <div className="flex flex-wrap gap-1">
+                  {arr.map((t, i) => <span key={i} className="rounded-full bg-secondary px-2 py-0.5">{t}</span>)}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
+      case "fees": {
+        const feesArr = Array.isArray(v.fees) ? v.fees as FeeItem[] : [];
+        if (!feesArr.length && !v.fees_notes) return <td key={id} className="px-3 py-3 text-center text-muted-foreground"><span className="italic opacity-60">—</span></td>;
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="center" className="w-64 text-xs">
+                <ul className="space-y-1">
+                  {feesArr.map((f, i) => <li key={i} className="flex justify-between gap-2"><span>{f.label}</span><span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span></li>)}
+                </ul>
+                {v.fees_notes && <p className="mt-2 border-t border-border pt-2 text-muted-foreground whitespace-pre-wrap">{v.fees_notes}</p>}
+              </HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
+      case "contact_phone":
+        return <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{v.contact_phone || <span className="italic opacity-60">—</span>}</td>;
+      case "contact_email":
+        return <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{v.contact_email || <span className="italic opacity-60">—</span>}</td>;
+      case "operating_hours":
+      case "rules": {
+        const text = id === "operating_hours" ? v.operating_hours_text : v.rules;
+        if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
+      case "cancellation": {
+        const hrs = (v as any).refund_cutoff_hours as number | null | undefined;
+        const notes = v.cancellation_notes;
+        if (hrs == null && !notes) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
+        const summary = hrs != null ? `Cancel up to ${hrs}h before` : "See notes";
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+            <HoverCard openDelay={100} closeDelay={80}>
+              <HoverCardTrigger asChild>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] text-xs">
+                <p className="font-semibold text-foreground">{summary}</p>
+                {notes && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{notes}</p>}
+              </HoverCardContent>
+            </HoverCard>
+          </td>
+        );
+      }
       default: return null;
     }
   };
