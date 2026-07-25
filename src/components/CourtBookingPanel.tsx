@@ -420,7 +420,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                     title={otherSport ? "Booked for a different sport" : label}
                     className={"flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " + stateClass}
                   >
-                    <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)}</span>
+                    <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
                     {label && <span className="mt-0.5 text-[9px] uppercase tracking-wide">{label}</span>}
                   </button>
                 );
