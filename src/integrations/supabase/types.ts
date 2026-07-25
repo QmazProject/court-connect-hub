@@ -18,32 +18,38 @@ export type Database = {
         Row: {
           court_id: number
           created_at: string
+          discount_amount: number
           end_time: string
           id: number
           payment_status: string
           start_time: string
           status: string
           user_id: string
+          voucher_id: string | null
         }
         Insert: {
           court_id: number
           created_at?: string
+          discount_amount?: number
           end_time: string
           id?: never
           payment_status?: string
           start_time: string
           status?: string
           user_id?: string
+          voucher_id?: string | null
         }
         Update: {
           court_id?: number
           created_at?: string
+          discount_amount?: number
           end_time?: string
           id?: never
           payment_status?: string
           start_time?: string
           status?: string
           user_id?: string
+          voucher_id?: string | null
         }
         Relationships: [
           {
@@ -51,6 +57,13 @@ export type Database = {
             columns: ["court_id"]
             isOneToOne: false
             referencedRelation: "courts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
             referencedColumns: ["id"]
           },
         ]
@@ -76,6 +89,7 @@ export type Database = {
           sport_id: number
           surface_type: string | null
           venue_id: number
+          voucher_enabled: boolean
         }
         Insert: {
           amenities?: string[]
@@ -97,6 +111,7 @@ export type Database = {
           sport_id: number
           surface_type?: string | null
           venue_id: number
+          voucher_enabled?: boolean
         }
         Update: {
           amenities?: string[]
@@ -118,6 +133,7 @@ export type Database = {
           sport_id?: number
           surface_type?: string | null
           venue_id?: number
+          voucher_enabled?: boolean
         }
         Relationships: [
           {
@@ -491,6 +507,107 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_redemptions: {
+        Row: {
+          amount_discounted: number
+          booking_id: number
+          created_at: string
+          id: string
+          user_id: string
+          voucher_id: string
+        }
+        Insert: {
+          amount_discounted?: number
+          booking_id: number
+          created_at?: string
+          id?: string
+          user_id: string
+          voucher_id: string
+        }
+        Update: {
+          amount_discounted?: number
+          booking_id?: number
+          created_at?: string
+          id?: string
+          user_id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_redemptions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_redemptions_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vouchers: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          discount_type: string
+          discount_value: number
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          min_booking_amount: number | null
+          notes: string | null
+          one_per_user: boolean
+          updated_at: string
+          venue_id: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          discount_type: string
+          discount_value: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          min_booking_amount?: number | null
+          notes?: string | null
+          one_per_user?: boolean
+          updated_at?: string
+          venue_id: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          min_booking_amount?: number | null
+          notes?: string | null
+          one_per_user?: boolean
+          updated_at?: string
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -512,6 +629,17 @@ export type Database = {
         }[]
       }
       is_tenant: { Args: { _user_id: string }; Returns: boolean }
+      preview_voucher: {
+        Args: { _amount: number; _code: string; _court_id: number }
+        Returns: {
+          discount: number
+          discount_type: string
+          discount_value: number
+          ok: boolean
+          reason: string
+          voucher_id: string
+        }[]
+      }
       venue_has_active_bookings: {
         Args: { _venue_id: number }
         Returns: boolean
