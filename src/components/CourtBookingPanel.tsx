@@ -132,15 +132,18 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Please sign in to book a court.");
       const sorted = [...hours].sort((a, b) => a - b);
-      const rows = sorted.map((hour) => {
+      const rows = sorted.map((hour, idx) => {
         const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
         const end = new Date(start.getTime() + 60 * 60 * 1000);
+        const applyVoucher = idx === 0 && voucher;
         return {
           court_id: courtId,
           user_id: userData.user!.id,
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           status: "confirmed",
+          voucher_id: applyVoucher ? voucher!.id : null,
+          discount_amount: applyVoucher ? voucher!.discount : 0,
         };
       });
       const { error } = await supabase.from("bookings").insert(rows);
@@ -149,6 +152,8 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
     onSuccess: () => {
       setSelected([]);
       setErr(null);
+      setVoucher(null);
+      setVoucherCode("");
       qc.invalidateQueries({ queryKey: ["avail", courtId, date] });
     },
     onError: (e: Error) => {
@@ -160,6 +165,28 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       }
     },
   });
+
+  async function applyVoucher() {
+    if (!voucherCode.trim() || !courtQ.data) return;
+    setVoucherLoading(true); setVoucherErr(null);
+    try {
+      const amount = Number(courtQ.data.hourly_rate) * Math.max(1, selected.length);
+      const { data, error } = await supabase.rpc("preview_voucher", {
+        _code: voucherCode.trim(),
+        _court_id: courtId,
+        _amount: amount,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row?.ok) { setVoucher(null); setVoucherErr(row?.reason || "Invalid voucher"); return; }
+      setVoucher({ id: row.voucher_id, discount: Number(row.discount), type: row.discount_type, value: Number(row.discount_value) });
+    } catch (e) {
+      setVoucher(null);
+      setVoucherErr((e as Error).message);
+    } finally {
+      setVoucherLoading(false);
+    }
+  }
 
   if (courtQ.isLoading) {
     return <div className="p-6"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></div>;
