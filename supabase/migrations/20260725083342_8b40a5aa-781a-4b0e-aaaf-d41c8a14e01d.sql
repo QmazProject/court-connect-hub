@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.apply_booking_voucher() FROM PUBLIC, anon, authenticated;
