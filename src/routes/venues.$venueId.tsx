@@ -1011,20 +1011,35 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                     : remaining <= 2
                     ? "bg-amber-100 text-amber-700"
                     : "bg-emerald-100 text-emerald-700";
-                const inner = (
-                  <>
-                    <div className="relative">
-                      {c.images && c.images.length > 0 ? (
-                        <img src={c.images[0]} alt={c.name} className={`h-32 w-full object-cover ${soon ? "opacity-70" : ""}`} />
+                const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md";
+                const hasImages = !!(c.images && c.images.length > 0);
+                return (
+                  <div key={c.id} className={`${baseCls} ${soon ? "cursor-not-allowed" : ""}`} aria-disabled={soon}>
+                    <button
+                      type="button"
+                      onClick={() => !soon && onOpenCourt(c.id)}
+                      disabled={soon}
+                      className="relative block w-full text-left"
+                      aria-label={`View ${c.name} images and details`}
+                    >
+                      {hasImages ? (
+                        <>
+                          <img src={c.images![0]} alt={c.name} className={`h-40 w-full object-cover ${soon ? "opacity-70" : ""}`} />
+                          {c.images!.length > 1 && (
+                            <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+                              +{c.images!.length - 1} photos
+                            </span>
+                          )}
+                        </>
                       ) : (
-                        <div className={`court-pattern h-32 ${soon ? "opacity-70" : ""}`} />
+                        <div className={`court-pattern h-40 ${soon ? "opacity-70" : ""}`} />
                       )}
                       {soon && (
                         <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
                           Coming soon
                         </span>
                       )}
-                    </div>
+                    </button>
                     <div className="p-5">
                       <div className="flex items-center justify-between text-xs">
                         <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
@@ -1077,7 +1092,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                           )}
                         </div>
                       )}
-                      <div className="mt-4 flex items-baseline justify-between">
+                      <div className="mt-4 flex items-center justify-between gap-3">
                         <div>
                           <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
                           <span className="text-sm text-muted-foreground"> / hour</span>
@@ -1085,27 +1100,17 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                         {soon ? (
                           <span className="text-xs font-semibold text-amber-600">Opening soon</span>
                         ) : (
-                          <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
+                          <button
+                            type="button"
+                            onClick={() => onOpenCourt(c.id)}
+                            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 active:scale-[0.98]"
+                          >
+                            Book now
+                          </button>
                         )}
                       </div>
-
                     </div>
-                  </>
-                );
-                const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition";
-                return soon ? (
-                  <div key={c.id} className={`${baseCls} cursor-not-allowed`} aria-disabled>
-                    {inner}
                   </div>
-                ) : (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => onOpenCourt(c.id)}
-                    className={`${baseCls} text-left hover:shadow-md`}
-                  >
-                    {inner}
-                  </button>
                 );
               })}
             </div>

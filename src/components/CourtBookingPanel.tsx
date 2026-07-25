@@ -70,6 +70,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [err, setErr] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
+  const [lightbox, setLightbox] = useState<number | null>(null);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
@@ -206,13 +207,23 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
         {(court.images?.length ?? 0) > 0 && (
           <section className="mb-5 grid gap-2 sm:grid-cols-2">
             {court.images!.map((src, i) => (
-              <img
+              <button
                 key={i}
-                src={src}
-                alt={`${court.name} photo ${i + 1}`}
-                className={"w-full rounded-xl border border-border object-cover " + (i === 0 ? "h-48 sm:col-span-2 sm:h-60" : "h-32")}
-                loading="lazy"
-              />
+                type="button"
+                onClick={() => setLightbox(i)}
+                className={"group relative overflow-hidden rounded-xl border border-border " + (i === 0 ? "sm:col-span-2" : "")}
+                aria-label={`View photo ${i + 1}`}
+              >
+                <img
+                  src={src}
+                  alt={`${court.name} photo ${i + 1}`}
+                  className={"w-full object-cover transition group-hover:scale-[1.02] " + (i === 0 ? "h-48 sm:h-60" : "h-32")}
+                  loading="lazy"
+                />
+                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                  Tap to enlarge
+                </span>
+              </button>
             ))}
           </section>
         )}
@@ -385,6 +396,47 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           setPayLoading={setPayLoading}
           onError={(m) => { setErr(m); setCheckoutOpen(false); }}
         />
+      )}
+
+      {lightbox !== null && court.images && court.images[lightbox] && (
+        <div
+          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {lightbox > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightbox(lightbox - 1); }}
+              className="absolute left-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+              aria-label="Previous"
+            >‹</button>
+          )}
+          <img
+            src={court.images[lightbox]}
+            alt={`${court.name} photo ${lightbox + 1}`}
+            className="max-h-[85vh] max-w-[92vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {lightbox < court.images.length - 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightbox(lightbox + 1); }}
+              className="absolute right-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+              aria-label="Next"
+            >›</button>
+          )}
+          <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+            {lightbox + 1} / {court.images.length}
+          </span>
+        </div>
       )}
     </div>
   );
