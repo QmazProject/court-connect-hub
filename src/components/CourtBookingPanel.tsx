@@ -21,6 +21,9 @@ type Court = {
   coming_soon: boolean | null;
   capacity: number;
   physical_court_id: number;
+  map_emoji: string | null;
+  surface_type: string | null;
+  player_capacity: number | null;
   sports: { name: string } | null;
   venues: {
     name: string;
