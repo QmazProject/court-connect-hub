@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass, CalendarDays } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -66,6 +66,7 @@ type Court = {
   amenities: string[] | null;
   images: string[] | null;
   coming_soon: boolean | null;
+  operating_hours: Record<string, string> | null;
   sports: { name: string; slug: string } | null;
 };
 
@@ -109,7 +110,7 @@ function VenueDetail() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, description, amenities, images, coming_soon, sports!inner(name, slug)")
+        .select("id, name, hourly_rate, is_indoor, description, amenities, images, coming_soon, operating_hours, sports!inner(name, slug)")
         .eq("venue_id", Number(venueId))
         .order("coming_soon", { ascending: true })
         .order("id");
@@ -692,6 +693,83 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
 
   const selectedSportName = selectedSport ? allSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
 
+  // ---- Real-time availability for a selected date ----
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  }, []);
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
+  const bookableCourtIds = useMemo(
+    () => courts.filter((c) => !c.coming_soon).map((c) => c.id),
+    [courts]
+  );
+
+  const dayBounds = useMemo(() => {
+    const start = new Date(`${selectedDate}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  }, [selectedDate]);
+
+  const bookingsQ = useQuery({
+    queryKey: ["venue-day-bookings", venue?.id, selectedDate, bookableCourtIds.join(",")],
+    enabled: bookableCourtIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("court_id, start_time, end_time, status")
+        .in("court_id", bookableCourtIds)
+        .eq("status", "confirmed")
+        .lt("start_time", dayBounds.endISO)
+        .gt("end_time", dayBounds.startISO);
+      if (error) throw error;
+      return (data ?? []) as { court_id: number; start_time: string; end_time: string }[];
+    },
+  });
+
+  const weekdayKey = useMemo(() => {
+    const d = new Date(`${selectedDate}T00:00:00`);
+    return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
+  }, [selectedDate]);
+
+  function parseOpHours(oh: Record<string, string> | null | undefined): [number, number] {
+    const raw = oh?.[weekdayKey] ?? "00:00-24:00";
+    const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(raw.trim());
+    if (!m) return [0, 24];
+    const start = Math.max(0, Math.min(24, parseInt(m[1], 10)));
+    const end = Math.max(0, Math.min(24, parseInt(m[3], 10)));
+    if (end <= start) return [0, 24];
+    return [start, end];
+  }
+
+  const availability = useMemo(() => {
+    const byCourt = new Map<number, { total: number; booked: number }>();
+    const dayStart = new Date(`${selectedDate}T00:00:00`).getTime();
+    for (const c of courts) {
+      if (c.coming_soon) continue;
+      const [oh0, oh1] = parseOpHours(c.operating_hours);
+      const total = oh1 - oh0;
+      const bookedSet = new Set<number>();
+      for (const b of bookingsQ.data ?? []) {
+        if (b.court_id !== c.id) continue;
+        const s = Math.max(new Date(b.start_time).getTime(), dayStart + oh0 * 3600_000);
+        const e = Math.min(new Date(b.end_time).getTime(), dayStart + oh1 * 3600_000);
+        if (e <= s) continue;
+        const startHr = Math.floor((s - dayStart) / 3600_000);
+        const endHr = Math.ceil((e - dayStart) / 3600_000);
+        for (let h = startHr; h < endHr; h++) bookedSet.add(h);
+      }
+      byCourt.set(c.id, { total, booked: Math.min(bookedSet.size, total) });
+    }
+    return byCourt;
+  }, [courts, bookingsQ.data, selectedDate, weekdayKey]);
+
+  const isPastDate = selectedDate < todayStr;
+
+
   return (
     <section className="mx-auto mt-10 max-w-6xl px-4 sm:mt-14 sm:px-6">
       {/* Heading */}
@@ -731,9 +809,56 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </div>
       )}
 
+      {/* Date picker for real-time availability */}
+      <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-primary/10 p-2 text-primary">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-foreground">Check court availability</div>
+              <p className="text-xs text-muted-foreground">Select a date to view real-time court availability.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedDate(todayStr)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedDate === todayStr ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:border-primary/50"}`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date(`${todayStr}T00:00:00`);
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(d.toISOString().slice(0, 10));
+              }}
+              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/50"
+            >
+              Tomorrow
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              min={todayStr}
+              onChange={(e) => setSelectedDate(e.target.value || todayStr)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+        {isPastDate && (
+          <p className="mt-2 text-xs text-amber-600">This date is in the past — availability is read-only.</p>
+        )}
+      </div>
+
       <div className="mt-6">
         {/* Courts grid */}
         <div>
+
+
 
           {loading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -745,6 +870,17 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {courts.map((c) => {
                 const soon = !!c.coming_soon;
+                const avail = availability.get(c.id);
+                const remaining = avail ? Math.max(avail.total - avail.booked, 0) : null;
+                const pct = avail && avail.total > 0 ? Math.round((avail.booked / avail.total) * 100) : 0;
+                const availTone =
+                  remaining == null
+                    ? "bg-muted text-muted-foreground"
+                    : remaining === 0
+                    ? "bg-red-100 text-red-700"
+                    : remaining <= 2
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-emerald-100 text-emerald-700";
                 const inner = (
                   <>
                     <div className="relative">
@@ -779,6 +915,38 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                           ))}
                         </div>
                       )}
+                      {!soon && (
+                        <div className="mt-3 rounded-xl border border-border/70 bg-muted/40 p-2.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-foreground">
+                              {bookingsQ.isLoading ? (
+                                <span className="text-muted-foreground">Checking availability…</span>
+                              ) : remaining == null ? (
+                                <span className="text-muted-foreground">No hours today</span>
+                              ) : remaining === 0 ? (
+                                <span>Fully booked</span>
+                              ) : (
+                                <span>
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${availTone}`}>
+                                    {remaining} hr{remaining === 1 ? "" : "s"} open
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                            {avail && avail.total > 0 && (
+                              <span className="text-muted-foreground">{avail.booked}/{avail.total} booked</span>
+                            )}
+                          </div>
+                          {avail && avail.total > 0 && (
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background">
+                              <div
+                                className={`h-full transition-all ${pct >= 100 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-primary"}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-4 flex items-baseline justify-between">
                         <div>
                           <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
@@ -790,6 +958,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                           <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
                         )}
                       </div>
+
                     </div>
                   </>
                 );
