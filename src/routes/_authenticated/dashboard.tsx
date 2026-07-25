@@ -1490,6 +1490,8 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         amenities: parseList(amenities),
         images,
         map_emoji: mapEmoji,
+        surface_type: surfaceType.trim() || null,
+        player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
       });
 
       if (error) throw error;
