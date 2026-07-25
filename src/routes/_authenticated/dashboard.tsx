@@ -2663,14 +2663,14 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           <td key={id} className="px-3 py-3 text-muted-foreground w-[240px] min-w-[240px] max-w-[240px]">
             {v.description ? (
               v.description.length > 40 ? (
-                <HoverCard openDelay={100} closeDelay={80}>
-                  <HoverCardTrigger asChild>
-                    <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
-                  </HoverCardTrigger>
-                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 hover:text-foreground">{v.description}</button>
+                  </PopoverTrigger>
+                  <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {v.description}
-                  </HoverCardContent>
-                </HoverCard>
+                  </PopoverContent>
+                </Popover>
               ) : (
                 <span className="block w-full truncate">{v.description}</span>
               )
