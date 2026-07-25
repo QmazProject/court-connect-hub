@@ -3675,9 +3675,12 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
       const courtIds = group.layouts.map((l) => l.id);
       if (courtIds.length > 0) {
         const { count, error } = await supabase.from("bookings")
-          .select("id", { count: "exact", head: true }).in("court_id", courtIds);
+          .select("id", { count: "exact", head: true })
+          .in("court_id", courtIds)
+          .eq("status", "confirmed")
+          .gte("end_time", new Date().toISOString());
         if (error) throw error;
-        if ((count ?? 0) > 0) throw new Error("This group has existing bookings and cannot be deleted.");
+        if ((count ?? 0) > 0) throw new Error("This group has upcoming confirmed bookings and cannot be deleted until they finish or are cancelled.");
         // Detach courts from the physical surface by giving each its own new slab
         for (const c of group.layouts) {
           const { data: pc, error: pcErr } = await supabase.from("physical_courts")
