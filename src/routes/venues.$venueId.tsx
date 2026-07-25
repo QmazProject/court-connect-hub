@@ -8,9 +8,11 @@ import { MapPicker } from "@/components/MapPicker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { CourtBookingPanel } from "@/components/CourtBookingPanel";
 
 const searchSchema = z.object({
   sport: z.string().optional(),
+  court: z.coerce.number().int().positive().optional(),
 });
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -88,8 +90,10 @@ type ChipKey =
 
 function VenueDetail() {
   const { venueId } = Route.useParams();
-  const { sport } = Route.useSearch();
+  const { sport, court: openCourtId } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
+  const openCourt = (id: number | null) =>
+    navigate({ search: (prev: { sport?: string; court?: number }) => ({ ...prev, court: id ?? undefined }), replace: !id });
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openChip, setOpenChip] = useState<ChipKey | null>(null);
@@ -501,6 +505,7 @@ function VenueDetail() {
         onSelectSport={(slug) =>
           navigate({ to: "/venues/$venueId", params: { venueId }, search: slug ? { sport: slug } : {} })
         }
+        onOpenCourt={(id) => openCourt(id)}
       />
 
 
@@ -599,6 +604,11 @@ function VenueDetail() {
           <p className="text-muted-foreground">Venue not found.</p>
         </div>
       )}
+      <CourtBookingPanel
+        courtId={openCourtId ?? null}
+        open={!!openCourtId}
+        onOpenChange={(o) => { if (!o) openCourt(null); }}
+      />
     </main>
   );
 }
@@ -609,9 +619,10 @@ type ExploreCourtsProps = {
   loading: boolean;
   selectedSport: string | undefined;
   onSelectSport: (slug: string | null) => void;
+  onOpenCourt: (id: number) => void;
 };
 
-function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }: ExploreCourtsProps) {
+function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, onOpenCourt }: ExploreCourtsProps) {
   // ALL sports the system supports (system-wide list)
   const allSportsQ = useQuery({
     queryKey: ["all-sports"],
@@ -1087,14 +1098,14 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                     {inner}
                   </div>
                 ) : (
-                  <Link
+                  <button
                     key={c.id}
-                    to="/courts/$courtId"
-                    params={{ courtId: String(c.id) }}
-                    className={`${baseCls} hover:shadow-md`}
+                    type="button"
+                    onClick={() => onOpenCourt(c.id)}
+                    className={`${baseCls} text-left hover:shadow-md`}
                   >
                     {inner}
-                  </Link>
+                  </button>
                 );
               })}
             </div>
