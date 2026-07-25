@@ -205,64 +205,79 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           </section>
         )}
 
-        {(court.images?.length ?? 0) > 0 && (
-          <section className="mb-5">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Court images
-              </h2>
+        <section className="mb-5">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Court images
+            </h2>
+            {(court.images?.length ?? 0) > 0 && (
               <span className="text-xs text-muted-foreground">
                 {carouselIdx + 1} / {court.images!.length}
               </span>
-            </div>
-            <div className="relative overflow-hidden rounded-xl border border-border bg-muted">
-              <button
-                type="button"
-                onClick={() => setLightbox(carouselIdx)}
-                className="block w-full"
-                aria-label="Enlarge image"
-              >
-                <img
-                  src={court.images![carouselIdx]}
-                  alt={`${court.name} photo ${carouselIdx + 1}`}
-                  className="h-56 w-full object-cover sm:h-72"
-                  loading="lazy"
-                />
-              </button>
-              {court.images!.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setCarouselIdx((carouselIdx - 1 + court.images!.length) % court.images!.length)}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
-                    aria-label="Previous image"
-                  >‹</button>
-                  <button
-                    type="button"
-                    onClick={() => setCarouselIdx((carouselIdx + 1) % court.images!.length)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
-                    aria-label="Next image"
-                  >›</button>
-                </>
-              )}
-            </div>
-            {court.images!.length > 1 && (
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                {court.images!.map((src, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setCarouselIdx(i)}
-                    className={"flex-shrink-0 overflow-hidden rounded-lg border-2 transition " + (i === carouselIdx ? "border-primary" : "border-transparent opacity-70 hover:opacity-100")}
-                    aria-label={`Show image ${i + 1}`}
-                  >
-                    <img src={src} alt="" className="h-14 w-20 object-cover" loading="lazy" />
-                  </button>
-                ))}
-              </div>
             )}
-          </section>
-        )}
+          </div>
+          {(court.images?.length ?? 0) === 0 ? (
+            <div className="flex h-56 w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 text-center sm:h-72">
+              <svg className="h-10 w-10 text-muted-foreground/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">No image set</p>
+              <p className="text-xs text-muted-foreground/80">The tenant hasn&apos;t uploaded photos for this court yet.</p>
+            </div>
+          ) : (
+            <>
+              <div className="relative overflow-hidden rounded-xl border border-border bg-muted">
+                <button
+                  type="button"
+                  onClick={() => setLightbox(carouselIdx)}
+                  className="block w-full"
+                  aria-label="Enlarge image"
+                >
+                  <img
+                    src={court.images![carouselIdx]}
+                    alt={`${court.name} photo ${carouselIdx + 1}`}
+                    className="h-56 w-full object-cover sm:h-72"
+                    loading="lazy"
+                  />
+                </button>
+                {court.images!.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setCarouselIdx((carouselIdx - 1 + court.images!.length) % court.images!.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                      aria-label="Previous image"
+                    >‹</button>
+                    <button
+                      type="button"
+                      onClick={() => setCarouselIdx((carouselIdx + 1) % court.images!.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                      aria-label="Next image"
+                    >›</button>
+                  </>
+                )}
+              </div>
+              {court.images!.length > 1 && (
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {court.images!.map((src, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCarouselIdx(i)}
+                      className={"flex-shrink-0 overflow-hidden rounded-lg border-2 transition " + (i === carouselIdx ? "border-primary" : "border-transparent opacity-70 hover:opacity-100")}
+                      aria-label={`Show image ${i + 1}`}
+                    >
+                      <img src={src} alt="" className="h-14 w-20 object-cover" loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
 
         {(court.description || (court.amenities?.length ?? 0) > 0) && (
           <section className="mb-5 rounded-2xl border border-border bg-card p-4">
