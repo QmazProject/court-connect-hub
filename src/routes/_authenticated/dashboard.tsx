@@ -2141,6 +2141,7 @@ const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean }> = 
   { id: "created_at", label: "Created At" },
   { id: "map", label: "Map" },
   { id: "courts", label: "Courts" },
+  { id: "status", label: "Venue Status" },
   { id: "actions", label: "Actions", required: true },
   { id: "history", label: "History" },
 ];
@@ -2455,6 +2456,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "created_at": return <th key={id} className="px-3 py-2.5 w-32">CREATED AT</th>;
       case "map": return <th key={id} className="px-3 py-2.5 w-20 text-center">Map</th>;
       case "courts": return <th key={id} className="px-3 py-2.5 w-24 text-center">Courts</th>;
+      case "status": return <th key={id} className="px-3 py-2.5 w-28 text-center">Status</th>;
       case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
       case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
       default: return null;
@@ -2534,6 +2536,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <Layers className="h-4 w-4" />
               {has && (<span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">{n}</span>)}
             </button>
+          </td>
+        );
+      }
+      case "status": {
+        const active = v.is_active !== false;
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <span className={"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold " + (active ? "bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/30" : "bg-red-500/10 text-red-600 ring-1 ring-red-500/30")}>
+              <span className={"h-1.5 w-1.5 rounded-full " + (active ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+              {active ? "Active" : "Inactive"}
+            </span>
           </td>
         );
       }
