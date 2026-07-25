@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { startBookingCheckout } from "@/lib/paymongo.functions";
@@ -21,6 +21,9 @@ type Court = {
   coming_soon: boolean | null;
   capacity: number;
   physical_court_id: number;
+  map_emoji: string | null;
+  surface_type: string | null;
+  player_capacity: number | null;
   sports: { name: string } | null;
   venues: {
     name: string;
@@ -32,6 +35,15 @@ type Court = {
     refund_cutoff_hours: number;
   } | null;
 };
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="border-b border-border px-4 py-2.5 last:border-b-0 sm:odd:border-r">
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
+    </div>
+  );
+}
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -79,7 +91,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data, error } = await supabase
         .from("courts")
         .select(
-          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
+          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
         )
         .eq("id", courtId)
         .maybeSingle();
@@ -175,7 +187,10 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-card/95 px-5 py-4 backdrop-blur">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs">
-            <span className="rounded-full bg-secondary px-2 py-0.5 font-medium">{court.sports?.name}</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium">
+              {court.map_emoji && <span className="text-sm leading-none">{court.map_emoji}</span>}
+              <span>{court.sports?.name}</span>
+            </span>
             <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
           </div>
           <h1 className="mt-1 truncate font-display text-xl font-bold">{court.name}</h1>
@@ -204,6 +219,51 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             <p className="mt-1 text-sm text-muted-foreground">Check back soon.</p>
           </section>
         )}
+
+        <section className="mb-5 overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border bg-gradient-to-r from-indigo-600/10 via-fuchsia-500/10 to-rose-500/10 px-4 py-2">
+            <h2 className="text-[11px] font-extrabold uppercase italic tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-rose-500">
+              Court profile
+            </h2>
+          </div>
+          <dl className="grid grid-cols-1 gap-0 sm:grid-cols-2">
+            <DetailRow
+              label="Sport type"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  {court.map_emoji && <span className="text-base leading-none">{court.map_emoji}</span>}
+                  <span>{court.sports?.name ?? "—"}</span>
+                </span>
+              }
+            />
+            <DetailRow label="Court type" value={court.is_indoor ? "Indoor" : "Outdoor"} />
+            <DetailRow label="Court name" value={court.name} />
+            <DetailRow
+              label="Court location"
+              value={
+                <span className="block">
+                  <span className="font-semibold">{court.venues?.name ?? "—"}</span>
+                  {court.venues?.address && (
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{court.venues.address}</span>
+                  )}
+                </span>
+              }
+            />
+            <DetailRow
+              label="Rate"
+              value={<span><span className="font-bold text-primary">₱{Number(court.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/ hour</span></span>}
+            />
+            <DetailRow label="Surface type" value={court.surface_type || <span className="text-muted-foreground">Not specified</span>} />
+            <DetailRow
+              label="Player capacity"
+              value={
+                court.player_capacity
+                  ? <span>{court.player_capacity} <span className="text-xs text-muted-foreground">player{court.player_capacity === 1 ? "" : "s"}</span></span>
+                  : <span className="text-muted-foreground">Not specified</span>
+              }
+            />
+          </dl>
+        </section>
 
         <section className="mb-5">
           <div className="mb-2 flex items-center justify-between">

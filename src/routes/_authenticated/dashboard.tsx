@@ -1444,6 +1444,8 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
   const [capacity, setCapacity] = useState("1");
+  const [surfaceType, setSurfaceType] = useState("");
+  const [playerCapacity, setPlayerCapacity] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
@@ -1488,12 +1490,14 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         amenities: parseList(amenities),
         images,
         map_emoji: mapEmoji,
+        surface_type: surfaceType.trim() || null,
+        player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
       });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1552,6 +1556,30 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         <p className="mt-1 text-[11px] text-muted-foreground">
           Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
         </p>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Surface type</span>
+          <input
+            list="court-surface-suggestions"
+            value={surfaceType}
+            onChange={(e) => setSurfaceType(e.target.value)}
+            placeholder="e.g. Hardwood, Concrete, Synthetic, Clay, Rubber, Acrylic"
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          />
+          <datalist id="court-surface-suggestions">
+            <option value="Hardwood" />
+            <option value="Concrete" />
+            <option value="Synthetic" />
+            <option value="Acrylic" />
+            <option value="Rubber" />
+            <option value="Clay" />
+            <option value="Grass" />
+            <option value="Artificial turf" />
+            <option value="Vinyl flooring" />
+          </datalist>
+        </label>
+        <Input label="Player capacity (max players per match)" value={playerCapacity} onChange={setPlayerCapacity} type="number" />
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="About this Court" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
@@ -1657,6 +1685,12 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
   const [physicalCourtId, setPhysicalCourtId] = useState<string>(String(court.physical_court_id));
   const [capacity, setCapacity] = useState(String(court.capacity ?? 1));
+  const [surfaceType, setSurfaceType] = useState<string>(((court as unknown as { surface_type?: string | null }).surface_type) ?? "");
+  const [playerCapacity, setPlayerCapacity] = useState<string>(
+    ((court as unknown as { player_capacity?: number | null }).player_capacity ?? "") === null
+      ? ""
+      : String((court as unknown as { player_capacity?: number | null }).player_capacity ?? "")
+  );
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
@@ -1686,6 +1720,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         physical_court_id: Number(physicalCourtId),
         capacity: cap,
         footprint,
+        surface_type: surfaceType.trim() || null,
+        player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -1722,6 +1758,30 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         <p className="mt-1 text-[11px] text-muted-foreground">
           Group with other courts that share the same slab so bookings correctly conflict.
         </p>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Surface type</span>
+          <input
+            list="court-surface-suggestions-edit"
+            value={surfaceType}
+            onChange={(e) => setSurfaceType(e.target.value)}
+            placeholder="e.g. Hardwood, Concrete, Synthetic, Clay, Rubber, Acrylic"
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          />
+          <datalist id="court-surface-suggestions-edit">
+            <option value="Hardwood" />
+            <option value="Concrete" />
+            <option value="Synthetic" />
+            <option value="Acrylic" />
+            <option value="Rubber" />
+            <option value="Clay" />
+            <option value="Grass" />
+            <option value="Artificial turf" />
+            <option value="Vinyl flooring" />
+          </datalist>
+        </label>
+        <Input label="Player capacity (max players per match)" value={playerCapacity} onChange={setPlayerCapacity} type="number" />
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="About this Court" value={description} onChange={setDescription} />

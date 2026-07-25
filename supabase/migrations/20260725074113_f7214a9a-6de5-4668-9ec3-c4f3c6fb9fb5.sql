@@ -1,0 +1,1 @@
+ALTER TABLE public.courts ADD COLUMN IF NOT EXISTS surface_type text, ADD COLUMN IF NOT EXISTS player_capacity integer;
