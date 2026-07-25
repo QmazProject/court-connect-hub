@@ -535,6 +535,21 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                     ) : (
                       <> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
                     )}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {groupHourRanges(selected).map((r) => {
+                        const hrs = r.end - r.start;
+                        return (
+                          <span
+                            key={`${r.start}-${r.end}`}
+                            className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-foreground"
+                          >
+                            {fmtHour(r.start)} – {fmtHour(r.end % 24)}
+                            <span className="text-[10px] text-muted-foreground">· {hrs} hr{hrs > 1 ? "s" : ""}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Adjacent slots are combined into one segment.</p>
                   </>
                 ) : "Choose one or more hours."}
               </div>
