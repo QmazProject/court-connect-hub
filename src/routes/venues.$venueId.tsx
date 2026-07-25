@@ -861,14 +861,14 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-auto p-0 pointer-events-auto">
-                    <div className="flex flex-col gap-1 border-b border-border p-2 sm:flex-row sm:flex-wrap">
+                    <div className="grid grid-cols-2 gap-1.5 border-b border-border p-2">
                       {shortcuts.map((s) => (
                         <button
                           key={s.label}
                           type="button"
                           onClick={() => setSelectedDate(s.value)}
                           className={cn(
-                            "rounded-md px-3 py-1.5 text-xs font-medium text-left transition sm:text-center",
+                            "rounded-md px-3 py-1.5 text-xs font-medium text-center transition",
                             selectedDate === s.value
                               ? "bg-primary text-primary-foreground"
                               : "text-foreground hover:bg-muted"
