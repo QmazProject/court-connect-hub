@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useState, useRef, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -48,13 +48,26 @@ type Court = {
   sports: { name: string; slug: string } | null;
 };
 
+type ChipKey =
+  | "about"
+  | "location"
+  | "inquiries"
+  | "hours"
+  | "amenities"
+  | "fb"
+  | "fs"
+  | "fees"
+  | "cancellation"
+  | "rules";
+
 function VenueDetail() {
   const { venueId } = Route.useParams();
   const { sport } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-
+  const [openChip, setOpenChip] = useState<ChipKey | null>(null);
+  const chipsRef = useRef<HTMLDivElement | null>(null);
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
@@ -93,11 +106,223 @@ function VenueDetail() {
   const prev = () => setImgIdx((i) => i - 1);
   const next = () => setImgIdx((i) => i + 1);
 
+  const feesList: FeeItem[] = Array.isArray(venue?.fees) ? (venue!.fees as FeeItem[]) : [];
+  const rulesList = (venue?.rules ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.replace(/^\s*[-•]\s*/, "").trim())
+    .filter(Boolean);
+
+  const chips: { key: ChipKey; icon: ReactNode; label: string; preview: string; show: boolean }[] = venue
+    ? [
+        {
+          key: "about",
+          icon: <Info className="h-4 w-4" />,
+          label: "About",
+          preview: venue.description ?? "",
+          show: !!venue.description,
+        },
+        {
+          key: "location",
+          icon: <MapPin className="h-4 w-4" />,
+          label: "Location",
+          preview: venue.address,
+          show: !!venue.address,
+        },
+        {
+          key: "inquiries",
+          icon: <Phone className="h-4 w-4" />,
+          label: "Inquiries",
+          preview: venue.contact_phone ?? venue.contact_email ?? "",
+          show: !!(venue.contact_phone || venue.contact_email),
+        },
+        {
+          key: "hours",
+          icon: <Clock className="h-4 w-4" />,
+          label: "Hours",
+          preview: (venue.operating_hours_text ?? "").split(/\r?\n/)[0] ?? "",
+          show: !!venue.operating_hours_text,
+        },
+        {
+          key: "amenities",
+          icon: <Sparkles className="h-4 w-4" />,
+          label: "Amenities",
+          preview: `${venue.amenities?.length ?? 0} items`,
+          show: (venue.amenities?.length ?? 0) > 0,
+        },
+        {
+          key: "fb",
+          icon: <UtensilsCrossed className="h-4 w-4" />,
+          label: "Food & Beverages",
+          preview: `${venue.food_beverages?.length ?? 0} items`,
+          show: (venue.food_beverages?.length ?? 0) > 0,
+        },
+        {
+          key: "fs",
+          icon: <Wrench className="h-4 w-4" />,
+          label: "Facility Services",
+          preview: `${venue.facility_services?.length ?? 0} items`,
+          show: (venue.facility_services?.length ?? 0) > 0,
+        },
+        {
+          key: "fees",
+          icon: <Wallet className="h-4 w-4" />,
+          label: "Fees & Charges",
+          preview: feesList.length > 0 ? `${feesList.length} listed` : "See details",
+          show: feesList.length > 0 || !!venue.fees_notes,
+        },
+        {
+          key: "cancellation",
+          icon: <RotateCcw className="h-4 w-4" />,
+          label: "Cancellation",
+          preview:
+            venue.refund_cutoff_hours != null
+              ? venue.refund_cutoff_hours > 0
+                ? `Cancel up to ${venue.refund_cutoff_hours}h before`
+                : "Last-minute allowed"
+              : "See policy",
+          show: venue.refund_cutoff_hours != null || !!venue.cancellation_notes,
+        },
+        {
+          key: "rules",
+          icon: <ClipboardList className="h-4 w-4" />,
+          label: "Rules",
+          preview: `${rulesList.length} rules`,
+          show: rulesList.length > 0,
+        },
+      ]
+    : [];
+
+  const visibleChips = chips.filter((c) => c.show);
+
+  const scrollChips = (dir: 1 | -1) => {
+    const el = chipsRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.min(el.clientWidth * 0.8, 400), behavior: "smooth" });
+  };
+
+  const CheckList = ({ items }: { items: string[] }) => (
+    <ul className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+      {items.map((v) => (
+        <li key={v} className="flex items-start gap-2 text-sm text-foreground">
+          <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+              <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
+            </svg>
+          </span>
+          <span>{v}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  const renderChipModalBody = (key: ChipKey): ReactNode => {
+    if (!venue) return null;
+    switch (key) {
+      case "about":
+        return <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">{venue.description}</p>;
+      case "location":
+        return (
+          <div className="space-y-3">
+            <p className="text-sm text-foreground">{venue.address}</p>
+            {venue.latitude != null && venue.longitude != null && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+              >
+                View on Google Maps →
+              </a>
+            )}
+          </div>
+        );
+      case "inquiries":
+        return (
+          <dl className="space-y-2 text-sm">
+            {venue.contact_phone && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>📱</span>Phone</dt>
+                <dd className="font-medium">
+                  <a href={`tel:${venue.contact_phone}`} className="hover:text-primary">{venue.contact_phone}</a>
+                </dd>
+              </div>
+            )}
+            {venue.contact_email && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>✉️</span>Email</dt>
+                <dd className="font-medium">
+                  <a href={`mailto:${venue.contact_email}`} className="hover:text-primary">{venue.contact_email}</a>
+                </dd>
+              </div>
+            )}
+          </dl>
+        );
+      case "hours":
+        return <p className="whitespace-pre-line text-sm text-foreground">{venue.operating_hours_text}</p>;
+      case "amenities":
+        return <CheckList items={venue.amenities ?? []} />;
+      case "fb":
+        return <CheckList items={venue.food_beverages ?? []} />;
+      case "fs":
+        return <CheckList items={venue.facility_services ?? []} />;
+      case "fees":
+        return (
+          <div>
+            {feesList.length > 0 && (
+              <ul className="divide-y divide-border">
+                {feesList.map((f, i) => (
+                  <li key={i} className="flex items-center justify-between py-2 text-sm">
+                    <span className="text-foreground">{f.label}</span>
+                    <span className="font-semibold text-primary">₱{Number(f.amount).toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {venue.fees_notes && (
+              <p className="mt-3 whitespace-pre-line text-xs text-muted-foreground">{venue.fees_notes}</p>
+            )}
+          </div>
+        );
+      case "cancellation":
+        return (
+          <div className="space-y-2 text-sm">
+            {venue.refund_cutoff_hours != null && (
+              <p className="text-foreground">
+                {venue.refund_cutoff_hours > 0
+                  ? <>Cancel up to <span className="font-semibold text-primary">{venue.refund_cutoff_hours}h</span> before start time.</>
+                  : <>Last-minute cancellations allowed.</>}
+              </p>
+            )}
+            {venue.cancellation_notes && (
+              <p className="whitespace-pre-line text-xs text-muted-foreground">{venue.cancellation_notes}</p>
+            )}
+          </div>
+        );
+      case "rules":
+        return (
+          <ul className="space-y-1.5 text-sm text-foreground">
+            {rulesList.map((r, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+                    <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
+                  </svg>
+                </span>
+                <span>{r}</span>
+              </li>
+            ))}
+          </ul>
+        );
+    }
+  };
+
+  const activeChip = visibleChips.find((c) => c.key === openChip) ?? null;
+
   return (
     <main className="pb-8 sm:pb-12">
       <section className="relative">
-        {/* Image carousel — fully visible */}
-        <div className="relative h-[280px] w-full overflow-hidden bg-muted sm:h-[380px] lg:h-[460px]">
+        {/* Image carousel */}
+        <div className="relative h-[320px] w-full overflow-hidden bg-muted sm:h-[440px] lg:h-[520px]">
           {currentImg ? (
             <button
               type="button"
@@ -111,6 +336,8 @@ function VenueDetail() {
             <div className="court-pattern h-full w-full" />
           )}
 
+          {/* Gradient scrim for readability */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
 
           {hasImages && images.length > 1 && (
             <>
@@ -129,283 +356,222 @@ function VenueDetail() {
                 <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
               </button>
 
-              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1.5">
-                {images.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setImgIdx(i)}
-                    aria-label={`Go to image ${i + 1}`}
-                    className={`h-1.5 rounded-full transition-all ${
-                      i === ((imgIdx % images.length) + images.length) % images.length
-                        ? "w-6 bg-primary"
-                        : "w-1.5 bg-white/60 hover:bg-white/80"
-                    }`}
-                  />
-                ))}
+              <div className="absolute right-4 top-4 z-10 rounded-full bg-black/50 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
+                {((imgIdx % images.length) + images.length) % images.length + 1} / {images.length}
               </div>
             </>
           )}
-        </div>
 
-        {/* Header content below the image */}
-        <div className="mx-auto max-w-6xl px-5 pt-6 sm:px-6 sm:pt-8">
+          {/* Back button overlaid */}
           <button
             onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
-            className="text-sm text-muted-foreground hover:text-foreground"
+            className="absolute left-3 top-3 z-10 rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow backdrop-blur hover:bg-background sm:left-5 sm:top-5 sm:text-sm"
           >
-            ← Back to venues
+            ← Back
           </button>
 
-          {venueQ.isLoading ? (
-            <div className="mt-6 h-24 animate-pulse rounded-2xl bg-muted" />
-          ) : venue ? (
-            <div className="mt-4">
-              <h1 className="text-3xl font-bold sm:text-4xl">{venue.name}</h1>
-              <p className="mt-1 text-muted-foreground">{venue.address}</p>
-              {venue.description && (
-                <p className="mt-3 max-w-2xl text-sm text-foreground/80">{venue.description}</p>
-              )}
-              {venue.latitude != null && venue.longitude != null && (
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                >
-                  View on Google Maps →
-                </a>
-              )}
+          {/* Bottom overlay panel */}
+          {venue && (
+            <div className="absolute inset-x-0 bottom-0 z-10">
+              <div className="mx-auto max-w-6xl px-3 pb-3 sm:px-6 sm:pb-5">
+                <div className="rounded-2xl border border-white/20 bg-background/95 p-3 shadow-2xl backdrop-blur-md sm:p-4">
+                  {/* Identity */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h1 className="truncate text-lg font-bold sm:text-2xl">{venue.name}</h1>
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground sm:text-sm">
+                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="truncate">{venue.address}</span>
+                      </p>
+                    </div>
+                    {visibleChips.length > 3 && (
+                      <div className="hidden shrink-0 gap-1 sm:flex">
+                        <button
+                          type="button"
+                          onClick={() => scrollChips(-1)}
+                          aria-label="Scroll left"
+                          className="rounded-full border border-border bg-background p-1.5 text-foreground shadow-sm hover:bg-muted"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => scrollChips(1)}
+                          aria-label="Scroll right"
+                          className="rounded-full border border-border bg-background p-1.5 text-foreground shadow-sm hover:bg-muted"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Swipe hint */}
+                  {visibleChips.length > 0 && (
+                    <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
+                      Swipe for details →
+                    </p>
+                  )}
+
+                  {/* Chips row */}
+                  {visibleChips.length > 0 && (
+                    <div
+                      ref={chipsRef}
+                      className="mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    >
+                      {visibleChips.map((c) => (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => setOpenChip(c.key)}
+                          className="group flex min-w-[150px] max-w-[220px] shrink-0 snap-start items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left shadow-sm transition hover:border-primary hover:shadow-md sm:min-w-[170px]"
+                        >
+                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                            {c.icon}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              {c.label}
+                            </span>
+                            <span className="block truncate text-xs font-medium text-foreground">
+                              {c.preview || "View"}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="mt-6 text-muted-foreground">Venue not found.</p>
           )}
         </div>
       </section>
 
-
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        {venue && (() => {
-          const hasAmenities = (venue.amenities?.length ?? 0) > 0;
-          const hasFB = (venue.food_beverages?.length ?? 0) > 0;
-          const hasFS = (venue.facility_services?.length ?? 0) > 0;
-          const feesList = Array.isArray(venue.fees) ? venue.fees : [];
-          const hasFees = feesList.length > 0 || !!venue.fees_notes;
-          const hasInquiries = !!(venue.contact_phone || venue.contact_email);
-          const hasHours = !!venue.operating_hours_text;
-          const hasCancellation = (venue.refund_cutoff_hours ?? null) != null || !!venue.cancellation_notes;
-          const rulesList = (venue.rules ?? "")
-            .split(/\r?\n/)
-            .map((s) => s.replace(/^\s*[-•]\s*/, "").trim())
-            .filter(Boolean);
-          const hasRules = rulesList.length > 0;
-          const hasAny = hasAmenities || hasFB || hasFS || hasFees || hasInquiries || hasHours || hasCancellation || hasRules;
-          if (!hasAny) return null;
-          const CheckList = ({ items }: { items: string[] }) => (
-            <ul className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {items.map((v) => (
-                <li key={v} className="flex items-start gap-2 text-sm text-foreground">
-                  <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
-                      <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
-                    </svg>
-                  </span>
-                  <span>{v}</span>
-                </li>
-              ))}
-            </ul>
-          );
-          return (
-            <section className="mt-8 grid gap-4 sm:grid-cols-2">
-              {hasInquiries && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">📞 Inquiries</h3>
-                  <dl className="mt-2 space-y-1.5 text-sm">
-                    {venue.contact_phone && (
-                      <div className="flex items-center justify-between gap-3">
-                        <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>📱</span>Phone</dt>
-                        <dd className="font-medium text-foreground">
-                          <a href={`tel:${venue.contact_phone}`} className="hover:text-primary">{venue.contact_phone}</a>
-                        </dd>
-                      </div>
-                    )}
-                    {venue.contact_email && (
-                      <div className="flex items-center justify-between gap-3">
-                        <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>✉️</span>Email</dt>
-                        <dd className="font-medium text-foreground">
-                          <a href={`mailto:${venue.contact_email}`} className="hover:text-primary">{venue.contact_email}</a>
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-              )}
-              {hasHours && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🕒 Operating Hours</h3>
-                  <p className="mt-2 whitespace-pre-line text-sm text-foreground">{venue.operating_hours_text}</p>
-                </div>
-              )}
-              {hasAmenities && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">✨ Amenities</h3>
-                  <CheckList items={venue.amenities!} />
-                </div>
-              )}
-              {hasFB && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🍽️ Food & Beverages</h3>
-                  <CheckList items={venue.food_beverages!} />
-                </div>
-              )}
-              {hasFS && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🛎️ Facility Services</h3>
-                  <CheckList items={venue.facility_services!} />
-                </div>
-              )}
-              {hasFees && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">💵 Fees & Charges</h3>
-                  {feesList.length > 0 && (
-                    <ul className="mt-2 divide-y divide-border">
-                      {feesList.map((f, i) => (
-                        <li key={i} className="flex items-center justify-between py-1.5 text-sm">
-                          <span className="text-foreground">{f.label}</span>
-                          <span className="font-semibold text-primary">₱{Number(f.amount).toFixed(2)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {venue.fees_notes && (
-                    <p className="mt-3 whitespace-pre-line text-xs text-muted-foreground">{venue.fees_notes}</p>
-                  )}
-                </div>
-              )}
-              {hasCancellation && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🔁 Cancellation Policy</h3>
-                  {(venue.refund_cutoff_hours ?? null) != null && (
-                    <p className="mt-2 text-sm text-foreground">
-                      {venue.refund_cutoff_hours! > 0
-                        ? <>Cancel up to <span className="font-semibold text-primary">{venue.refund_cutoff_hours}h</span> before start time.</>
-                        : <>Last-minute cancellations allowed.</>}
-                    </p>
-                  )}
-                  {venue.cancellation_notes && (
-                    <p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">{venue.cancellation_notes}</p>
-                  )}
-                </div>
-              )}
-              {hasRules && (
-                <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 sm:col-span-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">📋 Venue Rules</h3>
-                  <ul className="mt-2 space-y-1.5 text-sm text-foreground">
-                    {rulesList.map((r, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
-                            <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
-                          </svg>
-                        </span>
-                        <span>{r}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
-          );
-        })()}
+        <h2 className="mt-8 text-xl font-bold">
+          {sport ? "Courts for this sport" : "All courts"}{" "}
+          <span className="text-muted-foreground">({courts.length})</span>
+        </h2>
 
-      <h2 className="mt-8 text-xl font-bold">
-        {sport ? "Courts for this sport" : "All courts"}{" "}
-        <span className="text-muted-foreground">({courts.length})</span>
-      </h2>
-
-
-
-      {courtsQ.isLoading ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-48 animate-pulse rounded-2xl bg-muted" />
-          ))}
-        </div>
-      ) : courts.length > 0 ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courts.map((c) => {
-            const soon = !!c.coming_soon;
-            const inner = (
-              <>
-                <div className="relative">
-                  {c.images && c.images.length > 0 ? (
-                    <img src={c.images[0]} alt={c.name} className={`h-32 w-full object-cover ${soon ? "opacity-70" : ""}`} />
-                  ) : (
-                    <div className={`court-pattern h-32 ${soon ? "opacity-70" : ""}`} />
-                  )}
-                  {soon && (
-                    <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
-                      Coming soon
-                    </span>
-                  )}
-                </div>
-                <div className="p-5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
-                      {c.sports?.name ?? "Sport"}
-                    </span>
-                    <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
-                  </div>
-                  <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
-                  {c.description && (
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
-                  )}
-                  {c.amenities && c.amenities.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {c.amenities.slice(0, 3).map((a) => (
-                        <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-baseline justify-between">
-                    <div>
-                      <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
-                      <span className="text-sm text-muted-foreground"> / hour</span>
-                    </div>
-                    {soon ? (
-                      <span className="text-xs font-semibold text-amber-600">Opening soon</span>
+        {courtsQ.isLoading ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-48 animate-pulse rounded-2xl bg-muted" />
+            ))}
+          </div>
+        ) : courts.length > 0 ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {courts.map((c) => {
+              const soon = !!c.coming_soon;
+              const inner = (
+                <>
+                  <div className="relative">
+                    {c.images && c.images.length > 0 ? (
+                      <img src={c.images[0]} alt={c.name} className={`h-32 w-full object-cover ${soon ? "opacity-70" : ""}`} />
                     ) : (
-                      <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
+                      <div className={`court-pattern h-32 ${soon ? "opacity-70" : ""}`} />
+                    )}
+                    {soon && (
+                      <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
+                        Coming soon
+                      </span>
                     )}
                   </div>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
+                        {c.sports?.name ?? "Sport"}
+                      </span>
+                      <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
+                    </div>
+                    <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
+                    {c.description && (
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
+                    )}
+                    {c.amenities && c.amenities.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {c.amenities.slice(0, 3).map((a) => (
+                          <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-4 flex items-baseline justify-between">
+                      <div>
+                        <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
+                        <span className="text-sm text-muted-foreground"> / hour</span>
+                      </div>
+                      {soon ? (
+                        <span className="text-xs font-semibold text-amber-600">Opening soon</span>
+                      ) : (
+                        <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+              const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition";
+              return soon ? (
+                <div key={c.id} className={`${baseCls} cursor-not-allowed`} aria-disabled>
+                  {inner}
                 </div>
-              </>
-            );
-            const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition";
-            return soon ? (
-              <div key={c.id} className={`${baseCls} cursor-not-allowed`} aria-disabled>
-                {inner}
-              </div>
-            ) : (
-              <Link
-                key={c.id}
-                to="/courts/$courtId"
-                params={{ courtId: String(c.id) }}
-                className={`${baseCls} hover:shadow-md`}
-              >
-                {inner}
-              </Link>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-border p-12 text-center">
-          <p className="text-muted-foreground">No courts available at this venue{sport ? " for the selected sport" : ""}.</p>
-        </div>
-      )}
+              ) : (
+                <Link
+                  key={c.id}
+                  to="/courts/$courtId"
+                  params={{ courtId: String(c.id) }}
+                  className={`${baseCls} hover:shadow-md`}
+                >
+                  {inner}
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-dashed border-border p-12 text-center">
+            <p className="text-muted-foreground">No courts available at this venue{sport ? " for the selected sport" : ""}.</p>
+          </div>
+        )}
       </div>
 
+      {/* Chip detail modal */}
+      {activeChip && venue && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+          onClick={() => setOpenChip(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-t-3xl bg-background p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted sm:hidden" />
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-primary">
+                  {activeChip.icon}
+                </span>
+                <h2 className="text-lg font-bold">{activeChip.label}</h2>
+              </div>
+              <button
+                onClick={() => setOpenChip(null)}
+                aria-label="Close"
+                className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[65vh] overflow-y-auto">
+              {renderChipModalBody(activeChip.key)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
       {lightboxOpen && currentImg && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
@@ -451,8 +617,17 @@ function VenueDetail() {
           />
         </div>
       )}
+
+      {venueQ.isLoading && (
+        <div className="mx-auto mt-6 max-w-6xl px-4">
+          <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+        </div>
+      )}
+      {!venueQ.isLoading && !venue && (
+        <div className="mx-auto mt-6 max-w-6xl px-4">
+          <p className="text-muted-foreground">Venue not found.</p>
+        </div>
+      )}
     </main>
-
-
   );
 }
