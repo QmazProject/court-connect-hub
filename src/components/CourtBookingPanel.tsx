@@ -184,30 +184,13 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
 
   return (
     <div className="flex h-full flex-col">
-      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-card/95 px-5 py-4 backdrop-blur">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium">
-              {court.map_emoji && <span className="text-sm leading-none">{court.map_emoji}</span>}
-              <span>{court.sports?.name}</span>
-            </span>
-            <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
-          </div>
-          <h1 className="mt-1 truncate font-display text-xl font-bold">{court.name}</h1>
-          <p className="truncate text-xs text-muted-foreground">{court.venues?.name} · {court.venues?.address}</p>
+      {onClose && (
+        <div className="sticky top-0 z-10 flex justify-end border-b border-border bg-card/95 px-3 py-2 backdrop-blur">
+          <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-muted-foreground hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <div className="flex items-start gap-2">
-          <div className="text-right">
-            <div className="text-xl font-bold text-primary">₱{Number(court.hourly_rate).toFixed(0)}</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">per hour</div>
-          </div>
-          {onClose && (
-            <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-muted-foreground hover:bg-muted">
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </header>
+      )}
 
       <div className="flex-1 overflow-y-auto px-5 py-5">
         {court.coming_soon && (
