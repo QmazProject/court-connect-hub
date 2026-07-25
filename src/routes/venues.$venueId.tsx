@@ -485,12 +485,15 @@ function VenueDetail() {
             className="w-full max-w-lg rounded-t-3xl bg-background p-5 shadow-2xl sm:rounded-2xl sm:p-6"
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted sm:hidden" />
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
                   {activeChip.icon}
                 </span>
-                <h2 className="text-lg font-bold">{activeChip.label}</h2>
+                <div>
+                  <h2 className="text-lg font-bold leading-tight">{activeChip.label}</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{chipSubtitle(activeChip.key, venue.name)}</p>
+                </div>
               </div>
               <button
                 onClick={() => setOpenChip(null)}
