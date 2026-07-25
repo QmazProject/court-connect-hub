@@ -805,7 +805,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
           </aside>
         )}
 
-
+      <div className="mt-6">
         {/* Courts grid */}
         <div>
           {loading ? (
