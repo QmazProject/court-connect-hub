@@ -882,6 +882,11 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [err, setErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [foodBeverages, setFoodBeverages] = useState<string[]>([]);
+  const [facilityServices, setFacilityServices] = useState<string[]>([]);
+  const [fees, setFees] = useState<FeeItem[]>([]);
+  const [feesNotes, setFeesNotes] = useState("");
   const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const suggested = suggestTimezone(lat, lng);
