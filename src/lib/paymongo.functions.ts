@@ -8,6 +8,7 @@ const StartCheckoutInput = z.object({
   hours: z.array(z.number().int().min(0).max(23)).min(1).max(12),
   method: z.enum(["gcash", "paymaya", "grab_pay", "qrph", "card"]),
   origin: z.string().url(),
+  voucherCode: z.string().trim().min(1).max(64).optional(),
 });
 
 export const startBookingCheckout = createServerFn({ method: "POST" })
@@ -32,13 +33,31 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
 
     const totalHours = data.hours.length;
     const fullAmount = Number(court.hourly_rate) * totalHours;
+
+    // Voucher preview: authoritative discount computed server-side.
+    let voucherId: string | null = null;
+    let discountAmount = 0;
+    if (data.voucherCode) {
+      const { data: vp, error: vErr } = await supabase.rpc("preview_voucher", {
+        _code: data.voucherCode,
+        _court_id: data.courtId,
+        _amount: fullAmount,
+      });
+      if (vErr) throw new Error(vErr.message);
+      const row = Array.isArray(vp) ? vp[0] : vp;
+      if (!row || !row.ok) throw new Error(row?.reason || "Invalid voucher");
+      voucherId = row.voucher_id as string;
+      discountAmount = Number(row.discount) || 0;
+    }
+
+    const discountedTotal = Math.max(0, fullAmount - discountAmount);
     const collectAmount =
-      venue.payment_mode === "downpayment_50" ? Math.round(fullAmount * 50) / 100 : fullAmount;
+      venue.payment_mode === "downpayment_50" ? Math.round(discountedTotal * 50) / 100 : discountedTotal;
     const centavos = Math.round(collectAmount * 100);
     if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
 
-    // Insert bookings as pending + unpaid. Slot is not held until payment succeeds.
-    const rows = data.hours.map((h) => {
+    // Insert bookings as pending + unpaid. Attach voucher/discount to first row.
+    const rows = data.hours.map((h, idx) => {
       const start = new Date(`${data.date}T${String(h).padStart(2, "0")}:00:00`);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
       return {
@@ -48,6 +67,8 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
         end_time: end.toISOString(),
         status: "pending",
         payment_status: "unpaid",
+        voucher_id: idx === 0 ? voucherId : null,
+        discount_amount: idx === 0 ? Number(discountAmount.toFixed(2)) : 0,
       };
     });
     const { data: inserted, error: insErr } = await supabase

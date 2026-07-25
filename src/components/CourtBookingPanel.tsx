@@ -24,6 +24,7 @@ type Court = {
   map_emoji: string | null;
   surface_type: string | null;
   player_capacity: number | null;
+  voucher_enabled: boolean | null;
   sports: { name: string } | null;
   venues: {
     name: string;
@@ -84,6 +85,10 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucher, setVoucher] = useState<{ id: string; discount: number; type: string; value: number } | null>(null);
+  const [voucherErr, setVoucherErr] = useState<string | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
@@ -91,7 +96,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data, error } = await supabase
         .from("courts")
         .select(
-          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
+          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
         )
         .eq("id", courtId)
         .maybeSingle();
@@ -127,15 +132,18 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Please sign in to book a court.");
       const sorted = [...hours].sort((a, b) => a - b);
-      const rows = sorted.map((hour) => {
+      const rows = sorted.map((hour, idx) => {
         const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
         const end = new Date(start.getTime() + 60 * 60 * 1000);
+        const applyVoucher = idx === 0 && voucher;
         return {
           court_id: courtId,
           user_id: userData.user!.id,
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           status: "confirmed",
+          voucher_id: applyVoucher ? voucher!.id : null,
+          discount_amount: applyVoucher ? voucher!.discount : 0,
         };
       });
       const { error } = await supabase.from("bookings").insert(rows);
@@ -144,6 +152,8 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
     onSuccess: () => {
       setSelected([]);
       setErr(null);
+      setVoucher(null);
+      setVoucherCode("");
       qc.invalidateQueries({ queryKey: ["avail", courtId, date] });
     },
     onError: (e: Error) => {
@@ -155,6 +165,28 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       }
     },
   });
+
+  async function applyVoucher() {
+    if (!voucherCode.trim() || !courtQ.data) return;
+    setVoucherLoading(true); setVoucherErr(null);
+    try {
+      const amount = Number(courtQ.data.hourly_rate) * Math.max(1, selected.length);
+      const { data, error } = await supabase.rpc("preview_voucher", {
+        _code: voucherCode.trim(),
+        _court_id: courtId,
+        _amount: amount,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row?.ok) { setVoucher(null); setVoucherErr(row?.reason || "Invalid voucher"); return; }
+      setVoucher({ id: row.voucher_id, discount: Number(row.discount), type: row.discount_type, value: Number(row.discount_value) });
+    } catch (e) {
+      setVoucher(null);
+      setVoucherErr((e as Error).message);
+    } finally {
+      setVoucherLoading(false);
+    }
+  }
 
   if (courtQ.isLoading) {
     return <div className="p-6"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></div>;
@@ -430,10 +462,58 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
             <div className="mt-4 border-t border-border pt-3">
+              {court.voucher_enabled && selected.length > 0 && (
+                <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-primary">Voucher code</div>
+                  {voucher ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm">
+                        <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-700">Applied</span>
+                        <span className="ml-2">
+                          {voucher.type === "percent" ? `${voucher.value}% off` : `₱${voucher.value.toFixed(0)} off`} — you save <b>₱{voucher.discount.toFixed(2)}</b>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setVoucher(null); setVoucherCode(""); setVoucherErr(null); }}
+                        className="text-xs text-muted-foreground underline hover:text-foreground"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        value={voucherCode}
+                        onChange={(e) => { setVoucherCode(e.target.value.toUpperCase()); setVoucherErr(null); }}
+                        placeholder="Enter code"
+                        className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm uppercase"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyVoucher}
+                        disabled={voucherLoading || !voucherCode.trim()}
+                        className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                      >
+                        {voucherLoading ? "Checking…" : "Apply"}
+                      </button>
+                    </div>
+                  )}
+                  {voucherErr && <p className="mt-1.5 text-xs text-red-600">{voucherErr}</p>}
+                </div>
+              )}
+
               <div className="text-sm text-muted-foreground">
-                {selected.length > 0
-                  ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
-                  : "Choose one or more hours."}
+                {selected.length > 0 ? (
+                  <>
+                    Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span>
+                    {voucher ? (
+                      <> · Subtotal <span className="line-through">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span> · Total <span className="font-semibold text-emerald-700">₱{Math.max(0, Number(court.hourly_rate) * selected.length - voucher.discount).toFixed(2)}</span></>
+                    ) : (
+                      <> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
+                    )}
+                  </>
+                ) : "Choose one or more hours."}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {selected.length > 0 && (
@@ -482,6 +562,8 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           date={date}
           hours={selected}
           hourlyRate={Number(court.hourly_rate)}
+          voucherCode={voucher ? voucherCode.trim() : null}
+          discount={voucher?.discount ?? 0}
           paymentMode={court.venues?.payment_mode ?? "full"}
           venueName={court.venues?.name ?? "CourtHub"}
           courtName={court.name}
@@ -599,23 +681,24 @@ export function CourtBookingPanel({
 }
 
 function CheckoutDrawer({
-  courtId, date, hours, hourlyRate, paymentMode, venueName, courtName,
+  courtId, date, hours, hourlyRate, voucherCode, discount, paymentMode, venueName, courtName,
   onClose, payLoading, setPayLoading, onError,
 }: {
   courtId: number; date: string; hours: number[]; hourlyRate: number;
+  voucherCode: string | null; discount: number;
   paymentMode: "full" | "downpayment_50" | "none"; venueName: string; courtName: string;
   onClose: () => void; payLoading: PmMethod | null;
   setPayLoading: (m: PmMethod | null) => void;
   onError: (m: string) => void;
 }) {
-  const fullAmount = hourlyRate * hours.length;
+  const fullAmount = Math.max(0, hourlyRate * hours.length - (discount || 0));
   const dueNow = paymentMode === "downpayment_50" ? fullAmount * 0.5 : fullAmount;
 
   const pay = async (method: PmMethod) => {
     setPayLoading(method);
     try {
       const res = await startBookingCheckout({
-        data: { courtId, date, hours, method, origin: window.location.origin },
+        data: { courtId, date, hours, method, origin: window.location.origin, voucherCode: voucherCode || undefined },
       });
       window.location.href = res.checkoutUrl;
     } catch (e) {
