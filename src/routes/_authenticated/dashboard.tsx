@@ -5086,3 +5086,245 @@ function PlayerKpi({ label, value, hint }: { label: string; value: string; hint?
     </div>
   );
 }
+
+// ===========================================================================
+// Vouchers Section
+// ===========================================================================
+function VouchersSection({ venues }: { venues: Venue[] }) {
+  const qc = useQueryClient();
+  const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
+
+  const vq = useQuery({
+    queryKey: ["vouchers", venueId],
+    queryFn: async () => {
+      if (!venueId) return [];
+      const { data, error } = await supabase.from("vouchers")
+        .select("id, code, discount_type, discount_value, expires_at, max_uses, one_per_user, min_booking_amount, is_active, notes, created_at")
+        .eq("venue_id", venueId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!venueId,
+  });
+
+  const usageQ = useQuery({
+    queryKey: ["voucher-usage", venueId],
+    queryFn: async () => {
+      if (!venueId) return {} as Record<string, number>;
+      const ids = (vq.data ?? []).map((v) => v.id);
+      if (ids.length === 0) return {};
+      const { data, error } = await supabase.from("voucher_redemptions")
+        .select("voucher_id").in("voucher_id", ids);
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      for (const r of data ?? []) map[r.voucher_id as string] = (map[r.voucher_id as string] ?? 0) + 1;
+      return map;
+    },
+    enabled: !!venueId && !!vq.data,
+  });
+
+  const [code, setCode] = useState("");
+  const [discountType, setDiscountType] = useState<"percent" | "amount">("percent");
+  const [discountValue, setDiscountValue] = useState("10");
+  const [expiresAt, setExpiresAt] = useState<string>("");
+  const [maxUses, setMaxUses] = useState("");
+  const [onePerUser, setOnePerUser] = useState(true);
+  const [minAmount, setMinAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  const genCode = () => {
+    const alpha = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let s = "";
+    for (let i = 0; i < 8; i++) s += alpha[Math.floor(Math.random() * alpha.length)];
+    setCode(s);
+  };
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      if (!venueId) throw new Error("Pick a venue");
+      const c = code.trim().toUpperCase();
+      if (!c) throw new Error("Voucher code is required");
+      const val = Number(discountValue);
+      if (!val || val <= 0) throw new Error("Discount must be greater than 0");
+      if (discountType === "percent" && val > 100) throw new Error("Percentage cannot exceed 100");
+      const payload = {
+        venue_id: venueId,
+        code: c,
+        discount_type: discountType,
+        discount_value: val,
+        expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+        max_uses: maxUses ? Math.max(1, Math.floor(Number(maxUses))) : null,
+        one_per_user: onePerUser,
+        min_booking_amount: minAmount ? Number(minAmount) : null,
+        notes: notes.trim() || null,
+        is_active: true,
+      };
+      const { error } = await supabase.from("vouchers").insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setCode(""); setDiscountValue("10"); setExpiresAt(""); setMaxUses(""); setMinAmount(""); setNotes(""); setErr(null);
+      qc.invalidateQueries({ queryKey: ["vouchers", venueId] });
+    },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await supabase.from("vouchers").update({ is_active }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vouchers", venueId] }),
+  });
+
+  const del = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("vouchers").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vouchers", venueId] }),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-2xl font-bold">Vouchers</h2>
+        <p className="text-sm text-muted-foreground">Create discount codes players can redeem when booking a court that accepts vouchers.</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Venue:</span>
+        <select
+          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          value={venueId ?? ""}
+          onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
+        >
+          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+      </div>
+
+      {venueId && (
+        <div className="rounded-2xl border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <TicketPercent className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold">Create voucher</h3>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium">Code</label>
+              <div className="flex gap-1">
+                <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER10" className="w-full rounded-md border bg-background px-2 py-1.5 text-sm uppercase" />
+                <button type="button" onClick={genCode} className="rounded-md border px-2 text-xs hover:bg-secondary">Auto</button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Discount type</label>
+              <select value={discountType} onChange={(e) => setDiscountType(e.target.value as "percent" | "amount")} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm">
+                <option value="percent">Percentage (%)</option>
+                <option value="amount">Fixed amount (₱)</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">
+                {discountType === "percent" ? "Percentage off" : "Amount off (₱)"}
+              </label>
+              <input type="number" min="1" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Expires at (optional)</label>
+              <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Max total uses (optional)</label>
+              <input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Minimum booking amount (₱, optional)</label>
+              <input type="number" min="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={onePerUser} onChange={(e) => setOnePerUser(e.target.checked)} />
+              One redemption per player
+            </label>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block text-xs font-medium">Notes (optional, internal)</label>
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+            </div>
+          </div>
+          {err && <div className="mt-2 text-sm text-red-600">{err}</div>}
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => createMut.mutate()}
+              disabled={createMut.isPending}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {createMut.isPending ? "Creating…" : "Create voucher"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Players can only redeem a voucher on courts where you've ticked <b>Accept vouchers</b> (in Add/Edit court).
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-2xl border bg-card">
+        <div className="border-b px-4 py-2 text-sm font-semibold">Vouchers ({vq.data?.length ?? 0})</div>
+        <div className="nice-scroll overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="p-3 text-left">Code</th>
+                <th className="p-3 text-left">Discount</th>
+                <th className="p-3 text-left">Uses</th>
+                <th className="p-3 text-left">Expires</th>
+                <th className="p-3 text-left">Min ₱</th>
+                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(vq.data ?? []).map((v) => {
+                const used = usageQ.data?.[v.id as string] ?? 0;
+                return (
+                  <tr key={v.id as string} className="border-t">
+                    <td className="p-3 font-mono font-semibold">{v.code}</td>
+                    <td className="p-3">
+                      {v.discount_type === "percent" ? `${v.discount_value}%` : `₱${Number(v.discount_value).toFixed(2)}`}
+                    </td>
+                    <td className="p-3">
+                      {used}{v.max_uses ? ` / ${v.max_uses}` : ""}
+                      {v.one_per_user && <span className="ml-1 text-[10px] text-muted-foreground">(1/player)</span>}
+                    </td>
+                    <td className="p-3">{v.expires_at ? new Date(v.expires_at as string).toLocaleString() : "—"}</td>
+                    <td className="p-3">{v.min_booking_amount ? `₱${Number(v.min_booking_amount).toFixed(2)}` : "—"}</td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => toggleActive.mutate({ id: v.id as string, is_active: !v.is_active })}
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                      >
+                        {v.is_active ? "Active" : "Inactive"}
+                      </button>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => { if (window.confirm(`Delete voucher ${v.code}? Existing redemptions will be removed.`)) del.mutate(v.id as string); }}
+                        className="rounded-md border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {(vq.data ?? []).length === 0 && (
+                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No vouchers yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
