@@ -577,27 +577,38 @@ type ExploreCourtsProps = {
 };
 
 function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }: ExploreCourtsProps) {
-  // Sports available at this venue (from ALL courts, not filtered)
+  // ALL sports the system supports (system-wide list)
+  const allSportsQ = useQuery({
+    queryKey: ["all-sports"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sports").select("name, slug").order("name");
+      if (error) throw error;
+      return (data ?? []) as { name: string; slug: string }[];
+    },
+  });
+
+  // Sports actually offered at this venue (for the "supported here" badge + empty-state logic)
   const venueSportsQ = useQuery({
     queryKey: ["venue-sports", venue?.id],
     enabled: !!venue?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("sports!inner(name, slug)")
+        .select("sports!inner(slug)")
         .eq("venue_id", venue!.id);
       if (error) throw error;
-      const seen = new Map<string, string>();
-      for (const row of (data ?? []) as unknown as { sports: { name: string; slug: string } | null }[]) {
-        if (row.sports) seen.set(row.sports.slug, row.sports.name);
+      const set = new Set<string>();
+      for (const row of (data ?? []) as unknown as { sports: { slug: string } | null }[]) {
+        if (row.sports) set.add(row.sports.slug);
       }
-      return Array.from(seen.entries()).map(([slug, name]) => ({ slug, name }));
+      return set;
     },
   });
 
-  const availableSports = venueSportsQ.data ?? [];
+  const allSports = allSportsQ.data ?? [];
+  const venueSportSlugs = venueSportsQ.data ?? new Set<string>();
   const noCourtsForSport =
-    !!selectedSport && !loading && courts.length === 0 && availableSports.length > 0;
+    !!selectedSport && !loading && courts.length === 0;
 
   // Player location (with venue as fallback anchor)
   const [playerLoc, setPlayerLoc] = useState<{ lat: number; lng: number } | null>(null);
