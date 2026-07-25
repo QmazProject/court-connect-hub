@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 const searchSchema = z.object({
   sport: z.string().optional(),
+  court: z.coerce.number().int().positive().optional(),
 });
 
 const SPORT_EMOJI: Record<string, string> = {
