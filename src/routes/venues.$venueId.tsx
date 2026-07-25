@@ -1096,7 +1096,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => openCourt(c.id)}
+                    onClick={() => onOpenCourt(c.id)}
                     className={`${baseCls} text-left hover:shadow-md`}
                   >
                     {inner}
