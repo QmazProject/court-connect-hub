@@ -85,6 +85,10 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucher, setVoucher] = useState<{ id: string; discount: number; type: string; value: number } | null>(null);
+  const [voucherErr, setVoucherErr] = useState<string | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
