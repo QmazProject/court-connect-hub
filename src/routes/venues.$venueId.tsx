@@ -641,19 +641,60 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
   // Player location (with venue as fallback anchor)
   const [playerLoc, setPlayerLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [geoDenied, setGeoDenied] = useState(false);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [manualPickerOpen, setManualPickerOpen] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [locResolved, setLocResolved] = useState(false); // user made a choice this session
 
+  // When the player picks a sport not offered here, prompt them (once per session)
+  // to share their location so we can rank nearby alternatives.
   useEffect(() => {
-    if (!noCourtsForSport || playerLoc || geoDenied) return;
+    if (!noCourtsForSport) return;
+    if (playerLoc || geoDenied || locResolved) return;
+    try {
+      if (sessionStorage.getItem("venue:locPrompted") === "1") {
+        setLocResolved(true);
+        return;
+      }
+    } catch {}
+    setLocationModalOpen(true);
+  }, [noCourtsForSport, playerLoc, geoDenied, locResolved]);
+
+  function markPrompted() {
+    try { sessionStorage.setItem("venue:locPrompted", "1"); } catch {}
+    setLocResolved(true);
+  }
+
+  function requestGeolocation() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setGeoDenied(true);
+      markPrompted();
+      setLocationModalOpen(false);
       return;
     }
+    setGeoBusy(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => setPlayerLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setGeoDenied(true),
-      { timeout: 6000, maximumAge: 5 * 60 * 1000 }
+      (pos) => {
+        setPlayerLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoBusy(false);
+        markPrompted();
+        setLocationModalOpen(false);
+      },
+      () => {
+        setGeoDenied(true);
+        setGeoBusy(false);
+        markPrompted();
+        setLocationModalOpen(false);
+      },
+      { timeout: 8000, maximumAge: 5 * 60 * 1000 }
     );
-  }, [noCourtsForSport, playerLoc, geoDenied]);
+  }
+
+  function skipLocation() {
+    setGeoDenied(true);
+    markPrompted();
+    setLocationModalOpen(false);
+  }
 
   const anchor = playerLoc ?? (venue?.latitude != null && venue?.longitude != null ? { lat: venue.latitude, lng: venue.longitude } : null);
 
