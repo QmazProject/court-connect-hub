@@ -2010,6 +2010,22 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <div className="sm:col-span-2">
             <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
           </div>
+          <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
+          <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
+          <div className="sm:col-span-2">
+            <Textarea label="Operating hours" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="e.g. Mon–Fri 8AM–10PM, Sat–Sun 6AM–12AM" />
+          </div>
+          <label className="block">
+            <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
+            <input type="number" min={0} step={1} value={cancellationHours} onChange={(e) => setCancellationHours(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <span className="mt-1 block text-[11px] text-muted-foreground">Default 24h. Set to 0 to allow last-minute cancellations.</span>
+          </label>
+          <div className="sm:col-span-2">
+            <Textarea label="Cancellation policy notes (optional)" value={cancellationNotes} onChange={setCancellationNotes} placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start." />
+          </div>
+          <div className="sm:col-span-2">
+            <Textarea label="Venue rules (one per line)" value={rules} onChange={setRules} placeholder={"e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"} />
+          </div>
           <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
             <EmojiPicker
               label="Map emoji (venue pin)"
