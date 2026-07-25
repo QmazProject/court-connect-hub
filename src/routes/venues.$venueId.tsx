@@ -55,11 +55,11 @@ function VenueDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("venues")
-        .select("id, name, address, latitude, longitude, description, images")
+        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes")
         .eq("id", Number(venueId))
         .maybeSingle();
       if (error) throw error;
-      return data as Venue | null;
+      return data as unknown as Venue | null;
     },
   });
 
