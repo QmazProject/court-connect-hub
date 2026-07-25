@@ -943,7 +943,17 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           </div>
           {lat != null && lng != null ? (
             <button type="button" onClick={() => setPickerOpen(true)} className="mt-2 block w-full overflow-hidden rounded-lg border border-border">
-              <iframe title="Selected location" src={osmEmbedUrl(lat, lng)} className="pointer-events-none h-28 w-full" loading="lazy" />
+              <div className="relative h-28 w-full overflow-hidden">
+                <iframe
+                  title="Selected location"
+                  src={osmEmbedUrl(lat, lng)}
+                  className="pointer-events-none absolute left-0 right-0 -top-6 h-48 w-full"
+                  loading="lazy"
+                />
+                <span className="pointer-events-none absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" /> Pinned
+                </span>
+              </div>
               <div className="bg-secondary/40 px-3 py-1.5 text-left font-mono text-[11px] text-muted-foreground">{lat.toFixed(6)}, {lng.toFixed(6)}</div>
             </button>
           ) : (
