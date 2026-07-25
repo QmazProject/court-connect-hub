@@ -681,7 +681,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
       .slice(0, 3);
   }, [suggestQ.data, anchor]);
 
-  const selectedSportName = selectedSport ? availableSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
+  const selectedSportName = selectedSport ? allSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
 
   return (
     <section className="mx-auto mt-10 max-w-6xl px-4 sm:mt-14 sm:px-6">
@@ -699,7 +699,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
       </div>
 
       {/* Mobile: horizontal sport chips */}
-      {availableSports.length > 0 && (
+      {allSports.length > 0 && (
         <div className="mt-6 lg:hidden">
           <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <SportChip
@@ -708,12 +708,13 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
               label="All"
               onClick={() => onSelectSport(null)}
             />
-            {availableSports.map((s) => (
+            {allSports.map((s) => (
               <SportChip
                 key={s.slug}
                 active={selectedSport === s.slug}
                 emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
                 label={s.name}
+                offered={venueSportSlugs.has(s.slug)}
                 onClick={() => onSelectSport(s.slug)}
               />
             ))}
@@ -723,7 +724,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
         {/* Desktop: vertical sport list */}
-        {availableSports.length > 0 && (
+        {allSports.length > 0 && (
           <aside className="hidden lg:block">
             <div className="sticky top-24 rounded-2xl border border-border bg-card p-3 shadow-sm">
               <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sports</p>
@@ -733,18 +734,20 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                 label="All"
                 onClick={() => onSelectSport(null)}
               />
-              {availableSports.map((s) => (
+              {allSports.map((s) => (
                 <SportItem
                   key={s.slug}
                   active={selectedSport === s.slug}
                   emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
                   label={s.name}
+                  offered={venueSportSlugs.has(s.slug)}
                   onClick={() => onSelectSport(s.slug)}
                 />
               ))}
             </div>
           </aside>
         )}
+
 
         {/* Courts grid */}
         <div>
