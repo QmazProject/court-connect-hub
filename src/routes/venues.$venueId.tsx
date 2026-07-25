@@ -577,27 +577,38 @@ type ExploreCourtsProps = {
 };
 
 function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }: ExploreCourtsProps) {
-  // Sports available at this venue (from ALL courts, not filtered)
+  // ALL sports the system supports (system-wide list)
+  const allSportsQ = useQuery({
+    queryKey: ["all-sports"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sports").select("name, slug").order("name");
+      if (error) throw error;
+      return (data ?? []) as { name: string; slug: string }[];
+    },
+  });
+
+  // Sports actually offered at this venue (for the "supported here" badge + empty-state logic)
   const venueSportsQ = useQuery({
     queryKey: ["venue-sports", venue?.id],
     enabled: !!venue?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("sports!inner(name, slug)")
+        .select("sports!inner(slug)")
         .eq("venue_id", venue!.id);
       if (error) throw error;
-      const seen = new Map<string, string>();
-      for (const row of (data ?? []) as unknown as { sports: { name: string; slug: string } | null }[]) {
-        if (row.sports) seen.set(row.sports.slug, row.sports.name);
+      const set = new Set<string>();
+      for (const row of (data ?? []) as unknown as { sports: { slug: string } | null }[]) {
+        if (row.sports) set.add(row.sports.slug);
       }
-      return Array.from(seen.entries()).map(([slug, name]) => ({ slug, name }));
+      return set;
     },
   });
 
-  const availableSports = venueSportsQ.data ?? [];
+  const allSports = allSportsQ.data ?? [];
+  const venueSportSlugs = venueSportsQ.data ?? new Set<string>();
   const noCourtsForSport =
-    !!selectedSport && !loading && courts.length === 0 && availableSports.length > 0;
+    !!selectedSport && !loading && courts.length === 0;
 
   // Player location (with venue as fallback anchor)
   const [playerLoc, setPlayerLoc] = useState<{ lat: number; lng: number } | null>(null);
@@ -670,7 +681,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
       .slice(0, 3);
   }, [suggestQ.data, anchor]);
 
-  const selectedSportName = selectedSport ? availableSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
+  const selectedSportName = selectedSport ? allSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
 
   return (
     <section className="mx-auto mt-10 max-w-6xl px-4 sm:mt-14 sm:px-6">
@@ -688,7 +699,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
       </div>
 
       {/* Mobile: horizontal sport chips */}
-      {availableSports.length > 0 && (
+      {allSports.length > 0 && (
         <div className="mt-6 lg:hidden">
           <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <SportChip
@@ -697,12 +708,13 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
               label="All"
               onClick={() => onSelectSport(null)}
             />
-            {availableSports.map((s) => (
+            {allSports.map((s) => (
               <SportChip
                 key={s.slug}
                 active={selectedSport === s.slug}
                 emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
                 label={s.name}
+                offered={venueSportSlugs.has(s.slug)}
                 onClick={() => onSelectSport(s.slug)}
               />
             ))}
@@ -712,7 +724,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
         {/* Desktop: vertical sport list */}
-        {availableSports.length > 0 && (
+        {allSports.length > 0 && (
           <aside className="hidden lg:block">
             <div className="sticky top-24 rounded-2xl border border-border bg-card p-3 shadow-sm">
               <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sports</p>
@@ -722,18 +734,20 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                 label="All"
                 onClick={() => onSelectSport(null)}
               />
-              {availableSports.map((s) => (
+              {allSports.map((s) => (
                 <SportItem
                   key={s.slug}
                   active={selectedSport === s.slug}
                   emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
                   label={s.name}
+                  offered={venueSportSlugs.has(s.slug)}
                   onClick={() => onSelectSport(s.slug)}
                 />
               ))}
             </div>
           </aside>
         )}
+
 
         {/* Courts grid */}
         <div>
@@ -828,15 +842,18 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
   );
 }
 
-function SportChip({ active, emoji, label, onClick }: { active: boolean; emoji: string; label: string; onClick: () => void }) {
+function SportChip({ active, emoji, label, offered = true, onClick }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 snap-start items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+      title={offered ? undefined : `Not offered here — tap to see nearby venues with ${label}`}
+      className={`relative flex shrink-0 snap-start items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
         active
           ? "border-primary bg-primary text-primary-foreground shadow"
-          : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+          : offered
+            ? "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+            : "border-dashed border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
       }`}
     >
       <span aria-hidden>{emoji}</span>
@@ -845,22 +862,33 @@ function SportChip({ active, emoji, label, onClick }: { active: boolean; emoji: 
   );
 }
 
-function SportItem({ active, emoji, label, onClick }: { active: boolean; emoji: string; label: string; onClick: () => void }) {
+function SportItem({ active, emoji, label, offered = true, onClick }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+      title={offered ? undefined : `Not offered here — tap to see nearby venues with ${label}`}
+      className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
         active
           ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-foreground hover:bg-primary/10"
+          : offered
+            ? "text-foreground hover:bg-primary/10"
+            : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
       }`}
     >
-      <span aria-hidden className="text-base">{emoji}</span>
-      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        <span aria-hidden className="text-base">{emoji}</span>
+        <span>{label}</span>
+      </span>
+      {!offered && !active && (
+        <span className="rounded-full border border-dashed border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+          Nearby
+        </span>
+      )}
     </button>
   );
 }
+
 
 function EmptySport({
   sportName,
