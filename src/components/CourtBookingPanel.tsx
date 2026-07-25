@@ -520,7 +520,7 @@ export function CourtBookingPanel({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full max-w-xl overflow-hidden p-0 pl-9 sm:max-w-xl"
+        className="w-full max-w-xl overflow-hidden p-0 pl-11 sm:max-w-xl"
       >
         <div
           aria-hidden
