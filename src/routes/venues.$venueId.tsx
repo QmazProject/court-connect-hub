@@ -670,6 +670,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   const [geoDenied, setGeoDenied] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [manualPickerOpen, setManualPickerOpen] = useState(false);
+  const [courtImageView, setCourtImageView] = useState<{ images: string[]; name: string; idx: number } | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
   const [locResolved, setLocResolved] = useState(false); // user made a choice this session
 
