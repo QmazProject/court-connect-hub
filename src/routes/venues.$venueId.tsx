@@ -734,7 +734,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
       <div className={`mt-6 grid gap-6 ${allSports.length > 0 ? (sportsCollapsed ? "lg:grid-cols-[64px_1fr]" : "lg:grid-cols-[240px_1fr]") : ""}`}>
         {/* Desktop: vertical sport list (in-flow, sticky) */}
         {allSports.length > 0 && (
-          <aside className="hidden lg:block lg:ml-[calc(50%-50vw+1rem)]">
+          <aside className="hidden lg:block lg:-ml-8 xl:-ml-16">
             <div className="sticky top-24 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
               {sportsCollapsed ? (
                 <div className="flex flex-col items-center gap-1.5 p-2">
