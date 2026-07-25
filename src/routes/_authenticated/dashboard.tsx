@@ -2013,7 +2013,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
 
       </div>
