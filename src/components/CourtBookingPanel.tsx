@@ -520,8 +520,18 @@ export function CourtBookingPanel({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full max-w-xl overflow-hidden p-0 sm:max-w-xl"
+        className="w-full max-w-xl overflow-hidden p-0 pl-9 sm:max-w-xl"
       >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-9 items-center justify-center border-r border-border bg-gradient-to-b from-primary/15 via-background to-primary/10"
+        >
+          <span
+            className="whitespace-nowrap font-display text-[11px] font-bold uppercase tracking-[0.35em] text-primary [writing-mode:vertical-rl] [transform:rotate(180deg)]"
+          >
+            Court Profile
+          </span>
+        </div>
         <CourtBookingContent courtId={courtId} onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
