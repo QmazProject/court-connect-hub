@@ -509,7 +509,7 @@ export function CourtBookingPanel({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="h-[92vh] p-0">
+        <DrawerContent className="h-[92vh] p-0 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
           <CourtBookingContent courtId={courtId} onClose={() => onOpenChange(false)} />
         </DrawerContent>
       </Drawer>
