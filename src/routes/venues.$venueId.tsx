@@ -93,7 +93,7 @@ function VenueDetail() {
   const { sport, court: openCourtId } = Route.useSearch();
   const navigate = useNavigate({ from: "/venues/$venueId" });
   const openCourt = (id: number | null) =>
-    navigate({ search: (prev) => ({ ...prev, court: id ?? undefined }), replace: !id });
+    navigate({ search: (prev: { sport?: string; court?: number }) => ({ ...prev, court: id ?? undefined }), replace: !id });
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openChip, setOpenChip] = useState<ChipKey | null>(null);
