@@ -1104,6 +1104,14 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                         </div>
                         {soon ? (
                           <span className="text-xs font-semibold text-amber-600">Opening soon</span>
+                        ) : openCourtId === c.id ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="rounded-lg bg-primary/15 px-4 py-2 text-sm font-semibold text-primary ring-1 ring-primary/40 cursor-default"
+                          >
+                            Selected ✅
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -1113,6 +1121,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                             Book now
                           </button>
                         )}
+
                       </div>
                     </div>
                   </div>
