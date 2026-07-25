@@ -2590,24 +2590,26 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       <table className="w-full min-w-[980px] text-sm">
         <thead className="sticky top-0 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
           <tr>
-            <th className="w-8 pl-2 pr-0 py-2">
-              <button
-                type="button"
-                onClick={() => setColCfgOpen(true)}
-                title="Configure columns"
-                aria-label="Configure columns"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <TableProperties className="h-4 w-4" />
-              </button>
-            </th>
+            {!visibleCols.includes("emoji") && (
+              <th className="w-8 pl-2 pr-0 py-2">
+                <button
+                  type="button"
+                  onClick={() => setColCfgOpen(true)}
+                  title="Configure columns"
+                  aria-label="Configure columns"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <TableProperties className="h-4 w-4" />
+                </button>
+              </th>
+            )}
             {visibleCols.map((id) => renderHeader(id))}
           </tr>
         </thead>
         <tbody>
           {venues.map((v, idx) => (
             <tr key={v.id} className="border-t border-border align-top hover:bg-secondary/20">
-              <td className="w-8 pl-2 pr-0 py-3" />
+              {!visibleCols.includes("emoji") && <td className="w-8 pl-2 pr-0 py-3" />}
               {visibleCols.map((id) => renderCell(id, v, idx))}
             </tr>
           ))}
