@@ -2772,17 +2772,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         if (!feesArr.length && !v.fees_notes) return <td key={id} className="px-3 py-3 text-center text-muted-foreground"><span className="italic opacity-60">—</span></td>;
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <button type="button" className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-pointer hover:bg-primary/20">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</button>
-              </PopoverTrigger>
-              <PopoverContent side="top" align="center" collisionPadding={16} className="w-[min(28rem,92vw)] max-h-[70vh] overflow-y-auto text-xs">
+            <HoverCard openDelay={80} closeDelay={200}>
+              <HoverCardTrigger asChild>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</span>
+              </HoverCardTrigger>
+              <HoverCardContent side="bottom" align="center" sideOffset={6} collisionPadding={16} avoidCollisions className="w-[min(28rem,92vw)] overflow-y-auto text-xs" style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}>
                 <ul className="space-y-1">
                   {feesArr.map((f, i) => <li key={i} className="flex justify-between gap-2"><span>{f.label}</span><span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span></li>)}
                 </ul>
                 {v.fees_notes && <p className="mt-2 border-t border-border pt-2 text-muted-foreground whitespace-pre-wrap">{v.fees_notes}</p>}
-              </PopoverContent>
-            </Popover>
+              </HoverCardContent>
+            </HoverCard>
           </td>
         );
       }
