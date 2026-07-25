@@ -1516,6 +1516,8 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [capacity, setCapacity] = useState("1");
   const [surfaceType, setSurfaceType] = useState("");
   const [playerCapacity, setPlayerCapacity] = useState("");
+  const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(null));
+  const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(null));
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
