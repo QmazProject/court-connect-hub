@@ -28,6 +28,12 @@ type Venue = {
   facility_services: string[] | null;
   fees: FeeItem[] | null;
   fees_notes: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  operating_hours_text: string | null;
+  refund_cutoff_hours: number | null;
+  cancellation_notes: string | null;
+  rules: string | null;
 };
 
 type Court = {
