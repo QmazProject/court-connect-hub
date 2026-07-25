@@ -227,6 +227,11 @@ function Dashboard() {
           <TransactionsSection venues={venues} />
         </div>
       )}
+      {section === "vouchers" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <VouchersSection venues={venues} />
+        </div>
+      )}
       {section === "settings" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <SettingsSection
