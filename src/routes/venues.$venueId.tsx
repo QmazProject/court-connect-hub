@@ -610,6 +610,15 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
   const noCourtsForSport =
     !!selectedSport && !loading && courts.length === 0;
 
+  // Sidebar collapse (persisted)
+  const [sportsCollapsed, setSportsCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("venue:sportsCollapsed") === "1";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("venue:sportsCollapsed", sportsCollapsed ? "1" : "0"); } catch {}
+  }, [sportsCollapsed]);
+
   // Player location (with venue as fallback anchor)
   const [playerLoc, setPlayerLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [geoDenied, setGeoDenied] = useState(false);
