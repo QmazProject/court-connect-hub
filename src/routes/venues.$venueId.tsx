@@ -1054,7 +1054,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                           <span>{c.sports?.name ?? "Sport"}</span>
                         </span>
 
-                        <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
+                        <span className="text-sm font-bold text-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
                       </div>
                       <h3 className="mt-3 font-display text-2xl font-bold tracking-tight">{c.name}</h3>
                       {c.description && (
