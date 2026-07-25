@@ -70,6 +70,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [err, setErr] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
+  const [lightbox, setLightbox] = useState<number | null>(null);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
