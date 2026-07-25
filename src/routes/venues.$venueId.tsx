@@ -164,7 +164,7 @@ function VenueDetail() {
         {
           key: "hours",
           icon: <Clock className="h-4 w-4" />,
-          label: "Hours",
+          label: "Operating Hours",
           preview: (venue.operating_hours_text ?? "").split(/\r?\n/)[0] ?? "",
           show: !!venue.operating_hours_text,
         },
