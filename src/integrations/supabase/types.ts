@@ -410,8 +410,13 @@ export type Database = {
       venues: {
         Row: {
           address: string
+          amenities: string[]
           created_at: string | null
           description: string | null
+          facility_services: string[]
+          fees: Json
+          fees_notes: string | null
+          food_beverages: string[]
           id: number
           images: string[]
           is_active: boolean
@@ -425,8 +430,13 @@ export type Database = {
         }
         Insert: {
           address: string
+          amenities?: string[]
           created_at?: string | null
           description?: string | null
+          facility_services?: string[]
+          fees?: Json
+          fees_notes?: string | null
+          food_beverages?: string[]
           id?: never
           images?: string[]
           is_active?: boolean
@@ -440,8 +450,13 @@ export type Database = {
         }
         Update: {
           address?: string
+          amenities?: string[]
           created_at?: string | null
           description?: string | null
+          facility_services?: string[]
+          fees?: Json
+          fees_notes?: string | null
+          food_beverages?: string[]
           id?: never
           images?: string[]
           is_active?: boolean
