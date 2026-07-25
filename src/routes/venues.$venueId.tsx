@@ -731,21 +731,19 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </div>
       )}
 
-      {/* Desktop: sport rail fixed to the left edge of the viewport */}
-      {allSports.length > 0 && (
-        <aside
-          className={`fixed left-2 top-24 z-30 hidden lg:block ${sportsCollapsed ? "w-14" : "w-[200px]"}`}
-        >
-          <div className="rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
-
+      <div className={`mt-6 grid gap-6 ${allSports.length > 0 ? (sportsCollapsed ? "lg:grid-cols-[64px_1fr]" : "lg:grid-cols-[240px_1fr]") : ""}`}>
+        {/* Desktop: vertical sport list (in-flow, sticky) */}
+        {allSports.length > 0 && (
+          <aside className="hidden lg:block">
+            <div className="sticky top-24 overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-card to-card/60 shadow-sm ring-1 ring-black/5">
               {sportsCollapsed ? (
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-1.5 p-2">
                   <button
                     type="button"
                     onClick={() => setSportsCollapsed(false)}
                     aria-label="Expand sports"
-                    title="Expand sports"
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    title="Expand"
+                    className="mb-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -753,7 +751,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                     type="button"
                     onClick={() => onSelectSport(null)}
                     title="All sports"
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg transition ${!selectedSport ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-muted"}`}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg transition ${!selectedSport ? "bg-primary/15 ring-1 ring-primary/40 shadow-sm" : "hover:bg-muted"}`}
                   >
                     ✨
                   </button>
@@ -763,16 +761,19 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                       type="button"
                       onClick={() => onSelectSport(s.slug)}
                       title={s.name}
-                      className={`relative flex h-9 w-9 items-center justify-center rounded-lg text-lg transition ${selectedSport === s.slug ? "bg-primary/15 ring-1 ring-primary/40" : "hover:bg-muted"} ${venueSportSlugs.has(s.slug) ? "" : "opacity-60"}`}
+                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-lg transition ${selectedSport === s.slug ? "bg-primary/15 ring-1 ring-primary/40 shadow-sm" : "hover:bg-muted"} ${venueSportSlugs.has(s.slug) ? "" : "opacity-60"}`}
                     >
                       {SPORT_EMOJI[s.slug] ?? "🏟️"}
+                      {!venueSportSlugs.has(s.slug) && (
+                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-card" />
+                      )}
                     </button>
                   ))}
                 </div>
               ) : (
-                <>
+                <div className="p-3">
                   <div className="mb-2 flex items-center justify-between px-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sports</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sports</p>
                     <button
                       type="button"
                       onClick={() => setSportsCollapsed(true)}
@@ -783,31 +784,33 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                   </div>
-                  <SportItem
-                    active={!selectedSport}
-                    emoji="✨"
-                    label="All"
-                    onClick={() => onSelectSport(null)}
-                  />
-                  {allSports.map((s) => (
+                  <div className="space-y-1">
                     <SportItem
-                      key={s.slug}
-                      active={selectedSport === s.slug}
-                      emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
-                      label={s.name}
-                      offered={venueSportSlugs.has(s.slug)}
-                      onClick={() => onSelectSport(s.slug)}
+                      active={!selectedSport}
+                      emoji="✨"
+                      label="All"
+                      onClick={() => onSelectSport(null)}
                     />
-                  ))}
-                </>
+                    {allSports.map((s) => (
+                      <SportItem
+                        key={s.slug}
+                        active={selectedSport === s.slug}
+                        emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
+                        label={s.name}
+                        offered={venueSportSlugs.has(s.slug)}
+                        onClick={() => onSelectSport(s.slug)}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </aside>
         )}
 
-      <div className="mt-6">
         {/* Courts grid */}
         <div>
+
           {loading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 3 }).map((_, i) => (
