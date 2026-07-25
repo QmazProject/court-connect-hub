@@ -8,6 +8,7 @@ import { MapPicker } from "@/components/MapPicker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { CourtBookingPanel } from "@/components/CourtBookingPanel";
 
 const searchSchema = z.object({
   sport: z.string().optional(),
