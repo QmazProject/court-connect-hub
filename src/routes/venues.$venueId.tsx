@@ -73,7 +73,9 @@ type Court = {
   images: string[] | null;
   coming_soon: boolean | null;
   operating_hours: Record<string, string> | null;
+  map_emoji: string | null;
   sports: { name: string; slug: string } | null;
+
 };
 
 type ChipKey =
