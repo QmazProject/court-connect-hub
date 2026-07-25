@@ -829,17 +829,6 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
             >
               Today
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const d = new Date(`${todayStr}T00:00:00`);
-                d.setDate(d.getDate() + 1);
-                setSelectedDate(d.toISOString().slice(0, 10));
-              }}
-              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/50"
-            >
-              Tomorrow
-            </button>
             <input
               type="date"
               value={selectedDate}
