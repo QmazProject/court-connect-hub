@@ -2278,20 +2278,30 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean }> = [
-  { id: "emoji", label: "Emoji" },
-  { id: "name", label: "Venue", required: true },
-  { id: "location", label: "Location" },
-  { id: "description", label: "About this Venue" },
-  { id: "created_at", label: "Created At" },
-  { id: "map", label: "Map" },
-  { id: "courts", label: "Courts" },
-  { id: "status", label: "Venue Status" },
-  { id: "actions", label: "Actions", required: true },
-  { id: "history", label: "History" },
+const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean; defaultOn?: boolean }> = [
+  { id: "emoji", label: "Emoji", defaultOn: true },
+  { id: "name", label: "Venue", required: true, defaultOn: true },
+  { id: "location", label: "Location", defaultOn: true },
+  { id: "description", label: "About this Venue", defaultOn: true },
+  { id: "created_at", label: "Created At", defaultOn: true },
+  { id: "map", label: "Map", defaultOn: true },
+  { id: "courts", label: "Courts", defaultOn: true },
+  { id: "status", label: "Venue Status", defaultOn: true },
+  { id: "actions", label: "Actions", required: true, defaultOn: true },
+  { id: "history", label: "History", defaultOn: true },
+  // Optional (off by default) — surfaced from create/edit venue panels
+  { id: "amenities", label: "Amenities" },
+  { id: "food_beverages", label: "Food & Beverages" },
+  { id: "facility_services", label: "Facility Services" },
+  { id: "fees", label: "Fees & Charges" },
+  { id: "contact_phone", label: "Inquiry Phone" },
+  { id: "contact_email", label: "Inquiry Email" },
+  { id: "operating_hours", label: "Operating Hours" },
+  { id: "cancellation", label: "Cancellation Policy" },
+  { id: "rules", label: "Venue Rules" },
 ];
 const VENUE_COLS_STORAGE_KEY = "venues-tab-columns-v1";
-const DEFAULT_VENUE_COLS = VENUE_COLUMNS.map((c) => c.id);
+const DEFAULT_VENUE_COLS = VENUE_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
 
 function useVenueColumns() {
   const [selected, setSelected] = useState<string[]>(DEFAULT_VENUE_COLS);
