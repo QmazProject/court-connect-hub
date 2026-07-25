@@ -1970,6 +1970,18 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <div className="sm:col-span-2">
             <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
           </div>
+          <div className="sm:col-span-2">
+            <TagInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Parking, Showers, Wi-Fi" hint="Press Enter or comma to add." />
+          </div>
+          <div className="sm:col-span-2">
+            <TagInput label="Food & Beverages" values={foodBeverages} onChange={setFoodBeverages} placeholder="e.g. Cafe, Vending machine, Water refill" />
+          </div>
+          <div className="sm:col-span-2">
+            <TagInput label="Facility Services" values={facilityServices} onChange={setFacilityServices} placeholder="e.g. Racket rental, Coaching, Ball machine" />
+          </div>
+          <div className="sm:col-span-2">
+            <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
+          </div>
           <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
             <EmojiPicker
               label="Map emoji (venue pin)"
