@@ -1720,6 +1720,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         physical_court_id: Number(physicalCourtId),
         capacity: cap,
         footprint,
+        surface_type: surfaceType.trim() || null,
+        player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
       }).eq("id", court.id);
       if (error) throw error;
     },
