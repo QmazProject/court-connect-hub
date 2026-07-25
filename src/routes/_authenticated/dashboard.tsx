@@ -1649,6 +1649,11 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           </label>
           <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
         </div>
+        {sameSportSibling && (
+          <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-200">
+            ⚠ This surface already has <b>{sameSportSibling.name}</b> ({sameSportSibling.sports?.name}) with capacity <b>{sameSportSibling.capacity}</b>. Keep the same capacity for siblings of the same sport, otherwise availability will behave inconsistently.
+          </p>
+        )}
         <p className="mt-1 text-[11px] text-muted-foreground">
           Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
         </p>
