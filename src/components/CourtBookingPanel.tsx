@@ -562,6 +562,8 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           date={date}
           hours={selected}
           hourlyRate={Number(court.hourly_rate)}
+          voucherCode={voucher ? voucherCode.trim() : null}
+          discount={voucher?.discount ?? 0}
           paymentMode={court.venues?.payment_mode ?? "full"}
           venueName={court.venues?.name ?? "CourtHub"}
           courtName={court.name}
