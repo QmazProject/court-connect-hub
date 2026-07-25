@@ -822,13 +822,39 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedDate(todayStr)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedDate === todayStr ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:border-primary/50"}`}
-            >
-              Today
-            </button>
+            {(() => {
+              const addDays = (base: string, n: number) => {
+                const d = new Date(`${base}T00:00:00`);
+                d.setDate(d.getDate() + n);
+                const off = d.getTimezoneOffset();
+                return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+              };
+              const today = new Date(`${todayStr}T00:00:00`);
+              const dow = today.getDay(); // 0=Sun
+              // This weekend = upcoming Saturday (if already Sat/Sun, pick the Saturday of this week or today if Sat)
+              const daysToSat = dow === 6 ? 0 : (6 - dow + 7) % 7;
+              const thisWeekend = addDays(todayStr, daysToSat);
+              // Next week = next Monday
+              const daysToNextMon = ((8 - dow) % 7) || 7;
+              const nextWeek = addDays(todayStr, daysToNextMon);
+              const tomorrow = addDays(todayStr, 1);
+              const shortcuts: { label: string; value: string }[] = [
+                { label: "Today", value: todayStr },
+                { label: "Tomorrow", value: tomorrow },
+                { label: "This weekend", value: thisWeekend },
+                { label: "Next week", value: nextWeek },
+              ];
+              return shortcuts.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => setSelectedDate(s.value)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedDate === s.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:border-primary/50"}`}
+                >
+                  {s.label}
+                </button>
+              ));
+            })()}
             <input
               type="date"
               value={selectedDate}
