@@ -1094,9 +1094,89 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
           )}
         </div>
       </div>
+
+      {/* Location primer modal */}
+      {locationModalOpen && (
+        <div
+          className="fixed inset-0 z-[900] flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          onClick={skipLocation}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-6 pt-6 pb-4">
+              <button
+                type="button"
+                onClick={skipLocation}
+                className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <Navigation className="h-6 w-6" />
+              </div>
+              <h3 className="mt-3 text-center font-display text-lg font-bold">
+                Find {selectedSportName ?? "this sport"} near you
+              </h3>
+              <p className="mt-1 text-center text-sm text-muted-foreground">
+                This venue doesn&apos;t offer {selectedSportName ?? "that sport"} yet.
+                Share your location so we can rank the closest venues that do —
+                or pick a spot on the map instead.
+              </p>
+            </div>
+
+            <div className="space-y-2 px-6 py-4">
+              <button
+                type="button"
+                onClick={requestGeolocation}
+                disabled={geoBusy}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow transition hover:opacity-90 disabled:opacity-60"
+              >
+                <Navigation className="h-4 w-4" />
+                {geoBusy ? "Getting your location…" : "Use my current location"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setLocationModalOpen(false); setManualPickerOpen(true); }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:bg-muted"
+              >
+                <MapPin className="h-4 w-4" />
+                Pick a spot on the map
+              </button>
+              <button
+                type="button"
+                onClick={skipLocation}
+                className="w-full rounded-xl px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                Skip — rank by this venue instead
+              </button>
+            </div>
+
+            <p className="border-t border-border bg-muted/40 px-6 py-3 text-center text-[11px] text-muted-foreground">
+              Your location is used only in your browser to sort nearby venues. It&apos;s never stored or shared.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <MapPicker
+        open={manualPickerOpen}
+        initialLat={venue?.latitude ?? null}
+        initialLng={venue?.longitude ?? null}
+        onClose={() => { setManualPickerOpen(false); markPrompted(); }}
+        onSave={(lat, lng) => {
+          setPlayerLoc({ lat, lng });
+          setManualPickerOpen(false);
+          markPrompted();
+        }}
+        title="Pick your location"
+      />
     </section>
   );
 }
+
 
 function SportChip({ active, emoji, label, offered = true, onClick }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void }) {
   return (
