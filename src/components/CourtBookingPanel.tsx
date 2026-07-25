@@ -178,7 +178,10 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-card/95 px-5 py-4 backdrop-blur">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs">
-            <span className="rounded-full bg-secondary px-2 py-0.5 font-medium">{court.sports?.name}</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-medium">
+              {court.map_emoji && <span className="text-sm leading-none">{court.map_emoji}</span>}
+              <span>{court.sports?.name}</span>
+            </span>
             <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
           </div>
           <h1 className="mt-1 truncate font-display text-xl font-bold">{court.name}</h1>
