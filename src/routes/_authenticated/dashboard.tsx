@@ -801,6 +801,71 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta?: R
   );
 }
 
+function TagInput({ label, placeholder, values, onChange, hint }: { label: string; placeholder?: string; values: string[]; onChange: (v: string[]) => void; hint?: string }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    if (values.some((v) => v.toLowerCase() === t.toLowerCase())) { setDraft(""); return; }
+    onChange([...values, t]);
+    setDraft("");
+  };
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-2 focus-within:ring-2 focus-within:ring-ring">
+        {values.map((v) => (
+          <span key={v} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            {v}
+            <button type="button" aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))} className="rounded-full text-primary/70 hover:text-primary">×</button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
+            else if (e.key === "Backspace" && !draft && values.length) { onChange(values.slice(0, -1)); }
+          }}
+          onBlur={add}
+          placeholder={values.length ? "" : placeholder ?? "Type and press Enter"}
+          className="min-w-[8ch] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+        />
+      </div>
+      {hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}
+    </label>
+  );
+}
+
+function FeesEditor({ items, onChange, notes, onNotesChange }: { items: FeeItem[]; onChange: (v: FeeItem[]) => void; notes: string; onNotesChange: (s: string) => void }) {
+  const update = (i: number, patch: Partial<FeeItem>) => onChange(items.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-background p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fees & Charges</span>
+        <button type="button" onClick={() => onChange([...items, { label: "", amount: 0 }])} className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary">+ Add fee</button>
+      </div>
+      {items.length === 0 && <p className="text-[11px] text-muted-foreground">No line-item fees yet. Add things like racket rental, shuttlecock, guest fee, etc.</p>}
+      <div className="space-y-1.5">
+        {items.map((it, i) => (
+          <div key={i} className="grid grid-cols-[1fr,110px,auto] items-center gap-2">
+            <input value={it.label} onChange={(e) => update(i, { label: e.target.value })} placeholder="e.g. Racket rental" className="rounded-lg border border-input bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-2">
+              <span className="text-xs text-muted-foreground">₱</span>
+              <input type="number" min={0} step="0.01" value={Number.isFinite(it.amount) ? it.amount : 0} onChange={(e) => update(i, { amount: Number(e.target.value) })} className="w-full bg-transparent py-1.5 text-sm outline-none" />
+            </div>
+            <button type="button" aria-label="Remove fee" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:border-destructive hover:text-destructive">Remove</button>
+          </div>
+        ))}
+      </div>
+      <label className="block pt-1">
+        <span className="text-[11px] font-medium text-muted-foreground">Notes (optional)</span>
+        <textarea value={notes} onChange={(e) => onNotesChange(e.target.value)} rows={2} placeholder="Any extra pricing notes, discounts, or conditions." className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+      </label>
+    </div>
+  );
+}
+
 function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
