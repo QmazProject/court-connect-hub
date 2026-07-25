@@ -2578,7 +2578,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       <table className="w-full min-w-[980px] text-sm">
         <thead className="sticky top-0 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
           <tr>
-            <th className="w-10 px-2 py-2">
+            <th className="w-8 pl-2 pr-0 py-2">
               <button
                 type="button"
                 onClick={() => setColCfgOpen(true)}
@@ -2595,7 +2595,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         <tbody>
           {venues.map((v, idx) => (
             <tr key={v.id} className="border-t border-border align-top hover:bg-secondary/20">
-              <td className="w-10 px-2 py-3" />
+              <td className="w-8 pl-2 pr-0 py-3" />
               {visibleCols.map((id) => renderCell(id, v, idx))}
             </tr>
           ))}
