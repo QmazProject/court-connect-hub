@@ -268,17 +268,13 @@ function VenueDetail() {
             {venue.contact_phone && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>📱</span>Phone</dt>
-                <dd className="font-medium">
-                  <a href={`tel:${venue.contact_phone}`} className="hover:text-primary">{venue.contact_phone}</a>
-                </dd>
+                <dd className="font-medium select-text">{venue.contact_phone}</dd>
               </div>
             )}
             {venue.contact_email && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>✉️</span>Email</dt>
-                <dd className="font-medium">
-                  <a href={`mailto:${venue.contact_email}`} className="hover:text-primary">{venue.contact_email}</a>
-                </dd>
+                <dd className="font-medium select-text break-all">{venue.contact_email}</dd>
               </div>
             )}
           </dl>
