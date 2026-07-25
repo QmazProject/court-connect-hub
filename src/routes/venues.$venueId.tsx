@@ -1028,8 +1028,9 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
               {courts.map((c) => {
                 const soon = !!c.coming_soon;
                 const avail = availability.get(c.id);
-                const remaining = avail ? Math.max(avail.total - avail.booked, 0) : null;
-                const pct = avail && avail.total > 0 ? Math.round((avail.booked / avail.total) * 100) : 0;
+                const unavailable = avail ? Math.min(avail.booked + avail.past, avail.total) : 0;
+                const remaining = avail ? Math.max(avail.total - unavailable, 0) : null;
+                const pct = avail && avail.total > 0 ? Math.round((unavailable / avail.total) * 100) : 0;
                 const availTone =
                   remaining == null
                     ? "bg-muted text-muted-foreground"
