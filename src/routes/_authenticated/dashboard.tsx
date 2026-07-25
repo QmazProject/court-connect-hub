@@ -1685,6 +1685,12 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
   const [physicalCourtId, setPhysicalCourtId] = useState<string>(String(court.physical_court_id));
   const [capacity, setCapacity] = useState(String(court.capacity ?? 1));
+  const [surfaceType, setSurfaceType] = useState<string>(((court as unknown as { surface_type?: string | null }).surface_type) ?? "");
+  const [playerCapacity, setPlayerCapacity] = useState<string>(
+    ((court as unknown as { player_capacity?: number | null }).player_capacity ?? "") === null
+      ? ""
+      : String((court as unknown as { player_capacity?: number | null }).player_capacity ?? "")
+  );
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
