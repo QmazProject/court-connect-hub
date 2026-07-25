@@ -200,29 +200,40 @@ function VenueDetail() {
           const hasRules = rulesList.length > 0;
           const hasAny = hasAmenities || hasFB || hasFS || hasFees || hasInquiries || hasHours || hasCancellation || hasRules;
           if (!hasAny) return null;
-          const Chips = ({ items }: { items: string[] }) => (
-            <div className="mt-2 flex flex-wrap gap-1.5">
+          const CheckList = ({ items }: { items: string[] }) => (
+            <ul className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {items.map((v) => (
-                <span key={v} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">{v}</span>
+                <li key={v} className="flex items-start gap-2 text-sm text-foreground">
+                  <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+                      <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                  <span>{v}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           );
           return (
             <section className="mt-8 grid gap-4 sm:grid-cols-2">
               {hasInquiries && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Inquiries</h3>
-                  <dl className="mt-2 space-y-1 text-sm">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">📞 Inquiries</h3>
+                  <dl className="mt-2 space-y-1.5 text-sm">
                     {venue.contact_phone && (
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Phone</dt>
-                        <dd className="font-medium text-foreground">{venue.contact_phone}</dd>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>📱</span>Phone</dt>
+                        <dd className="font-medium text-foreground">
+                          <a href={`tel:${venue.contact_phone}`} className="hover:text-primary">{venue.contact_phone}</a>
+                        </dd>
                       </div>
                     )}
                     {venue.contact_email && (
-                      <div className="flex justify-between gap-3">
-                        <dt className="text-muted-foreground">Email</dt>
-                        <dd className="font-medium text-foreground">{venue.contact_email}</dd>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="flex items-center gap-1.5 text-muted-foreground"><span aria-hidden>✉️</span>Email</dt>
+                        <dd className="font-medium text-foreground">
+                          <a href={`mailto:${venue.contact_email}`} className="hover:text-primary">{venue.contact_email}</a>
+                        </dd>
                       </div>
                     )}
                   </dl>
@@ -230,31 +241,31 @@ function VenueDetail() {
               )}
               {hasHours && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Operating Hours</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🕒 Operating Hours</h3>
                   <p className="mt-2 whitespace-pre-line text-sm text-foreground">{venue.operating_hours_text}</p>
                 </div>
               )}
               {hasAmenities && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Amenities</h3>
-                  <Chips items={venue.amenities!} />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">✨ Amenities</h3>
+                  <CheckList items={venue.amenities!} />
                 </div>
               )}
               {hasFB && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Food & Beverages</h3>
-                  <Chips items={venue.food_beverages!} />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🍽️ Food & Beverages</h3>
+                  <CheckList items={venue.food_beverages!} />
                 </div>
               )}
               {hasFS && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Facility Services</h3>
-                  <Chips items={venue.facility_services!} />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🛎️ Facility Services</h3>
+                  <CheckList items={venue.facility_services!} />
                 </div>
               )}
               {hasFees && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Fees & Charges</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">💵 Fees & Charges</h3>
                   {feesList.length > 0 && (
                     <ul className="mt-2 divide-y divide-border">
                       {feesList.map((f, i) => (
@@ -272,7 +283,7 @@ function VenueDetail() {
               )}
               {hasCancellation && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Cancellation Policy</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🔁 Cancellation Policy</h3>
                   {(venue.refund_cutoff_hours ?? null) != null && (
                     <p className="mt-2 text-sm text-foreground">
                       {venue.refund_cutoff_hours! > 0
@@ -287,9 +298,18 @@ function VenueDetail() {
               )}
               {hasRules && (
                 <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 sm:col-span-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Venue Rules</h3>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground">
-                    {rulesList.map((r, i) => (<li key={i}>{r}</li>))}
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">📋 Venue Rules</h3>
+                  <ul className="mt-2 space-y-1.5 text-sm text-foreground">
+                    {rulesList.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+                            <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                        <span>{r}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               )}
