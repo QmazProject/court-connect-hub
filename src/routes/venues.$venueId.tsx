@@ -61,7 +61,7 @@ function VenueDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("venues")
-        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes")
+        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes, contact_phone, contact_email, operating_hours_text, refund_cutoff_hours, cancellation_notes, rules")
         .eq("id", Number(venueId))
         .maybeSingle();
       if (error) throw error;
