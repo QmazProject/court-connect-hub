@@ -2141,6 +2141,7 @@ const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean }> = 
   { id: "created_at", label: "Created At" },
   { id: "map", label: "Map" },
   { id: "courts", label: "Courts" },
+  { id: "status", label: "Venue Status" },
   { id: "actions", label: "Actions", required: true },
   { id: "history", label: "History" },
 ];
