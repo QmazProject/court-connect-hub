@@ -68,6 +68,7 @@ function VenueDetail() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openChip, setOpenChip] = useState<ChipKey | null>(null);
   const chipsRef = useRef<HTMLDivElement | null>(null);
+  const [panelHidden, setPanelHidden] = useState(false);
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
@@ -327,6 +328,8 @@ function VenueDetail() {
             <button
               type="button"
               onClick={() => setLightboxOpen(true)}
+              onMouseEnter={() => setPanelHidden(true)}
+              onMouseLeave={() => setPanelHidden(false)}
               aria-label="View full size image"
               className="block h-full w-full cursor-zoom-in"
             >
@@ -372,7 +375,10 @@ function VenueDetail() {
 
           {/* Bottom overlay panel — compact glass */}
           {venue && (
-            <div className="absolute inset-x-0 bottom-0 z-10">
+            <div
+              className={`absolute inset-x-0 bottom-0 z-10 transition-all duration-300 ease-out ${panelHidden ? "pointer-events-none translate-y-4 opacity-0" : "translate-y-0 opacity-100"}`}
+              onMouseEnter={() => setPanelHidden(false)}
+            >
               <div className="mx-auto max-w-5xl px-3 pb-3 sm:px-6 sm:pb-4">
                 <div className="rounded-xl border border-white/25 bg-black/35 px-3 py-2 shadow-lg ring-1 ring-white/10 backdrop-blur-xl backdrop-saturate-150 sm:px-4 sm:py-2.5">
                   {/* Identity + nav */}
