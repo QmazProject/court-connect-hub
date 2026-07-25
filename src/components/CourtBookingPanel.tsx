@@ -429,7 +429,9 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
               </div>
             </div>
 
-            <p className="mt-2 text-xs text-muted-foreground">Tap multiple hours to book them together.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Tap a time slot to select or deselect it; consecutive time slots are automatically combined into a single time range.
+            </p>
 
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
