@@ -9,6 +9,7 @@ import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MapInfoButton } from "@/components/MapInfoButton";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 const chLogo = { url: "/CHicon.png" };
 import {
@@ -2662,14 +2663,14 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           <td key={id} className="px-3 py-3 text-muted-foreground w-[240px] min-w-[240px] max-w-[240px]">
             {v.description ? (
               v.description.length > 40 ? (
-                <HoverCard openDelay={100} closeDelay={80}>
-                  <HoverCardTrigger asChild>
-                    <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
-                  </HoverCardTrigger>
-                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 hover:text-foreground">{v.description}</button>
+                  </PopoverTrigger>
+                  <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {v.description}
-                  </HoverCardContent>
-                </HoverCard>
+                  </PopoverContent>
+                </Popover>
               ) : (
                 <span className="block w-full truncate">{v.description}</span>
               )
@@ -2753,16 +2754,16 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         const text = arr.join(", ");
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
-            <HoverCard openDelay={100} closeDelay={80}>
-              <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 text-xs hover:text-foreground">{text}</button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto text-xs">
                 <div className="flex flex-wrap gap-1">
                   {arr.map((t, i) => <span key={i} className="rounded-full bg-secondary px-2 py-0.5">{t}</span>)}
                 </div>
-              </HoverCardContent>
-            </HoverCard>
+              </PopoverContent>
+            </Popover>
           </td>
         );
       }
@@ -2771,17 +2772,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         if (!feesArr.length && !v.fees_notes) return <td key={id} className="px-3 py-3 text-center text-muted-foreground"><span className="italic opacity-60">—</span></td>;
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <HoverCard openDelay={100} closeDelay={80}>
-              <HoverCardTrigger asChild>
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="center" collisionPadding={16} avoidCollisions className="w-[min(24rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-pointer hover:bg-primary/20">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="center" collisionPadding={16} className="w-[min(28rem,92vw)] max-h-[70vh] overflow-y-auto text-xs">
                 <ul className="space-y-1">
                   {feesArr.map((f, i) => <li key={i} className="flex justify-between gap-2"><span>{f.label}</span><span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span></li>)}
                 </ul>
                 {v.fees_notes && <p className="mt-2 border-t border-border pt-2 text-muted-foreground whitespace-pre-wrap">{v.fees_notes}</p>}
-              </HoverCardContent>
-            </HoverCard>
+              </PopoverContent>
+            </Popover>
           </td>
         );
       }
@@ -2795,12 +2796,12 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
-            <HoverCard openDelay={100} closeDelay={80}>
-              <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</HoverCardContent>
-            </HoverCard>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 text-xs hover:text-foreground">{text}</button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</PopoverContent>
+            </Popover>
           </td>
         );
       }
@@ -2811,15 +2812,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         const summary = hrs != null ? `Cancel up to ${hrs}h before` : "See notes";
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
-            <HoverCard openDelay={100} closeDelay={80}>
-              <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 text-xs hover:text-foreground">{summary}{notes ? ` — ${notes}` : ""}</button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto text-xs">
                 <p className="font-semibold text-foreground">{summary}</p>
                 {notes && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{notes}</p>}
-              </HoverCardContent>
-            </HoverCard>
+              </PopoverContent>
+            </Popover>
           </td>
         );
       }
