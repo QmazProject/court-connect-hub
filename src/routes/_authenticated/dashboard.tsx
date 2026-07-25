@@ -988,8 +988,8 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         <div className="sm:col-span-2">
           <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
         </div>
-        <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} placeholder="e.g. 0917 123 4567" />
-        <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} placeholder="e.g. hello@venue.com" />
+        <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
+        <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
         <div className="sm:col-span-2">
           <Textarea label="Operating hours" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="e.g. Mon–Fri 8AM–10PM, Sat–Sun 6AM–12AM" />
         </div>
