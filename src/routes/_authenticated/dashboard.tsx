@@ -2666,7 +2666,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   <HoverCardTrigger asChild>
                     <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
                   </HoverCardTrigger>
-                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {v.description}
                   </HoverCardContent>
                 </HoverCard>
