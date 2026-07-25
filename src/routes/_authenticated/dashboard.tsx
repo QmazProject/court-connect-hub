@@ -1638,9 +1638,13 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
           Coming soon
         </label>
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={voucherEnabled} onChange={(e) => setVoucherEnabled(e.target.checked)} />
+          Accept vouchers
+        </label>
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Tick "Coming soon" if this court isn't open yet — players will see a badge and won't be able to book until you untick it.
+        Tick "Coming soon" if this court isn't open yet. Tick "Accept vouchers" to let players redeem discount codes you create in the Vouchers module for this court.
       </p>
       <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
