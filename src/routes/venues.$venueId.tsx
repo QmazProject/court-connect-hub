@@ -1049,9 +1049,11 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                     </button>
                     <div className="p-5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
-                          {c.sports?.name ?? "Sport"}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
+                          {c.map_emoji && <span aria-hidden>{c.map_emoji}</span>}
+                          <span>{c.sports?.name ?? "Sport"}</span>
                         </span>
+
                         <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
                       </div>
                       <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
