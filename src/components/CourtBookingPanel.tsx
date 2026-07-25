@@ -681,23 +681,24 @@ export function CourtBookingPanel({
 }
 
 function CheckoutDrawer({
-  courtId, date, hours, hourlyRate, paymentMode, venueName, courtName,
+  courtId, date, hours, hourlyRate, voucherCode, discount, paymentMode, venueName, courtName,
   onClose, payLoading, setPayLoading, onError,
 }: {
   courtId: number; date: string; hours: number[]; hourlyRate: number;
+  voucherCode: string | null; discount: number;
   paymentMode: "full" | "downpayment_50" | "none"; venueName: string; courtName: string;
   onClose: () => void; payLoading: PmMethod | null;
   setPayLoading: (m: PmMethod | null) => void;
   onError: (m: string) => void;
 }) {
-  const fullAmount = hourlyRate * hours.length;
+  const fullAmount = Math.max(0, hourlyRate * hours.length - (discount || 0));
   const dueNow = paymentMode === "downpayment_50" ? fullAmount * 0.5 : fullAmount;
 
   const pay = async (method: PmMethod) => {
     setPayLoading(method);
     try {
       const res = await startBookingCheckout({
-        data: { courtId, date, hours, method, origin: window.location.origin },
+        data: { courtId, date, hours, method, origin: window.location.origin, voucherCode: voucherCode || undefined },
       });
       window.location.href = res.checkoutUrl;
     } catch (e) {
