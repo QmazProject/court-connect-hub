@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass, CalendarDays } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 const searchSchema = z.object({
   sport: z.string().optional(),
@@ -830,11 +833,9 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                 return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
               };
               const today = new Date(`${todayStr}T00:00:00`);
-              const dow = today.getDay(); // 0=Sun
-              // This weekend = upcoming Saturday (if already Sat/Sun, pick the Saturday of this week or today if Sat)
+              const dow = today.getDay();
               const daysToSat = dow === 6 ? 0 : (6 - dow + 7) % 7;
               const thisWeekend = addDays(todayStr, daysToSat);
-              // Next week = next Monday
               const daysToNextMon = ((8 - dow) % 7) || 7;
               const nextWeek = addDays(todayStr, daysToNextMon);
               const tomorrow = addDays(todayStr, 1);
@@ -844,24 +845,55 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                 { label: "This weekend", value: thisWeekend },
                 { label: "Next week", value: nextWeek },
               ];
-              return shortcuts.map((s) => (
-                <button
-                  key={s.label}
-                  type="button"
-                  onClick={() => setSelectedDate(s.value)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedDate === s.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground hover:border-primary/50"}`}
-                >
-                  {s.label}
-                </button>
-              ));
+              const activeShortcut = shortcuts.find((s) => s.value === selectedDate);
+              const selectedD = new Date(`${selectedDate}T00:00:00`);
+              const displayLabel = activeShortcut?.label ?? selectedD.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+              const minDate = new Date(`${todayStr}T00:00:00`);
+              return (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:border-primary/50 focus:border-primary focus:outline-none"
+                    >
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      {displayLabel}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-auto p-0 pointer-events-auto">
+                    <div className="flex flex-col gap-1 border-b border-border p-2 sm:flex-row sm:flex-wrap">
+                      {shortcuts.map((s) => (
+                        <button
+                          key={s.label}
+                          type="button"
+                          onClick={() => setSelectedDate(s.value)}
+                          className={cn(
+                            "rounded-md px-3 py-1.5 text-xs font-medium text-left transition sm:text-center",
+                            selectedDate === s.value
+                              ? "bg-primary text-primary-foreground"
+                              : "text-foreground hover:bg-muted"
+                          )}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={selectedD}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        const off = d.getTimezoneOffset();
+                        setSelectedDate(new Date(d.getTime() - off * 60000).toISOString().slice(0, 10));
+                      }}
+                      disabled={{ before: minDate }}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              );
             })()}
-            <input
-              type="date"
-              value={selectedDate}
-              min={todayStr}
-              onChange={(e) => setSelectedDate(e.target.value || todayStr)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
-            />
           </div>
         </div>
         {isPastDate && (
