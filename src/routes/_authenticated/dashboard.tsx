@@ -1873,6 +1873,11 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [delErr, setDelErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
   const [isActive, setIsActive] = useState(venue.is_active !== false);
+  const [amenities, setAmenities] = useState<string[]>(venue.amenities ?? []);
+  const [foodBeverages, setFoodBeverages] = useState<string[]>(venue.food_beverages ?? []);
+  const [facilityServices, setFacilityServices] = useState<string[]>(venue.facility_services ?? []);
+  const [fees, setFees] = useState<FeeItem[]>(Array.isArray(venue.fees) ? venue.fees : []);
+  const [feesNotes, setFeesNotes] = useState(venue.fees_notes ?? "");
 
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
