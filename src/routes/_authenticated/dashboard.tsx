@@ -83,7 +83,7 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
 }
 
 export type FeeItem = { label: string; amount: number };
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null; contact_phone?: string | null; contact_email?: string | null; operating_hours_text?: string | null; refund_cutoff_hours?: number | null; cancellation_notes?: string | null; rules?: string | null };
 
 const ACTIVE_INFO_TEXT = "A venue can only be set inactive when none of its courts have upcoming or in-progress confirmed bookings. If bookings exist, wait until their end time passes. Any pending (awaiting-payment) bookings will be automatically cancelled and those players will be notified to pick another venue. Inactive venues are hidden from the landing page map and list.";
 type Sport = { id: number; name: string; slug?: string };
