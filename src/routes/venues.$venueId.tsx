@@ -771,27 +771,28 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                   ))}
                 </div>
               ) : (
-                <div className="p-3">
-                  <div className="mb-2 flex items-center justify-between px-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Sports</p>
+                <div className="p-5">
+                  <div className="mb-5 flex items-center justify-between px-1">
+                    <h3 className="font-display text-[20px] font-bold tracking-tight text-foreground">Sports</h3>
                     <button
                       type="button"
                       onClick={() => setSportsCollapsed(true)}
                       aria-label="Collapse sports"
                       title="Collapse"
-                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="group rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-[18px] w-[18px] transition-transform group-hover:-translate-x-0.5" />
                     </button>
                   </div>
                   <div className="space-y-1">
                     <SportItem
                       active={!selectedSport}
                       emoji="✨"
-                      label="All"
+                      label="All Sports"
                       onClick={() => onSelectSport(null)}
+                      index={0}
                     />
-                    {allSports.map((s) => (
+                    {allSports.map((s, i) => (
                       <SportItem
                         key={s.slug}
                         active={selectedSport === s.slug}
@@ -799,6 +800,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                         label={s.name}
                         offered={venueSportSlugs.has(s.slug)}
                         onClick={() => onSelectSport(s.slug)}
+                        index={i + 1}
                       />
                     ))}
                   </div>
