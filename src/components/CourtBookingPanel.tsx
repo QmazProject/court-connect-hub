@@ -462,10 +462,58 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
             <div className="mt-4 border-t border-border pt-3">
+              {court.voucher_enabled && selected.length > 0 && (
+                <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-primary">Voucher code</div>
+                  {voucher ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm">
+                        <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-700">Applied</span>
+                        <span className="ml-2">
+                          {voucher.type === "percent" ? `${voucher.value}% off` : `₱${voucher.value.toFixed(0)} off`} — you save <b>₱{voucher.discount.toFixed(2)}</b>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setVoucher(null); setVoucherCode(""); setVoucherErr(null); }}
+                        className="text-xs text-muted-foreground underline hover:text-foreground"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        value={voucherCode}
+                        onChange={(e) => { setVoucherCode(e.target.value.toUpperCase()); setVoucherErr(null); }}
+                        placeholder="Enter code"
+                        className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm uppercase"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyVoucher}
+                        disabled={voucherLoading || !voucherCode.trim()}
+                        className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                      >
+                        {voucherLoading ? "Checking…" : "Apply"}
+                      </button>
+                    </div>
+                  )}
+                  {voucherErr && <p className="mt-1.5 text-xs text-red-600">{voucherErr}</p>}
+                </div>
+              )}
+
               <div className="text-sm text-muted-foreground">
-                {selected.length > 0
-                  ? <>Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
-                  : "Choose one or more hours."}
+                {selected.length > 0 ? (
+                  <>
+                    Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span>
+                    {voucher ? (
+                      <> · Subtotal <span className="line-through">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span> · Total <span className="font-semibold text-emerald-700">₱{Math.max(0, Number(court.hourly_rate) * selected.length - voucher.discount).toFixed(2)}</span></>
+                    ) : (
+                      <> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
+                    )}
+                  </>
+                ) : "Choose one or more hours."}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {selected.length > 0 && (
