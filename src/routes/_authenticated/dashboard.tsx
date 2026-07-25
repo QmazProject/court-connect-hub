@@ -1534,15 +1534,31 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
+  // Suggest capacity when picking an existing surface that already hosts this sport
+  const siblingsQ = useQuery({
+    queryKey: ["pc-siblings", physicalCourtId, sportId],
+    enabled: (open || !!alwaysOpen) && physicalCourtId !== "new" && !!sportId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts")
+        .select("id, name, capacity, sport_id, sports(name)")
+        .eq("physical_court_id", Number(physicalCourtId));
+      if (error) throw error;
+      return data as unknown as Array<{ id: number; name: string; capacity: number; sport_id: number; sports: { name: string } | null }>;
+    },
+  });
+  const sameSportSibling = (siblingsQ.data ?? []).find((c) => String(c.sport_id) === sportId);
+
   const mut = useMutation({
     mutationFn: async () => {
       let pcId: number;
+      let createdPcId: number | null = null;
       if (physicalCourtId === "new") {
         const { data, error } = await supabase.from("physical_courts").insert({
-          venue_id: venueId, name, map_emoji: mapEmoji ?? venueEmoji ?? null,
+          venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
         }).select("id").single();
         if (error) throw error;
         pcId = data.id;
+        createdPcId = data.id;
       } else {
         pcId = Number(physicalCourtId);
       }
@@ -1568,10 +1584,16 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         blocked_dates: datesToPayload(availDates),
       });
 
-      if (error) throw error;
+      if (error) {
+        // Clean up the orphan physical_courts row so we don't leak empty surfaces
+        if (createdPcId !== null) {
+          await supabase.from("physical_courts").delete().eq("id", createdPcId);
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1627,6 +1649,11 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           </label>
           <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
         </div>
+        {sameSportSibling && (
+          <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-200">
+            ⚠ This surface already has <b>{sameSportSibling.name}</b> ({sameSportSibling.sports?.name}) with capacity <b>{sameSportSibling.capacity}</b>. Keep the same capacity for siblings of the same sport, otherwise availability will behave inconsistently.
+          </p>
+        )}
         <p className="mt-1 text-[11px] text-muted-foreground">
           Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
         </p>
@@ -1785,6 +1812,24 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
     mutationFn: async () => {
       const cap = Math.max(1, Math.floor(Number(capacity) || 1));
       const footprint = 1 / cap;
+      const newPcId = Number(physicalCourtId);
+      const surfaceChanged = newPcId !== court.physical_court_id;
+      const capacityChanged = cap !== court.capacity;
+      if (surfaceChanged || capacityChanged) {
+        const { count, error: cErr } = await supabase.from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("court_id", court.id)
+          .eq("status", "confirmed")
+          .gte("end_time", new Date().toISOString());
+        if (cErr) throw cErr;
+        if ((count ?? 0) > 0) {
+          throw new Error(
+            surfaceChanged
+              ? "This court has upcoming confirmed bookings — you can't move it to a different shared surface until those bookings finish or are cancelled."
+              : "This court has upcoming confirmed bookings — you can't change its capacity until those bookings finish or are cancelled."
+          );
+        }
+      }
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
@@ -3630,9 +3675,12 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
       const courtIds = group.layouts.map((l) => l.id);
       if (courtIds.length > 0) {
         const { count, error } = await supabase.from("bookings")
-          .select("id", { count: "exact", head: true }).in("court_id", courtIds);
+          .select("id", { count: "exact", head: true })
+          .in("court_id", courtIds)
+          .eq("status", "confirmed")
+          .gte("end_time", new Date().toISOString());
         if (error) throw error;
-        if ((count ?? 0) > 0) throw new Error("This group has existing bookings and cannot be deleted.");
+        if ((count ?? 0) > 0) throw new Error("This group has upcoming confirmed bookings and cannot be deleted until they finish or are cancelled.");
         // Detach courts from the physical surface by giving each its own new slab
         for (const c of group.layouts) {
           const { data: pc, error: pcErr } = await supabase.from("physical_courts")
@@ -3735,11 +3783,14 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
 
   const removeMember = async (courtId: number) => {
     setErr(null);
-    // Only allow removing if no bookings on that court
+    // Only allow removing if no upcoming confirmed bookings on that court
     const { count, error: cErr } = await supabase.from("bookings")
-      .select("id", { count: "exact", head: true }).eq("court_id", courtId);
+      .select("id", { count: "exact", head: true })
+      .eq("court_id", courtId)
+      .eq("status", "confirmed")
+      .gte("end_time", new Date().toISOString());
     if (cErr) { setErr(cErr.message); return; }
-    if ((count ?? 0) > 0) { setErr("This court has bookings and cannot be detached from the group."); return; }
+    if ((count ?? 0) > 0) { setErr("This court has upcoming confirmed bookings and cannot be detached from the group until they finish or are cancelled."); return; }
     const { data: pc, error: pcErr } = await supabase.from("physical_courts")
       .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` }).select("id").single();
     if (pcErr) { setErr(pcErr.message); return; }
