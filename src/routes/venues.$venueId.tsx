@@ -915,6 +915,38 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                           ))}
                         </div>
                       )}
+                      {!soon && (
+                        <div className="mt-3 rounded-xl border border-border/70 bg-muted/40 p-2.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-foreground">
+                              {bookingsQ.isLoading ? (
+                                <span className="text-muted-foreground">Checking availability…</span>
+                              ) : remaining == null ? (
+                                <span className="text-muted-foreground">No hours today</span>
+                              ) : remaining === 0 ? (
+                                <span>Fully booked</span>
+                              ) : (
+                                <span>
+                                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${availTone}`}>
+                                    {remaining} hr{remaining === 1 ? "" : "s"} open
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                            {avail && avail.total > 0 && (
+                              <span className="text-muted-foreground">{avail.booked}/{avail.total} booked</span>
+                            )}
+                          </div>
+                          {avail && avail.total > 0 && (
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background">
+                              <div
+                                className={`h-full transition-all ${pct >= 100 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-primary"}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-4 flex items-baseline justify-between">
                         <div>
                           <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
@@ -926,6 +958,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                           <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
                         )}
                       </div>
+
                     </div>
                   </>
                 );
