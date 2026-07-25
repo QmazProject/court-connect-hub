@@ -1900,6 +1900,12 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [facilityServices, setFacilityServices] = useState<string[]>(venue.facility_services ?? []);
   const [fees, setFees] = useState<FeeItem[]>(Array.isArray(venue.fees) ? venue.fees : []);
   const [feesNotes, setFeesNotes] = useState(venue.fees_notes ?? "");
+  const [contactPhone, setContactPhone] = useState(venue.contact_phone ?? "");
+  const [contactEmail, setContactEmail] = useState(venue.contact_email ?? "");
+  const [operatingHoursText, setOperatingHoursText] = useState(venue.operating_hours_text ?? "");
+  const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
+  const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
+  const [rules, setRules] = useState(venue.rules ?? "");
 
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
