@@ -241,6 +241,21 @@ function VenueDetail() {
     </ul>
   );
 
+  const chipSubtitle = (key: ChipKey, venueName: string): string => {
+    switch (key) {
+      case "about": return `Get to know ${venueName}`;
+      case "location": return "Where to find us";
+      case "inquiries": return "Reach out to the venue";
+      case "hours": return "When we're open for play";
+      case "amenities": return "What's included on-site";
+      case "fb": return "Food & drinks available";
+      case "fs": return "Services offered here";
+      case "fees": return "Additional charges to note";
+      case "cancellation": return "Refund & cancellation policy";
+      case "rules": return "Please follow these guidelines";
+    }
+  };
+
   const renderChipModalBody = (key: ChipKey): ReactNode => {
     if (!venue) return null;
     switch (key) {
@@ -485,12 +500,15 @@ function VenueDetail() {
             className="w-full max-w-lg rounded-t-3xl bg-background p-5 shadow-2xl sm:rounded-2xl sm:p-6"
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted sm:hidden" />
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
                   {activeChip.icon}
                 </span>
-                <h2 className="text-lg font-bold">{activeChip.label}</h2>
+                <div>
+                  <h2 className="text-lg font-bold leading-tight">{activeChip.label}</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{chipSubtitle(activeChip.key, venue.name)}</p>
+                </div>
               </div>
               <button
                 onClick={() => setOpenChip(null)}
