@@ -72,7 +72,9 @@ export type Database = {
           name: string
           operating_hours: Json
           physical_court_id: number
+          player_capacity: number | null
           sport_id: number
+          surface_type: string | null
           venue_id: number
         }
         Insert: {
@@ -91,7 +93,9 @@ export type Database = {
           name: string
           operating_hours?: Json
           physical_court_id: number
+          player_capacity?: number | null
           sport_id: number
+          surface_type?: string | null
           venue_id: number
         }
         Update: {
@@ -110,7 +114,9 @@ export type Database = {
           name?: string
           operating_hours?: Json
           physical_court_id?: number
+          player_capacity?: number | null
           sport_id?: number
+          surface_type?: string | null
           venue_id?: number
         }
         Relationships: [
