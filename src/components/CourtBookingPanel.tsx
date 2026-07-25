@@ -71,6 +71,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [carouselIdx, setCarouselIdx] = useState(0);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
