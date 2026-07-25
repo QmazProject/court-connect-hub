@@ -66,6 +66,7 @@ type Court = {
   amenities: string[] | null;
   images: string[] | null;
   coming_soon: boolean | null;
+  operating_hours: Record<string, string> | null;
   sports: { name: string; slug: string } | null;
 };
 
