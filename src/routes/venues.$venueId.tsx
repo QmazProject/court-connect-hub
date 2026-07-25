@@ -735,7 +735,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         {/* Desktop: vertical sport list (in-flow, sticky) */}
         {allSports.length > 0 && (
           <aside className="hidden lg:block">
-            <div className="sticky top-24 overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-card to-card/60 shadow-sm ring-1 ring-black/5">
+            <div className="sticky top-24 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
               {sportsCollapsed ? (
                 <div className="flex flex-col items-center gap-1.5 p-2">
                   <button
