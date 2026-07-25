@@ -370,17 +370,17 @@ function VenueDetail() {
             ← Back
           </button>
 
-          {/* Bottom overlay panel */}
+          {/* Bottom overlay panel — compact glass */}
           {venue && (
             <div className="absolute inset-x-0 bottom-0 z-10">
-              <div className="mx-auto max-w-6xl px-3 pb-3 sm:px-6 sm:pb-5">
-                <div className="rounded-2xl border border-white/20 bg-background/95 p-3 shadow-2xl backdrop-blur-md sm:p-4">
-                  {/* Identity */}
-                  <div className="flex items-start justify-between gap-3">
+              <div className="mx-auto max-w-5xl px-3 pb-3 sm:px-6 sm:pb-4">
+                <div className="rounded-xl border border-white/25 bg-black/35 px-3 py-2 shadow-lg ring-1 ring-white/10 backdrop-blur-xl backdrop-saturate-150 sm:px-4 sm:py-2.5">
+                  {/* Identity + nav */}
+                  <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <h1 className="truncate text-lg font-bold sm:text-2xl">{venue.name}</h1>
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground sm:text-sm">
-                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                      <h1 className="truncate text-sm font-semibold text-white drop-shadow sm:text-base">{venue.name}</h1>
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-white/75 sm:text-xs">
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
                         <span className="truncate">{venue.address}</span>
                       </p>
                     </div>
@@ -390,53 +390,39 @@ function VenueDetail() {
                           type="button"
                           onClick={() => scrollChips(-1)}
                           aria-label="Scroll left"
-                          className="rounded-full border border-border bg-background p-1.5 text-foreground shadow-sm hover:bg-muted"
+                          className="rounded-full border border-white/20 bg-white/10 p-1 text-white transition hover:bg-white/20"
                         >
-                          <ChevronLeft className="h-4 w-4" />
+                          <ChevronLeft className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => scrollChips(1)}
                           aria-label="Scroll right"
-                          className="rounded-full border border-border bg-background p-1.5 text-foreground shadow-sm hover:bg-muted"
+                          className="rounded-full border border-white/20 bg-white/10 p-1 text-white transition hover:bg-white/20"
                         >
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* Swipe hint */}
-                  {visibleChips.length > 0 && (
-                    <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:hidden">
-                      Swipe for details →
-                    </p>
-                  )}
-
                   {/* Chips row */}
                   {visibleChips.length > 0 && (
                     <div
                       ref={chipsRef}
-                      className="mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                      className="mt-2 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     >
                       {visibleChips.map((c) => (
                         <button
                           key={c.key}
                           type="button"
                           onClick={() => setOpenChip(c.key)}
-                          className="group flex min-w-[150px] max-w-[220px] shrink-0 snap-start items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left shadow-sm transition hover:border-primary hover:shadow-md sm:min-w-[170px]"
+                          className="group flex shrink-0 snap-start items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1.5 text-left text-white transition hover:border-primary/60 hover:bg-white/20"
                         >
-                          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/30 text-primary-foreground [&>svg]:h-3 [&>svg]:w-3">
                             {c.icon}
                           </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                              {c.label}
-                            </span>
-                            <span className="block truncate text-xs font-medium text-foreground">
-                              {c.preview || "View"}
-                            </span>
-                          </span>
+                          <span className="text-[11px] font-medium tracking-wide">{c.label}</span>
                         </button>
                       ))}
                     </div>
