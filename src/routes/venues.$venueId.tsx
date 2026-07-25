@@ -604,6 +604,11 @@ function VenueDetail() {
           <p className="text-muted-foreground">Venue not found.</p>
         </div>
       )}
+      <CourtBookingPanel
+        courtId={openCourtId ?? null}
+        open={!!openCourtId}
+        onOpenChange={(o) => { if (!o) openCourt(null); }}
+      />
     </main>
   );
 }
