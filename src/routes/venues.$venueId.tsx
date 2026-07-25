@@ -1,13 +1,34 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useRef, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass } from "lucide-react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 
 const searchSchema = z.object({
   sport: z.string().optional(),
 });
+
+const SPORT_EMOJI: Record<string, string> = {
+  badminton: "🏸",
+  basketball: "🏀",
+  football: "⚽",
+  pickleball: "🥎",
+  squash: "🏟️",
+  tennis: "🎾",
+  volleyball: "🏐",
+};
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const x = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
 
 export const Route = createFileRoute("/venues/$venueId")({
   validateSearch: searchSchema,
@@ -440,93 +461,16 @@ function VenueDetail() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <h2 className="mt-8 text-xl font-bold">
-          {sport ? "Courts for this sport" : "All courts"}{" "}
-          <span className="text-muted-foreground">({courts.length})</span>
-        </h2>
+      <ExploreCourts
+        venue={venue ?? undefined}
+        courts={courts}
+        loading={courtsQ.isLoading}
+        selectedSport={sport}
+        onSelectSport={(slug) =>
+          navigate({ to: "/venues/$venueId", params: { venueId }, search: slug ? { sport: slug } : {} })
+        }
+      />
 
-        {courtsQ.isLoading ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-48 animate-pulse rounded-2xl bg-muted" />
-            ))}
-          </div>
-        ) : courts.length > 0 ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {courts.map((c) => {
-              const soon = !!c.coming_soon;
-              const inner = (
-                <>
-                  <div className="relative">
-                    {c.images && c.images.length > 0 ? (
-                      <img src={c.images[0]} alt={c.name} className={`h-32 w-full object-cover ${soon ? "opacity-70" : ""}`} />
-                    ) : (
-                      <div className={`court-pattern h-32 ${soon ? "opacity-70" : ""}`} />
-                    )}
-                    {soon && (
-                      <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
-                        Coming soon
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
-                        {c.sports?.name ?? "Sport"}
-                      </span>
-                      <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
-                    </div>
-                    <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
-                    {c.description && (
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
-                    )}
-                    {c.amenities && c.amenities.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {c.amenities.slice(0, 3).map((a) => (
-                          <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                            {a}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-4 flex items-baseline justify-between">
-                      <div>
-                        <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
-                        <span className="text-sm text-muted-foreground"> / hour</span>
-                      </div>
-                      {soon ? (
-                        <span className="text-xs font-semibold text-amber-600">Opening soon</span>
-                      ) : (
-                        <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
-                      )}
-                    </div>
-                  </div>
-                </>
-              );
-              const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition";
-              return soon ? (
-                <div key={c.id} className={`${baseCls} cursor-not-allowed`} aria-disabled>
-                  {inner}
-                </div>
-              ) : (
-                <Link
-                  key={c.id}
-                  to="/courts/$courtId"
-                  params={{ courtId: String(c.id) }}
-                  className={`${baseCls} hover:shadow-md`}
-                >
-                  {inner}
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-2xl border border-dashed border-border p-12 text-center">
-            <p className="text-muted-foreground">No courts available at this venue{sport ? " for the selected sport" : ""}.</p>
-          </div>
-        )}
-      </div>
 
       {/* Chip detail modal */}
       {activeChip && venue && (
@@ -623,3 +567,385 @@ function VenueDetail() {
     </main>
   );
 }
+
+type ExploreCourtsProps = {
+  venue: Venue | undefined;
+  courts: Court[];
+  loading: boolean;
+  selectedSport: string | undefined;
+  onSelectSport: (slug: string | null) => void;
+};
+
+function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }: ExploreCourtsProps) {
+  // Sports available at this venue (from ALL courts, not filtered)
+  const venueSportsQ = useQuery({
+    queryKey: ["venue-sports", venue?.id],
+    enabled: !!venue?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courts")
+        .select("sports!inner(name, slug)")
+        .eq("venue_id", venue!.id);
+      if (error) throw error;
+      const seen = new Map<string, string>();
+      for (const row of (data ?? []) as unknown as { sports: { name: string; slug: string } | null }[]) {
+        if (row.sports) seen.set(row.sports.slug, row.sports.name);
+      }
+      return Array.from(seen.entries()).map(([slug, name]) => ({ slug, name }));
+    },
+  });
+
+  const availableSports = venueSportsQ.data ?? [];
+  const noCourtsForSport =
+    !!selectedSport && !loading && courts.length === 0 && availableSports.length > 0;
+
+  // Player location (with venue as fallback anchor)
+  const [playerLoc, setPlayerLoc] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoDenied, setGeoDenied] = useState(false);
+
+  useEffect(() => {
+    if (!noCourtsForSport || playerLoc || geoDenied) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setGeoDenied(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setPlayerLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setGeoDenied(true),
+      { timeout: 6000, maximumAge: 5 * 60 * 1000 }
+    );
+  }, [noCourtsForSport, playerLoc, geoDenied]);
+
+  const anchor = playerLoc ?? (venue?.latitude != null && venue?.longitude != null ? { lat: venue.latitude, lng: venue.longitude } : null);
+
+  // Suggested venues elsewhere that offer the selected sport
+  const suggestQ = useQuery({
+    queryKey: ["suggest-venues", selectedSport, venue?.id],
+    enabled: noCourtsForSport && !!selectedSport,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courts")
+        .select("venue_id, hourly_rate, sports!inner(slug), venues!inner(id, name, address, latitude, longitude, images, map_emoji, is_active)")
+        .eq("sports.slug", selectedSport!)
+        .eq("venues.is_active", true)
+        .neq("venue_id", venue?.id ?? -1);
+      if (error) throw error;
+      const map = new Map<number, { id: number; name: string; address: string; lat: number | null; lng: number | null; images: string[]; emoji: string | null; minRate: number }>();
+      for (const row of (data ?? []) as unknown as Array<{ venue_id: number; hourly_rate: number; venues: { id: number; name: string; address: string; latitude: number | null; longitude: number | null; images: string[] | null; map_emoji: string | null } }>) {
+        const v = row.venues;
+        const existing = map.get(v.id);
+        if (existing) {
+          existing.minRate = Math.min(existing.minRate, Number(row.hourly_rate));
+        } else {
+          map.set(v.id, {
+            id: v.id,
+            name: v.name,
+            address: v.address,
+            lat: v.latitude,
+            lng: v.longitude,
+            images: v.images ?? [],
+            emoji: v.map_emoji,
+            minRate: Number(row.hourly_rate),
+          });
+        }
+      }
+      return Array.from(map.values());
+    },
+  });
+
+  const suggestions = useMemo(() => {
+    const list = suggestQ.data ?? [];
+    if (!anchor) return list.slice(0, 3).map((v) => ({ ...v, distanceKm: null as number | null }));
+    return list
+      .map((v) => ({
+        ...v,
+        distanceKm: v.lat != null && v.lng != null ? haversineKm(anchor, { lat: v.lat, lng: v.lng }) : null,
+      }))
+      .sort((a, b) => {
+        if (a.distanceKm == null && b.distanceKm == null) return 0;
+        if (a.distanceKm == null) return 1;
+        if (b.distanceKm == null) return -1;
+        return a.distanceKm - b.distanceKm;
+      })
+      .slice(0, 3);
+  }, [suggestQ.data, anchor]);
+
+  const selectedSportName = selectedSport ? availableSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
+
+  return (
+    <section className="mx-auto mt-10 max-w-6xl px-4 sm:mt-14 sm:px-6">
+      {/* Heading */}
+      <div className="text-center">
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          Explore Our Courts at{" "}
+          <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            {venue?.name ?? "this venue"}
+          </span>
+        </h2>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
+          Pick your game, book your slot, and play like it&apos;s your home court.
+        </p>
+      </div>
+
+      {/* Mobile: horizontal sport chips */}
+      {availableSports.length > 0 && (
+        <div className="mt-6 lg:hidden">
+          <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <SportChip
+              active={!selectedSport}
+              emoji="✨"
+              label="All"
+              onClick={() => onSelectSport(null)}
+            />
+            {availableSports.map((s) => (
+              <SportChip
+                key={s.slug}
+                active={selectedSport === s.slug}
+                emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
+                label={s.name}
+                onClick={() => onSelectSport(s.slug)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
+        {/* Desktop: vertical sport list */}
+        {availableSports.length > 0 && (
+          <aside className="hidden lg:block">
+            <div className="sticky top-24 rounded-2xl border border-border bg-card p-3 shadow-sm">
+              <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sports</p>
+              <SportItem
+                active={!selectedSport}
+                emoji="✨"
+                label="All"
+                onClick={() => onSelectSport(null)}
+              />
+              {availableSports.map((s) => (
+                <SportItem
+                  key={s.slug}
+                  active={selectedSport === s.slug}
+                  emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
+                  label={s.name}
+                  onClick={() => onSelectSport(s.slug)}
+                />
+              ))}
+            </div>
+          </aside>
+        )}
+
+        {/* Courts grid */}
+        <div>
+          {loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-48 animate-pulse rounded-2xl bg-muted" />
+              ))}
+            </div>
+          ) : courts.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {courts.map((c) => {
+                const soon = !!c.coming_soon;
+                const inner = (
+                  <>
+                    <div className="relative">
+                      {c.images && c.images.length > 0 ? (
+                        <img src={c.images[0]} alt={c.name} className={`h-32 w-full object-cover ${soon ? "opacity-70" : ""}`} />
+                      ) : (
+                        <div className={`court-pattern h-32 ${soon ? "opacity-70" : ""}`} />
+                      )}
+                      {soon && (
+                        <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
+                          Coming soon
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="rounded-full bg-secondary px-2 py-1 font-medium text-secondary-foreground">
+                          {c.sports?.name ?? "Sport"}
+                        </span>
+                        <span className="text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
+                      </div>
+                      <h3 className="mt-3 text-lg font-semibold">{c.name}</h3>
+                      {c.description && (
+                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
+                      )}
+                      {c.amenities && c.amenities.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {c.amenities.slice(0, 3).map((a) => (
+                            <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-4 flex items-baseline justify-between">
+                        <div>
+                          <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
+                          <span className="text-sm text-muted-foreground"> / hour</span>
+                        </div>
+                        {soon ? (
+                          <span className="text-xs font-semibold text-amber-600">Opening soon</span>
+                        ) : (
+                          <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+                const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition";
+                return soon ? (
+                  <div key={c.id} className={`${baseCls} cursor-not-allowed`} aria-disabled>
+                    {inner}
+                  </div>
+                ) : (
+                  <Link
+                    key={c.id}
+                    to="/courts/$courtId"
+                    params={{ courtId: String(c.id) }}
+                    className={`${baseCls} hover:shadow-md`}
+                  >
+                    {inner}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptySport
+              sportName={selectedSportName}
+              onClearFilter={() => onSelectSport(null)}
+              suggestions={suggestions}
+              suggestLoading={suggestQ.isLoading}
+              usingPlayerLoc={!!playerLoc}
+              anchorLabel={playerLoc ? "your location" : venue?.name ?? "this venue"}
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SportChip({ active, emoji, label, onClick }: { active: boolean; emoji: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex shrink-0 snap-start items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+        active
+          ? "border-primary bg-primary text-primary-foreground shadow"
+          : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+      }`}
+    >
+      <span aria-hidden>{emoji}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SportItem({ active, emoji, label, onClick }: { active: boolean; emoji: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-foreground hover:bg-primary/10"
+      }`}
+    >
+      <span aria-hidden className="text-base">{emoji}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function EmptySport({
+  sportName,
+  onClearFilter,
+  suggestions,
+  suggestLoading,
+  usingPlayerLoc,
+  anchorLabel,
+}: {
+  sportName: string | null;
+  onClearFilter: () => void;
+  suggestions: Array<{ id: number; name: string; address: string; images: string[]; emoji: string | null; minRate: number; distanceKm: number | null }>;
+  suggestLoading: boolean;
+  usingPlayerLoc: boolean;
+  anchorLabel: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-card/50 p-6 sm:p-8">
+      <div className="text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Compass className="h-6 w-6" />
+        </div>
+        <h3 className="mt-3 text-lg font-semibold">
+          No {sportName ?? "courts"} at this venue yet
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {sportName ? `Here are venues nearby offering ${sportName}` : "Try a different sport"}
+          {usingPlayerLoc ? " — sorted by distance from your location." : ` — sorted by distance from ${anchorLabel}.`}
+        </p>
+        <button
+          type="button"
+          onClick={onClearFilter}
+          className="mt-3 text-xs font-semibold text-primary hover:underline"
+        >
+          Or view all courts at this venue →
+        </button>
+      </div>
+
+      {suggestLoading ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-32 animate-pulse rounded-xl bg-muted" />
+          ))}
+        </div>
+      ) : suggestions.length > 0 ? (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {suggestions.map((v) => (
+            <Link
+              key={v.id}
+              to="/venues/$venueId"
+              params={{ venueId: String(v.id) }}
+              className="group flex gap-3 rounded-xl border border-border bg-background p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+            >
+              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+                {v.images[0] ? (
+                  <img src={v.images[0]} alt={v.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-2xl">{v.emoji ?? "🏟️"}</div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary">{v.name}</p>
+                <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{v.address}</span>
+                </p>
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-primary">from ₱{v.minRate.toFixed(0)}/hr</span>
+                  {v.distanceKm != null && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                      <Navigation className="h-3 w-3" />
+                      {v.distanceKm < 1 ? `${Math.round(v.distanceKm * 1000)} m` : `${v.distanceKm.toFixed(1)} km`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          No venues offering {sportName ?? "this sport"} yet in your area — check back soon.
+        </p>
+      )}
+    </div>
+  );
+}
+
