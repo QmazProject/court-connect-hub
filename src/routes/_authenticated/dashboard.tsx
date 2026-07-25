@@ -1799,6 +1799,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         footprint,
         surface_type: surfaceType.trim() || null,
         player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
+        blocked_hours: weeklyToPayload(availWeekly),
+        blocked_dates: datesToPayload(availDates),
       }).eq("id", court.id);
       if (error) throw error;
     },
