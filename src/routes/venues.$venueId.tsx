@@ -68,6 +68,7 @@ function VenueDetail() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [openChip, setOpenChip] = useState<ChipKey | null>(null);
   const chipsRef = useRef<HTMLDivElement | null>(null);
+  const [panelHidden, setPanelHidden] = useState(false);
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
