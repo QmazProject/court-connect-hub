@@ -707,10 +707,10 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </p>
       </div>
 
-      {/* Mobile: horizontal sport chips */}
+      {/* Sport chips (all breakpoints) */}
       {allSports.length > 0 && (
-        <div className="mt-6 lg:hidden">
-          <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mt-6">
+          <div className="flex flex-wrap gap-2">
             <SportChip
               active={!selectedSport}
               emoji="✨"
@@ -731,85 +731,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </div>
       )}
 
-      <div className={`mt-6 grid gap-6 ${allSports.length > 0 ? (sportsCollapsed ? "lg:grid-cols-[64px_1fr]" : "lg:grid-cols-[240px_1fr]") : ""}`}>
-        {/* Desktop: vertical sport list (in-flow, sticky) */}
-        {allSports.length > 0 && (
-          <aside className="hidden lg:block lg:-ml-8 xl:-ml-16">
-            <div className="sticky top-24 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-              {sportsCollapsed ? (
-                <div className="flex flex-col items-center gap-1.5 p-2">
-                  <button
-                    type="button"
-                    onClick={() => setSportsCollapsed(false)}
-                    aria-label="Expand sports"
-                    title="Expand"
-                    className="mb-1 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSelectSport(null)}
-                    title="All sports"
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg transition ${!selectedSport ? "bg-primary/15 ring-1 ring-primary/40 shadow-sm" : "hover:bg-muted"}`}
-                  >
-                    ✨
-                  </button>
-                  {allSports.map((s) => (
-                    <button
-                      key={s.slug}
-                      type="button"
-                      onClick={() => onSelectSport(s.slug)}
-                      title={s.name}
-                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-lg transition ${selectedSport === s.slug ? "bg-primary/15 ring-1 ring-primary/40 shadow-sm" : "hover:bg-muted"} ${venueSportSlugs.has(s.slug) ? "" : "opacity-60"}`}
-                    >
-                      {SPORT_EMOJI[s.slug] ?? "🏟️"}
-                      {!venueSportSlugs.has(s.slug) && (
-                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-card" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-5">
-                  <div className="mb-5 flex items-center justify-between px-1">
-                    <h3 className="font-display text-[20px] font-bold tracking-tight text-foreground">Sports</h3>
-                    <button
-                      type="button"
-                      onClick={() => setSportsCollapsed(true)}
-                      aria-label="Collapse sports"
-                      title="Collapse"
-                      className="group rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <ChevronLeft className="h-[18px] w-[18px] transition-transform group-hover:-translate-x-0.5" />
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    <SportItem
-                      active={!selectedSport}
-                      emoji="✨"
-                      label="All Sports"
-                      onClick={() => onSelectSport(null)}
-                      index={0}
-                    />
-                    {allSports.map((s, i) => (
-                      <SportItem
-                        key={s.slug}
-                        active={selectedSport === s.slug}
-                        emoji={SPORT_EMOJI[s.slug] ?? "🏟️"}
-                        label={s.name}
-                        offered={venueSportSlugs.has(s.slug)}
-                        onClick={() => onSelectSport(s.slug)}
-                        index={i + 1}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </aside>
-        )}
-
+      <div className="mt-6">
         {/* Courts grid */}
         <div>
 
