@@ -2666,7 +2666,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
                   <HoverCardTrigger asChild>
                     <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
                   </HoverCardTrigger>
-                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                  <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {v.description}
                   </HoverCardContent>
                 </HoverCard>
@@ -2757,7 +2757,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <HoverCardTrigger asChild>
                 <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
               </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] text-xs">
+              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
                 <div className="flex flex-wrap gap-1">
                   {arr.map((t, i) => <span key={i} className="rounded-full bg-secondary px-2 py-0.5">{t}</span>)}
                 </div>
@@ -2775,7 +2775,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <HoverCardTrigger asChild>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</span>
               </HoverCardTrigger>
-              <HoverCardContent side="top" align="center" className="w-64 text-xs">
+              <HoverCardContent side="top" align="center" collisionPadding={16} avoidCollisions className="w-[min(24rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
                 <ul className="space-y-1">
                   {feesArr.map((f, i) => <li key={i} className="flex justify-between gap-2"><span>{f.label}</span><span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span></li>)}
                 </ul>
@@ -2799,7 +2799,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <HoverCardTrigger asChild>
                 <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
               </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</HoverCardContent>
+              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</HoverCardContent>
             </HoverCard>
           </td>
         );
@@ -2815,7 +2815,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               <HoverCardTrigger asChild>
                 <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
               </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" className="w-72 max-w-[18rem] text-xs">
+              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto text-xs">
                 <p className="font-semibold text-foreground">{summary}</p>
                 {notes && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{notes}</p>}
               </HoverCardContent>
