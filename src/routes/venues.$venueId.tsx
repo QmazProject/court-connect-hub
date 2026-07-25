@@ -1018,10 +1018,10 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                   <div key={c.id} className={`${baseCls} ${soon ? "cursor-not-allowed" : ""}`} aria-disabled={soon}>
                     <button
                       type="button"
-                      onClick={() => !soon && onOpenCourt(c.id)}
-                      disabled={soon}
+                      onClick={() => !soon && hasImages && setCourtImageView({ images: c.images!, name: c.name, idx: 0 })}
+                      disabled={soon || !hasImages}
                       className="relative block w-full text-left"
-                      aria-label={`View ${c.name} images and details`}
+                      aria-label={hasImages ? `View ${c.name} images` : c.name}
                     >
                       {hasImages ? (
                         <>
