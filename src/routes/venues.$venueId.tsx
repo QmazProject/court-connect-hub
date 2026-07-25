@@ -14,6 +14,7 @@ export const Route = createFileRoute("/venues/$venueId")({
   component: VenueDetail,
 });
 
+type FeeItem = { label: string; amount: number };
 type Venue = {
   id: number;
   name: string;
@@ -22,6 +23,11 @@ type Venue = {
   longitude: number | null;
   description: string | null;
   images: string[] | null;
+  amenities: string[] | null;
+  food_beverages: string[] | null;
+  facility_services: string[] | null;
+  fees: FeeItem[] | null;
+  fees_notes: string | null;
 };
 
 type Court = {
