@@ -1590,6 +1590,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
         blocked_hours: weeklyToPayload(availWeekly),
         blocked_dates: datesToPayload(availDates),
+        voucher_enabled: voucherEnabled,
       });
 
       if (error) {
