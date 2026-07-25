@@ -82,7 +82,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data, error } = await supabase
         .from("courts")
         .select(
-          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
+          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
         )
         .eq("id", courtId)
         .maybeSingle();
