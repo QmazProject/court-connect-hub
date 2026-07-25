@@ -67,6 +67,27 @@ function fmtHour(h: number) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:00 ${period}`;
 }
+// Group adjacent selected hours into contiguous [startHour, endHour) ranges.
+// e.g. [17,18,19,20,21] -> [{ start: 17, end: 22 }] shown as "5:00 PM – 10:00 PM".
+function groupHourRanges(hours: number[]): { start: number; end: number }[] {
+  if (hours.length === 0) return [];
+  const sorted = [...hours].sort((a, b) => a - b);
+  const out: { start: number; end: number }[] = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const h = sorted[i];
+    if (h === prev + 1) {
+      prev = h;
+    } else {
+      out.push({ start, end: prev + 1 });
+      start = h;
+      prev = h;
+    }
+  }
+  out.push({ start, end: prev + 1 });
+  return out;
+}
 
 type PmMethod = "gcash" | "paymaya" | "grab_pay" | "qrph";
 const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
@@ -408,7 +429,9 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
               </div>
             </div>
 
-            <p className="mt-2 text-xs text-muted-foreground">Tap multiple hours to book them together.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Tap a time slot to select or deselect it; consecutive time slots are automatically combined into a single time range.
+            </p>
 
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
@@ -512,6 +535,21 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                     ) : (
                       <> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
                     )}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {groupHourRanges(selected).map((r) => {
+                        const hrs = r.end - r.start;
+                        return (
+                          <span
+                            key={`${r.start}-${r.end}`}
+                            className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-foreground"
+                          >
+                            {fmtHour(r.start)} – {fmtHour(r.end % 24)}
+                            <span className="text-[10px] text-muted-foreground">· {hrs} hr{hrs > 1 ? "s" : ""}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Adjacent slots are combined into one segment.</p>
                   </>
                 ) : "Choose one or more hours."}
               </div>
