@@ -2539,6 +2539,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           </td>
         );
       }
+      case "status": {
+        const active = v.is_active !== false;
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <span className={"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold " + (active ? "bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/30" : "bg-red-500/10 text-red-600 ring-1 ring-red-500/30")}>
+              <span className={"h-1.5 w-1.5 rounded-full " + (active ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+              {active ? "Active" : "Inactive"}
+            </span>
+          </td>
+        );
+      }
       case "actions":
         return (
           <td key={id} className="px-3 py-3">
