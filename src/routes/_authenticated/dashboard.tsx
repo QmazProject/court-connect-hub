@@ -1557,6 +1557,30 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
         </p>
       </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Surface type</span>
+          <input
+            list="court-surface-suggestions"
+            value={surfaceType}
+            onChange={(e) => setSurfaceType(e.target.value)}
+            placeholder="e.g. Hardwood, Concrete, Synthetic, Clay, Rubber, Acrylic"
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          />
+          <datalist id="court-surface-suggestions">
+            <option value="Hardwood" />
+            <option value="Concrete" />
+            <option value="Synthetic" />
+            <option value="Acrylic" />
+            <option value="Rubber" />
+            <option value="Clay" />
+            <option value="Grass" />
+            <option value="Artificial turf" />
+            <option value="Vinyl flooring" />
+          </datalist>
+        </label>
+        <Input label="Player capacity (max players per match)" value={playerCapacity} onChange={setPlayerCapacity} type="number" />
+      </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="About this Court" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
         <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
