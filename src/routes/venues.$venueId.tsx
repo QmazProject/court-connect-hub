@@ -328,6 +328,8 @@ function VenueDetail() {
             <button
               type="button"
               onClick={() => setLightboxOpen(true)}
+              onMouseEnter={() => setPanelHidden(true)}
+              onMouseLeave={() => setPanelHidden(false)}
               aria-label="View full size image"
               className="block h-full w-full cursor-zoom-in"
             >
