@@ -1812,6 +1812,24 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
     mutationFn: async () => {
       const cap = Math.max(1, Math.floor(Number(capacity) || 1));
       const footprint = 1 / cap;
+      const newPcId = Number(physicalCourtId);
+      const surfaceChanged = newPcId !== court.physical_court_id;
+      const capacityChanged = cap !== court.capacity;
+      if (surfaceChanged || capacityChanged) {
+        const { count, error: cErr } = await supabase.from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("court_id", court.id)
+          .eq("status", "confirmed")
+          .gte("end_time", new Date().toISOString());
+        if (cErr) throw cErr;
+        if ((count ?? 0) > 0) {
+          throw new Error(
+            surfaceChanged
+              ? "This court has upcoming confirmed bookings — you can't move it to a different shared surface until those bookings finish or are cancelled."
+              : "This court has upcoming confirmed bookings — you can't change its capacity until those bookings finish or are cancelled."
+          );
+        }
+      }
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
