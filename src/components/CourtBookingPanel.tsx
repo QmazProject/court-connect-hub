@@ -211,6 +211,51 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           </section>
         )}
 
+        <section className="mb-5 overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border bg-gradient-to-r from-indigo-600/10 via-fuchsia-500/10 to-rose-500/10 px-4 py-2">
+            <h2 className="text-[11px] font-extrabold uppercase italic tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-rose-500">
+              Court profile
+            </h2>
+          </div>
+          <dl className="grid grid-cols-1 gap-0 sm:grid-cols-2">
+            <DetailRow
+              label="Sport type"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  {court.map_emoji && <span className="text-base leading-none">{court.map_emoji}</span>}
+                  <span>{court.sports?.name ?? "—"}</span>
+                </span>
+              }
+            />
+            <DetailRow label="Court type" value={court.is_indoor ? "Indoor" : "Outdoor"} />
+            <DetailRow label="Court name" value={court.name} />
+            <DetailRow
+              label="Court location"
+              value={
+                <span className="block">
+                  <span className="font-semibold">{court.venues?.name ?? "—"}</span>
+                  {court.venues?.address && (
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{court.venues.address}</span>
+                  )}
+                </span>
+              }
+            />
+            <DetailRow
+              label="Rate"
+              value={<span><span className="font-bold text-primary">₱{Number(court.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/ hour</span></span>}
+            />
+            <DetailRow label="Surface type" value={court.surface_type || <span className="text-muted-foreground">Not specified</span>} />
+            <DetailRow
+              label="Player capacity"
+              value={
+                court.player_capacity
+                  ? <span>{court.player_capacity} <span className="text-xs text-muted-foreground">player{court.player_capacity === 1 ? "" : "s"}</span></span>
+                  : <span className="text-muted-foreground">Not specified</span>
+              }
+            />
+          </dl>
+        </section>
+
         <section className="mb-5">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
