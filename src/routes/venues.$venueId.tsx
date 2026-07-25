@@ -1128,7 +1128,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                       )}
                       <div className="mt-4 flex items-center justify-between gap-3">
                         <div>
-                          <span className="text-2xl font-bold text-primary">₱{Number(c.hourly_rate).toFixed(0)}</span>
+                          <span className="text-3xl font-extrabold text-black [text-shadow:0_0_10px_rgba(59,130,246,0.85),0_0_20px_rgba(59,130,246,0.55)]">₱{Number(c.hourly_rate).toFixed(0)}</span>
                           <span className="text-sm text-muted-foreground"> / hour</span>
                         </div>
                         {soon ? (
