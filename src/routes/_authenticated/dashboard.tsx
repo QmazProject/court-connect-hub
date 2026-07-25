@@ -1881,6 +1881,10 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
           Coming soon
         </label>
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={voucherEnabled} onChange={(e) => setVoucherEnabled(e.target.checked)} />
+          Accept vouchers
+        </label>
       </div>
       <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
