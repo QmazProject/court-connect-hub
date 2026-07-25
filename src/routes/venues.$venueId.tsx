@@ -842,15 +842,18 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
   );
 }
 
-function SportChip({ active, emoji, label, onClick }: { active: boolean; emoji: string; label: string; onClick: () => void }) {
+function SportChip({ active, emoji, label, offered = true, onClick }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 snap-start items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+      title={offered ? undefined : `Not offered here — tap to see nearby venues with ${label}`}
+      className={`relative flex shrink-0 snap-start items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
         active
           ? "border-primary bg-primary text-primary-foreground shadow"
-          : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+          : offered
+            ? "border-border bg-card text-foreground hover:border-primary/50 hover:bg-primary/5"
+            : "border-dashed border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
       }`}
     >
       <span aria-hidden>{emoji}</span>
@@ -859,22 +862,33 @@ function SportChip({ active, emoji, label, onClick }: { active: boolean; emoji: 
   );
 }
 
-function SportItem({ active, emoji, label, onClick }: { active: boolean; emoji: string; label: string; onClick: () => void }) {
+function SportItem({ active, emoji, label, offered = true, onClick }: { active: boolean; emoji: string; label: string; offered?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+      title={offered ? undefined : `Not offered here — tap to see nearby venues with ${label}`}
+      className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
         active
           ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-foreground hover:bg-primary/10"
+          : offered
+            ? "text-foreground hover:bg-primary/10"
+            : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
       }`}
     >
-      <span aria-hidden className="text-base">{emoji}</span>
-      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        <span aria-hidden className="text-base">{emoji}</span>
+        <span>{label}</span>
+      </span>
+      {!offered && !active && (
+        <span className="rounded-full border border-dashed border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+          Nearby
+        </span>
+      )}
     </button>
   );
 }
+
 
 function EmptySport({
   sportName,
