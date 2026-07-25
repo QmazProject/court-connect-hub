@@ -82,7 +82,8 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
   return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
 }
 
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean };
+export type FeeItem = { label: string; amount: number };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null };
 
 const ACTIVE_INFO_TEXT = "A venue can only be set inactive when none of its courts have upcoming or in-progress confirmed bookings. If bookings exist, wait until their end time passes. Any pending (awaiting-payment) bookings will be automatically cancelled and those players will be notified to pick another venue. Inactive venues are hidden from the landing page map and list.";
 type Sport = { id: number; name: string; slug?: string };
@@ -800,6 +801,71 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta?: R
   );
 }
 
+function TagInput({ label, placeholder, values, onChange, hint }: { label: string; placeholder?: string; values: string[]; onChange: (v: string[]) => void; hint?: string }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    if (values.some((v) => v.toLowerCase() === t.toLowerCase())) { setDraft(""); return; }
+    onChange([...values, t]);
+    setDraft("");
+  };
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-2 focus-within:ring-2 focus-within:ring-ring">
+        {values.map((v) => (
+          <span key={v} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            {v}
+            <button type="button" aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))} className="rounded-full text-primary/70 hover:text-primary">×</button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
+            else if (e.key === "Backspace" && !draft && values.length) { onChange(values.slice(0, -1)); }
+          }}
+          onBlur={add}
+          placeholder={values.length ? "" : placeholder ?? "Type and press Enter"}
+          className="min-w-[8ch] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+        />
+      </div>
+      {hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}
+    </label>
+  );
+}
+
+function FeesEditor({ items, onChange, notes, onNotesChange }: { items: FeeItem[]; onChange: (v: FeeItem[]) => void; notes: string; onNotesChange: (s: string) => void }) {
+  const update = (i: number, patch: Partial<FeeItem>) => onChange(items.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-background p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fees & Charges</span>
+        <button type="button" onClick={() => onChange([...items, { label: "", amount: 0 }])} className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary">+ Add fee</button>
+      </div>
+      {items.length === 0 && <p className="text-[11px] text-muted-foreground">No line-item fees yet. Add things like racket rental, shuttlecock, guest fee, etc.</p>}
+      <div className="space-y-1.5">
+        {items.map((it, i) => (
+          <div key={i} className="grid grid-cols-[1fr,110px,auto] items-center gap-2">
+            <input value={it.label} onChange={(e) => update(i, { label: e.target.value })} placeholder="e.g. Racket rental" className="rounded-lg border border-input bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-2">
+              <span className="text-xs text-muted-foreground">₱</span>
+              <input type="number" min={0} step="0.01" value={Number.isFinite(it.amount) ? it.amount : 0} onChange={(e) => update(i, { amount: Number(e.target.value) })} className="w-full bg-transparent py-1.5 text-sm outline-none" />
+            </div>
+            <button type="button" aria-label="Remove fee" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:border-destructive hover:text-destructive">Remove</button>
+          </div>
+        ))}
+      </div>
+      <label className="block pt-1">
+        <span className="text-[11px] font-medium text-muted-foreground">Notes (optional)</span>
+        <textarea value={notes} onChange={(e) => onNotesChange(e.target.value)} rows={2} placeholder="Any extra pricing notes, discounts, or conditions." className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+      </label>
+    </div>
+  );
+}
+
 function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -816,6 +882,11 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [err, setErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [foodBeverages, setFoodBeverages] = useState<string[]>([]);
+  const [facilityServices, setFacilityServices] = useState<string[]>([]);
+  const [fees, setFees] = useState<FeeItem[]>([]);
+  const [feesNotes, setFeesNotes] = useState("");
   const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const suggested = suggestTimezone(lat, lng);
@@ -828,10 +899,11 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
       if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive });
+      const cleanFees = fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) }));
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); onCreated(); },
+    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); onCreated(); },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -897,6 +969,18 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         </div>
         <div className="sm:col-span-2">
           <ImageUploader label="Venue photos" pathPrefix={uploadPrefix} images={images} onChange={setImages} />
+        </div>
+        <div className="sm:col-span-2">
+          <TagInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Parking, Showers, Wi-Fi" hint="Press Enter or comma to add. Shown to players on the venue page." />
+        </div>
+        <div className="sm:col-span-2">
+          <TagInput label="Food & Beverages" values={foodBeverages} onChange={setFoodBeverages} placeholder="e.g. Cafe, Vending machine, Water refill" />
+        </div>
+        <div className="sm:col-span-2">
+          <TagInput label="Facility Services" values={facilityServices} onChange={setFacilityServices} placeholder="e.g. Racket rental, Coaching, Ball machine" />
+        </div>
+        <div className="sm:col-span-2">
+          <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
         </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -1789,6 +1873,11 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [delErr, setDelErr] = useState<string | null>(null);
   const [tzConfirmed, setTzConfirmed] = useState(false);
   const [isActive, setIsActive] = useState(venue.is_active !== false);
+  const [amenities, setAmenities] = useState<string[]>(venue.amenities ?? []);
+  const [foodBeverages, setFoodBeverages] = useState<string[]>(venue.food_beverages ?? []);
+  const [facilityServices, setFacilityServices] = useState<string[]>(venue.facility_services ?? []);
+  const [fees, setFees] = useState<FeeItem[]>(Array.isArray(venue.fees) ? venue.fees : []);
+  const [feesNotes, setFeesNotes] = useState(venue.fees_notes ?? "");
 
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
@@ -1798,7 +1887,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null })
         .eq("id", venue.id);
       if (error) throw error;
     },
@@ -1881,6 +1970,18 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <div className="sm:col-span-2">
             <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
           </div>
+          <div className="sm:col-span-2">
+            <TagInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Parking, Showers, Wi-Fi" hint="Press Enter or comma to add." />
+          </div>
+          <div className="sm:col-span-2">
+            <TagInput label="Food & Beverages" values={foodBeverages} onChange={setFoodBeverages} placeholder="e.g. Cafe, Vending machine, Water refill" />
+          </div>
+          <div className="sm:col-span-2">
+            <TagInput label="Facility Services" values={facilityServices} onChange={setFacilityServices} placeholder="e.g. Racket rental, Coaching, Ball machine" />
+          </div>
+          <div className="sm:col-span-2">
+            <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
+          </div>
           <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
             <EmojiPicker
               label="Map emoji (venue pin)"
@@ -1912,7 +2013,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
 
       </div>
