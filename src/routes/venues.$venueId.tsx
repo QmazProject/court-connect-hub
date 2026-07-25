@@ -1091,14 +1091,14 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
                     {inner}
                   </div>
                 ) : (
-                  <Link
+                  <button
                     key={c.id}
-                    to="/courts/$courtId"
-                    params={{ courtId: String(c.id) }}
-                    className={`${baseCls} hover:shadow-md`}
+                    type="button"
+                    onClick={() => openCourt(c.id)}
+                    className={`${baseCls} text-left hover:shadow-md`}
                   >
                     {inner}
-                  </Link>
+                  </button>
                 );
               })}
             </div>
