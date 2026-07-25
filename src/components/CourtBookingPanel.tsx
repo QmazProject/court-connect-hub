@@ -397,6 +397,47 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           onError={(m) => { setErr(m); setCheckoutOpen(false); }}
         />
       )}
+
+      {lightbox !== null && court.images && court.images[lightbox] && (
+        <div
+          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {lightbox > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightbox(lightbox - 1); }}
+              className="absolute left-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+              aria-label="Previous"
+            >‹</button>
+          )}
+          <img
+            src={court.images[lightbox]}
+            alt={`${court.name} photo ${lightbox + 1}`}
+            className="max-h-[85vh] max-w-[92vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {lightbox < court.images.length - 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setLightbox(lightbox + 1); }}
+              className="absolute right-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+              aria-label="Next"
+            >›</button>
+          )}
+          <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+            {lightbox + 1} / {court.images.length}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
