@@ -390,9 +390,17 @@ function VenueDetail() {
               onMouseEnter={() => setPanelHidden(true)}
               onMouseLeave={() => setPanelHidden(false)}
               aria-label="View full size image"
-              className="block h-full w-full cursor-zoom-in"
+              className="group block h-full w-full cursor-zoom-in"
             >
               <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
+              >
+                <span className="rounded-full bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-rose-500 px-5 py-2.5 font-display text-[13px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+                  View venue images
+                </span>
+              </span>
             </button>
           ) : (
             <div className="court-pattern h-full w-full" />
