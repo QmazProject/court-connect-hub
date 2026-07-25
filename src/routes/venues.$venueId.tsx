@@ -498,28 +498,28 @@ function VenueDetail() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-t-3xl bg-background p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+            className="w-full max-w-lg overflow-hidden rounded-t-3xl bg-background shadow-2xl sm:rounded-2xl"
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted sm:hidden" />
-            <div className="mb-4 flex items-start justify-between gap-3 border-b border-border pb-3">
+            <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-white/50 sm:hidden" />
+            <div className="flex items-start justify-between gap-3 bg-gradient-to-br from-primary/25 via-primary/10 to-accent/20 px-5 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md ring-2 ring-white/50 [&>svg]:h-5 [&>svg]:w-5">
                   {activeChip.icon}
                 </span>
                 <div>
-                  <h2 className="text-lg font-bold leading-tight">{activeChip.label}</h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{chipSubtitle(activeChip.key, venue.name)}</p>
+                  <h2 className="text-lg font-bold leading-tight text-foreground">{activeChip.label}</h2>
+                  <p className="mt-0.5 text-xs text-foreground/70">{chipSubtitle(activeChip.key, venue.name)}</p>
                 </div>
               </div>
               <button
                 onClick={() => setOpenChip(null)}
                 aria-label="Close"
-                className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded-full p-2 text-foreground/70 hover:bg-white/40 hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="max-h-[65vh] overflow-y-auto">
+            <div className="max-h-[65vh] overflow-y-auto px-5 py-5 sm:px-6">
               {renderChipModalBody(activeChip.key)}
             </div>
           </div>
