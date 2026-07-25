@@ -71,6 +71,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [carouselIdx, setCarouselIdx] = useState(0);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
@@ -205,26 +206,61 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
         )}
 
         {(court.images?.length ?? 0) > 0 && (
-          <section className="mb-5 grid gap-2 sm:grid-cols-2">
-            {court.images!.map((src, i) => (
+          <section className="mb-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Court images
+              </h2>
+              <span className="text-xs text-muted-foreground">
+                {carouselIdx + 1} / {court.images!.length}
+              </span>
+            </div>
+            <div className="relative overflow-hidden rounded-xl border border-border bg-muted">
               <button
-                key={i}
                 type="button"
-                onClick={() => setLightbox(i)}
-                className={"group relative overflow-hidden rounded-xl border border-border " + (i === 0 ? "sm:col-span-2" : "")}
-                aria-label={`View photo ${i + 1}`}
+                onClick={() => setLightbox(carouselIdx)}
+                className="block w-full"
+                aria-label="Enlarge image"
               >
                 <img
-                  src={src}
-                  alt={`${court.name} photo ${i + 1}`}
-                  className={"w-full object-cover transition group-hover:scale-[1.02] " + (i === 0 ? "h-48 sm:h-60" : "h-32")}
+                  src={court.images![carouselIdx]}
+                  alt={`${court.name} photo ${carouselIdx + 1}`}
+                  className="h-56 w-full object-cover sm:h-72"
                   loading="lazy"
                 />
-                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                  Tap to enlarge
-                </span>
               </button>
-            ))}
+              {court.images!.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setCarouselIdx((carouselIdx - 1 + court.images!.length) % court.images!.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                    aria-label="Previous image"
+                  >‹</button>
+                  <button
+                    type="button"
+                    onClick={() => setCarouselIdx((carouselIdx + 1) % court.images!.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                    aria-label="Next image"
+                  >›</button>
+                </>
+              )}
+            </div>
+            {court.images!.length > 1 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {court.images!.map((src, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setCarouselIdx(i)}
+                    className={"flex-shrink-0 overflow-hidden rounded-lg border-2 transition " + (i === carouselIdx ? "border-primary" : "border-transparent opacity-70 hover:opacity-100")}
+                    aria-label={`Show image ${i + 1}`}
+                  >
+                    <img src={src} alt="" className="h-14 w-20 object-cover" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
