@@ -2796,12 +2796,12 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
-            <HoverCard openDelay={100} closeDelay={80}>
-              <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
-              </HoverCardTrigger>
-              <HoverCardContent side="top" align="start" collisionPadding={16} avoidCollisions className="w-[min(28rem,90vw)] max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</HoverCardContent>
-            </HoverCard>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="block w-full truncate text-left cursor-pointer border-b border-dotted border-muted-foreground/40 text-xs hover:text-foreground">{text}</button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" collisionPadding={16} className="w-[min(32rem,92vw)] max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{text}</PopoverContent>
+            </Popover>
           </td>
         );
       }
