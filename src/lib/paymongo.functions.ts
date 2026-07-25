@@ -8,6 +8,7 @@ const StartCheckoutInput = z.object({
   hours: z.array(z.number().int().min(0).max(23)).min(1).max(12),
   method: z.enum(["gcash", "paymaya", "grab_pay", "qrph", "card"]),
   origin: z.string().url(),
+  voucherCode: z.string().trim().min(1).max(64).optional(),
 });
 
 export const startBookingCheckout = createServerFn({ method: "POST" })
