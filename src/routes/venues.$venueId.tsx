@@ -731,11 +731,13 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
         </div>
       )}
 
-      <div className={`mt-6 grid gap-6 ${allSports.length > 0 ? (sportsCollapsed ? "lg:grid-cols-[56px_1fr]" : "lg:grid-cols-[220px_1fr]") : ""}`}>
-        {/* Desktop: vertical sport list (collapsible) */}
-        {allSports.length > 0 && (
-          <aside className="hidden lg:block">
-            <div className="sticky top-24 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      {/* Desktop: sport rail fixed to the left edge of the viewport */}
+      {allSports.length > 0 && (
+        <aside
+          className={`fixed left-2 top-24 z-30 hidden lg:block ${sportsCollapsed ? "w-14" : "w-[200px]"}`}
+        >
+          <div className="rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
+
               {sportsCollapsed ? (
                 <div className="flex flex-col items-center gap-2">
                   <button
@@ -803,7 +805,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
           </aside>
         )}
 
-
+      <div className="mt-6">
         {/* Courts grid */}
         <div>
           {loading ? (
