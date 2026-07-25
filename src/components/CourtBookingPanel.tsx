@@ -549,7 +549,7 @@ export function CourtBookingPanel({
             Court Profile
           </span>
         </div>
-        <CourtBookingContent courtId={courtId} onClose={() => onOpenChange(false)} />
+        <CourtBookingContent courtId={renderedId} onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
   );
