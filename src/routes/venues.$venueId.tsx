@@ -870,6 +870,17 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport }:
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {courts.map((c) => {
                 const soon = !!c.coming_soon;
+                const avail = availability.get(c.id);
+                const remaining = avail ? Math.max(avail.total - avail.booked, 0) : null;
+                const pct = avail && avail.total > 0 ? Math.round((avail.booked / avail.total) * 100) : 0;
+                const availTone =
+                  remaining == null
+                    ? "bg-muted text-muted-foreground"
+                    : remaining === 0
+                    ? "bg-red-100 text-red-700"
+                    : remaining <= 2
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-emerald-100 text-emerald-700";
                 const inner = (
                   <>
                     <div className="relative">
