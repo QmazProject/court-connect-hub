@@ -853,6 +853,44 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
     },
   });
 
+  // Courts that share a physical space with another court (block rules)
+  const sharedQ = useQuery({
+    queryKey: ["venue-block-rules", venue?.id],
+    enabled: !!venue?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("court_block_rules")
+        .select("court_id, blocked_court_id, courts!court_block_rules_blocked_court_id_fkey(name, map_emoji)")
+        .eq("venue_id", venue!.id);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        court_id: number;
+        blocked_court_id: number;
+        courts: { name: string; map_emoji: string | null } | null;
+      }>;
+    },
+  });
+
+  const sharedPartners = useMemo(() => {
+    const nameById = new Map<number, string>();
+    for (const c of courts) nameById.set(c.id, `${c.map_emoji ? `${c.map_emoji} ` : ""}${c.name}`);
+    const add = (id: number, label: string) => {
+      const list = m.get(id) ?? [];
+      if (!list.includes(label)) list.push(label);
+      m.set(id, list);
+    };
+    const m = new Map<number, string[]>();
+    for (const r of sharedQ.data ?? []) {
+      const blockedLabel =
+        `${r.courts?.map_emoji ? `${r.courts.map_emoji} ` : ""}${r.courts?.name ?? `Court #${r.blocked_court_id}`}`;
+      const srcLabel = nameById.get(r.court_id) ?? `Court #${r.court_id}`;
+      add(r.court_id, blockedLabel);
+      add(r.blocked_court_id, srcLabel);
+    }
+    return m;
+  }, [sharedQ.data, courts]);
+
+
   const weekdayKey = useMemo(() => {
     const d = new Date(`${selectedDate}T00:00:00`);
     return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
@@ -1114,6 +1152,21 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                         <span className="text-sm font-bold text-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
                       </div>
                       <h3 className="mt-3 font-display text-2xl font-bold tracking-tight">{c.name}</h3>
+                      {(sharedPartners.get(c.id)?.length ?? 0) > 0 && (
+                        <div
+                          className="mt-2 inline-flex max-w-full items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800"
+                          title={`Shares a space with: ${sharedPartners.get(c.id)!.join(", ")}. Booking this court blocks those hours on the others.`}
+                        >
+                          <span aria-hidden>🔗</span>
+                          <span className="min-w-0">
+                            Shared space
+                            <span className="ml-1 font-normal">
+                              — booking this blocks {sharedPartners.get(c.id)!.slice(0, 2).join(", ")}
+                              {sharedPartners.get(c.id)!.length > 2 && ` +${sharedPartners.get(c.id)!.length - 2} more`}
+                            </span>
+                          </span>
+                        </div>
+                      )}
                       {c.description && (
                         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
                       )}
