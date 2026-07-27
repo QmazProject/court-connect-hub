@@ -632,13 +632,12 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
   });
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [caps, setCaps] = useState<Record<number, string>>({});
   const [rules, setRules] = useState<Set<string>>(new Set());
-  const toggle = (id: number, cur: number) => {
+  const toggle = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      else next.add(id);
       // Default: every selected court blocks every other one, both ways.
       setRules(allPairsEnabled(Array.from(next)));
       return next;
