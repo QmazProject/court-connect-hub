@@ -177,8 +177,8 @@ function VenueDetail() {
           key: "hours",
           icon: <Clock className="h-4 w-4" />,
           label: "Operating Hours",
-          preview: (venue.operating_hours_text ?? "").split(/\r?\n/)[0] ?? "",
-          show: !!venue.operating_hours_text,
+          preview: describeWeek(normalizeHours(venue.operating_hours))[0]?.window ?? "",
+          show: true,
         },
         {
           key: "amenities",
@@ -855,15 +855,8 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
     return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
   }, [selectedDate]);
 
-  function parseOpHours(oh: Record<string, string> | null | undefined): [number, number] {
-    const raw = oh?.[weekdayKey] ?? "00:00-24:00";
-    const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(raw.trim());
-    if (!m) return [0, 24];
-    const start = Math.max(0, Math.min(24, parseInt(m[1], 10)));
-    const end = Math.max(0, Math.min(24, parseInt(m[3], 10)));
-    if (end <= start) return [0, 24];
-    return [start, end];
-  }
+
+  const venueHours = normalizeHours(venue?.operating_hours);
 
   const availability = useMemo(() => {
     const byCourt = new Map<number, { total: number; booked: number; past: number }>();
