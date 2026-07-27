@@ -83,6 +83,7 @@ export type Database = {
           hourly_rate: number
           id: number
           images: string[]
+          inherit_venue_hours: boolean
           is_indoor: boolean
           map_emoji: string | null
           name: string
@@ -106,6 +107,7 @@ export type Database = {
           hourly_rate: number
           id?: never
           images?: string[]
+          inherit_venue_hours?: boolean
           is_indoor?: boolean
           map_emoji?: string | null
           name: string
@@ -129,6 +131,7 @@ export type Database = {
           hourly_rate?: number
           id?: never
           images?: string[]
+          inherit_venue_hours?: boolean
           is_indoor?: boolean
           map_emoji?: string | null
           name?: string
@@ -455,6 +458,7 @@ export type Database = {
           longitude: number | null
           map_emoji: string | null
           name: string
+          operating_hours: Json
           operating_hours_text: string | null
           payment_mode: string
           refund_cutoff_hours: number
@@ -480,6 +484,7 @@ export type Database = {
           longitude?: number | null
           map_emoji?: string | null
           name: string
+          operating_hours?: Json
           operating_hours_text?: string | null
           payment_mode?: string
           refund_cutoff_hours?: number
@@ -505,6 +510,7 @@ export type Database = {
           longitude?: number | null
           map_emoji?: string | null
           name?: string
+          operating_hours?: Json
           operating_hours_text?: string | null
           payment_mode?: string
           refund_cutoff_hours?: number
@@ -619,6 +625,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      court_effective_hours: { Args: { _court_id: number }; Returns: Json }
+      court_is_open: {
+        Args: { _court_id: number; _ts: string }
+        Returns: boolean
+      }
       court_price_for_hours: {
         Args: { _court_id: number; _hours: string[] }
         Returns: number
@@ -643,6 +654,7 @@ export type Database = {
         }[]
       }
       is_tenant: { Args: { _user_id: string }; Returns: boolean }
+      parse_hours_window: { Args: { _raw: string }; Returns: number[] }
       preview_voucher: {
         Args: { _amount: number; _code: string; _court_id: number }
         Returns: {
