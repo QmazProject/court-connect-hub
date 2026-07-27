@@ -182,7 +182,9 @@ function Header() {
         <nav className="flex items-center gap-2">
           {session ? (
             <>
+              <NotificationBell userId={session.id} />
               <Link to="/dashboard" className="rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary">
+
                 {session.role === "tenant" ? "Dashboard" : "My bookings"}
               </Link>
               {session.name && <span className="hidden max-w-[160px] truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
