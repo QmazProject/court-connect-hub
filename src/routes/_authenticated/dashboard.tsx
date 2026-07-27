@@ -162,7 +162,7 @@ function Dashboard() {
 
   if (profileQ.isLoading) {
     return (
-      <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
         <Skeleton />
       </TenantShell>
     );
@@ -175,7 +175,7 @@ function Dashboard() {
   const loadingVenues = venuesQ.isLoading;
 
   return (
-    <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
       {section === "dashboard" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
