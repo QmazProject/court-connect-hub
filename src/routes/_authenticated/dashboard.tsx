@@ -125,38 +125,27 @@ type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: st
 
 function CourtStatusField({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">Court status</span>
-        <span className="group relative inline-flex">
-          <span
-            tabIndex={0}
-            aria-label="Court status help"
-            className="grid h-4 w-4 cursor-help place-items-center rounded-full border border-border text-[10px] font-bold leading-none text-muted-foreground"
-          >
-            ?
-          </span>
-          <span className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 hidden w-64 rounded-lg border border-border bg-popover p-2.5 text-[11px] leading-relaxed text-popover-foreground shadow-lg group-hover:block group-focus-within:block">
-            <b>Active</b> courts are visible to players and open for booking.
-            <br />
-            You can set a court to <b>Inactive</b> only when it has no upcoming bookings or scheduled sessions. If bookings still exist, deactivation is blocked — cancel them or wait until they finish first.
-          </span>
-        </span>
-      </div>
-      <label className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
-        <span className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 shrink-0 accent-primary" />
-          <span className="text-muted-foreground">Visible to players</span>
-        </span>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            value ? "bg-emerald-500/15 text-emerald-600" : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {value ? "Active" : "Inactive"}
-        </span>
+    <div className="flex items-end gap-1.5 pb-2 text-sm">
+      <label className="flex cursor-pointer items-center gap-2">
+        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
+        <span className="whitespace-nowrap">Active</span>
       </label>
+      <span className="group relative inline-flex">
+        <span
+          tabIndex={0}
+          aria-label="Court status help"
+          className="grid h-4 w-4 cursor-help place-items-center rounded-full border border-border text-[10px] font-bold leading-none text-muted-foreground"
+        >
+          ?
+        </span>
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-2.5 text-[11px] leading-relaxed text-popover-foreground shadow-lg group-hover:block group-focus-within:block">
+          <b>Active</b> courts are visible to players and open for booking.
+          <br />
+          You can set a court to <b>Inactive</b> only when it has no upcoming bookings or scheduled sessions. If bookings still exist, deactivation is blocked — cancel them or wait until they finish first.
+        </span>
+      </span>
     </div>
+
 
   );
 }
