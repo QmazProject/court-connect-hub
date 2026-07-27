@@ -3759,9 +3759,10 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                   {c.description && <div className="text-[11px] text-muted-foreground line-clamp-1 max-w-[240px]">{c.description}</div>}
                 </td>
                 <td className="px-3 py-3">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                    <span>{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
+                    <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
                   </span>
+
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
                 <td className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>
