@@ -2613,6 +2613,19 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
     },
   });
   const courtsTotal = Object.values(courtsTotalQ.data ?? {}).reduce((a, b) => a + b, 0);
+  const groupsTotalQ = useQuery({
+    queryKey: ["venues-group-counts", venueIds],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("physical_courts")
+        .select("id", { count: "exact", head: true })
+        .in("venue_id", venueIds);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const groupsTotal = groupsTotalQ.data ?? 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
