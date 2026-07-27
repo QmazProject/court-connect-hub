@@ -1862,37 +1862,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
 
-  const pcQ = useQuery({
-    queryKey: ["physical-courts", court.venue_id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", court.venue_id).order("id");
-      if (error) throw error;
-      return data as { id: number; name: string; map_emoji: string | null }[];
-    },
-  });
-
   const mut = useMutation({
     mutationFn: async () => {
-      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
-      const footprint = 1 / cap;
-      const newPcId = Number(physicalCourtId);
-      const surfaceChanged = newPcId !== court.physical_court_id;
-      const capacityChanged = cap !== court.capacity;
-      if (surfaceChanged || capacityChanged) {
-        const { count, error: cErr } = await supabase.from("bookings")
-          .select("id", { count: "exact", head: true })
-          .eq("court_id", court.id)
-          .eq("status", "confirmed")
-          .gte("end_time", new Date().toISOString());
-        if (cErr) throw cErr;
-        if ((count ?? 0) > 0) {
-          throw new Error(
-            surfaceChanged
-              ? "This court has upcoming confirmed bookings — you can't move it to a different shared surface until those bookings finish or are cancelled."
-              : "This court has upcoming confirmed bookings — you can't change its capacity until those bookings finish or are cancelled."
-          );
-        }
-      }
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
@@ -1902,9 +1873,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         description: description || null,
         images,
         map_emoji: mapEmoji,
-        physical_court_id: Number(physicalCourtId),
-        capacity: cap,
-        footprint,
+
         surface_type: surfaceType.trim() || null,
         player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
         blocked_hours: weeklyToPayload(availWeekly),
