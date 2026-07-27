@@ -5109,7 +5109,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                               bookingId: b.id,
                               venueId: vId,
                               title: b.courts?.venues?.name ?? "Venue",
-                              subtitle: `${fmtDate(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)}`,
+                              subtitle: `${fmtDate(sess.start_time)} · ${formatSessionLabel(sess.start_time, sess.end_time)}`,
                             })}
                             className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
                           >
