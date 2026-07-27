@@ -2637,7 +2637,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
         </TabBtn>
 
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
-          Court Groups
+          Court Groups <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{groupsTotal}</span>
           <span className="group relative ml-1 inline-flex">
             <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">?</span>
             <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-3 text-left text-xs font-normal normal-case text-popover-foreground shadow-lg group-hover:block">
