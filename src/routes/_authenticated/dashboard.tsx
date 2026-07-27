@@ -17,6 +17,13 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { NotificationBell } from "@/components/NotificationBell";
+import { BookingChat } from "@/components/BookingChat";
+import { CancelRefundDialog, type CancelTarget } from "@/components/CancelRefundDialog";
+import { HoursConflictDialog, type HoursConflict } from "@/components/HoursConflictDialog";
+import { findHoursConflicts } from "@/lib/hours-conflicts";
+import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
+
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
