@@ -14,6 +14,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 const chLogo = { url: "/CHicon.png" };
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
