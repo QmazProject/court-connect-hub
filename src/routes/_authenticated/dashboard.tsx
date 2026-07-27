@@ -4035,6 +4035,8 @@ function CourtDrawer({ title, open, onClose, children }: { title: string; open: 
 function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
   const [editing, setEditing] = useState<GroupRow | null>(null);
+  const [colCfgOpen, setColCfgOpen] = useState(false);
+  const { selected: visibleCols, save: saveCols } = useGroupColumns();
   useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
 
   const groupsQ = useQuery({
