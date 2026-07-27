@@ -2617,12 +2617,22 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
     queryKey: ["venues-group-counts", venueIds],
     enabled: venueIds.length > 0,
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data: pcs, error } = await supabase
         .from("physical_courts")
-        .select("id", { count: "exact", head: true })
+        .select("id")
         .in("venue_id", venueIds);
       if (error) throw error;
-      return count ?? 0;
+      const pcIds = (pcs ?? []).map((p: any) => p.id);
+      if (pcIds.length === 0) return 0;
+      const { data: cs, error: cErr } = await supabase
+        .from("courts")
+        .select("physical_court_id")
+        .in("physical_court_id", pcIds);
+      if (cErr) throw cErr;
+      const counts = new Map<number, number>();
+      (cs ?? []).forEach((c: any) => counts.set(c.physical_court_id, (counts.get(c.physical_court_id) ?? 0) + 1));
+      // Mirror the Court Groups table: auto-created single-court surfaces are not real groups
+      return pcIds.filter((id) => (counts.get(id) ?? 0) !== 1).length;
     },
   });
   const groupsTotal = groupsTotalQ.data ?? 0;
