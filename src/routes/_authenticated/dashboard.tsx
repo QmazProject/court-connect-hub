@@ -3645,8 +3645,8 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
         <Trash2 className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!del.isPending) setOpen(false); }}>
-          <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 text-left shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center whitespace-normal bg-black/50 p-4 text-left" onClick={() => { if (!del.isPending) setOpen(false); }}>
+          <div className="w-full max-w-md whitespace-normal break-words rounded-2xl border border-border bg-background p-5 text-left shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold">Delete "{court.name}"?</h3>
             {usageQ.isLoading ? (
               <p className="mt-2 text-sm text-muted-foreground">Checking bookings…</p>
