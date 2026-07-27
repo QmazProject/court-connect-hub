@@ -1737,31 +1737,13 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       </p>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
-      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
+      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared space</div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Multiple courts can share one physical slab (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across the same surface are auto-conflict-checked.
-        </p>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
-            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
-              <option value="new">➕ New standalone surface</option>
-              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
-            </select>
-          </label>
-          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
-        </div>
-        {sameSportSibling && (
-          <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-200">
-            ⚠ This surface already has <b>{sameSportSibling.name}</b> ({sameSportSibling.sports?.name}) with capacity <b>{sameSportSibling.capacity}</b>. Keep the same capacity for siblings of the same sport, otherwise availability will behave inconsistently.
-          </p>
-        )}
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
+          Courts that share the same physical space are set up separately with <b className="text-foreground">+ Create group</b> under Venues &amp; courts, where you pick the courts and configure which ones block each other.
         </p>
       </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
