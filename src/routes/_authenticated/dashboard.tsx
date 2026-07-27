@@ -1848,6 +1848,8 @@ function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; o
 function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venueEmoji: string | null; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
+  const [sportId, setSportId] = useState<string>(String(court.sport_id ?? ""));
+
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
   const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [isActive, setIsActive] = useState(court.is_active !== false);
