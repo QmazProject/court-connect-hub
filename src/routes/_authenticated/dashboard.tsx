@@ -718,7 +718,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
                 const checked = selected.has(c.id);
                 return (
                   <li key={c.id} className={"flex items-center gap-3 rounded-lg border p-2 text-sm " + (checked ? "border-primary bg-primary/5" : "border-border")}>
-                    <input type="checkbox" checked={checked} onChange={() => toggle(c.id, c.capacity ?? 1)} />
+                    <input type="checkbox" checked={checked} onChange={() => toggle(c.id)} />
                     <div className="flex-1">
                       <div className="font-medium">{c.name}</div>
                       <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"} · ₱{Number(c.hourly_rate).toFixed(0)}/hr</div>
