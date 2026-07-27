@@ -29,6 +29,8 @@ function PaymentReturn() {
   );
   const [amount, setAmount] = useState<number | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const [slot, setSlot] = useState<{ date: string; range: string; court: string | null; venue: string | null } | null>(null);
+
   const cancelFn = useServerFn(cancelPendingBookings);
   const didCancel = useRef(false);
 
