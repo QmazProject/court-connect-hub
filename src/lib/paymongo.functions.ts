@@ -34,19 +34,11 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     const totalHours = data.hours.length;
 
     // Authoritative pricing: resolve each selected hour against the court's rate rules.
-    const hourStarts = data.hours.map((h) =>
-      new Date(`${data.date}T${String(h).padStart(2, "0")}:00:00`).toISOString(),
-    );
-    const { normalizeRules, rateForHour } = await import("./court-pricing");
+    const { normalizeRules, rateForDayHour, DAY_KEYS } = await import("./court-pricing");
     const rules = normalizeRules((court as unknown as { rate_rules: unknown }).rate_rules);
-    const unitPrices = data.hours.map((h) => rateForHour(Number(court.hourly_rate), rules, data.date, h));
-
-    const { data: dbTotal, error: priceErr } = await supabase.rpc("court_price_for_hours", {
-      _court_id: data.courtId,
-      _hours: hourStarts,
-    });
-    if (priceErr) throw new Error(priceErr.message);
-    const fullAmount = Number(dbTotal ?? unitPrices.reduce((a, b) => a + b, 0));
+    const dayKey = DAY_KEYS[new Date(`${data.date}T00:00:00Z`).getUTCDay()];
+    const unitPrices = data.hours.map((h) => rateForDayHour(Number(court.hourly_rate), rules, dayKey, h));
+    const fullAmount = unitPrices.reduce((a, b) => a + b, 0);
 
     // Voucher preview: authoritative discount computed server-side.
     let voucherId: string | null = null;
