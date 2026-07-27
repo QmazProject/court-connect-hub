@@ -4989,7 +4989,11 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Hi, {fullName || email.split("@")[0]} 👋</h1>
           <p className="mt-1 text-sm text-muted-foreground">Track your court bookings, upcoming games and payment history.</p>
         </div>
-        <Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+        <div className="flex items-center gap-2">
+          <NotificationBell userId={userId} />
+          <Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+        </div>
+
       </div>
 
       {/* KPI tiles */}
