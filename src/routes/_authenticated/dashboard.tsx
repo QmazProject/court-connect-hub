@@ -624,10 +624,10 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
     enabled: !!venueId,
     queryFn: async () => {
       const { data, error } = await supabase.from("courts")
-        .select("id, name, capacity, hourly_rate, physical_court_id, sports(name)")
+        .select("id, name, hourly_rate, physical_court_id, sports(name)")
         .eq("venue_id", venueId).order("id");
       if (error) throw error;
-      return data as unknown as Array<{ id: number; name: string; capacity: number; hourly_rate: number; physical_court_id: number; sports: { name: string } | null }>;
+      return data as unknown as Array<{ id: number; name: string; hourly_rate: number; physical_court_id: number; sports: { name: string } | null }>;
     },
   });
 
@@ -684,7 +684,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
         <div className="font-semibold text-primary">What is a court group?</div>
         <p className="mt-1 text-muted-foreground">
-          A group represents one <b>physical slab</b> that can be configured for different sports (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically block each other.
+          A group represents one <b>shared space</b> that can be set up for different sports (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically block each other.
         </p>
       </div>
 
@@ -706,7 +706,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
-        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same shared space (e.g. 3 badminton + 4 pickleball courts painted on one hall).</p>
         <div className="mt-3 max-h-64 overflow-y-auto nice-scroll">
           {courtsQ.isLoading ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted" />
@@ -2576,7 +2576,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
             <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">?</span>
             <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-3 text-left text-xs font-normal normal-case text-popover-foreground shadow-lg group-hover:block">
               <span className="block font-semibold text-primary">What is a Court Group / Physical Surface?</span>
-              <span className="mt-1 block text-muted-foreground">One physical slab can host different sports at different capacities — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.</span>
+              <span className="mt-1 block text-muted-foreground">One shared space can host different sports — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.</span>
             </span>
           </span>
         </TabBtn>
@@ -2656,13 +2656,12 @@ const DEFAULT_COURT_COLS = COURT_COLUMNS.filter((c) => c.defaultOn || c.required
 const GROUP_COLUMNS: ColumnDef[] = [
   { id: "emoji", label: "Emoji", defaultOn: true },
   { id: "name", label: "Group", required: true, defaultOn: true },
-  { id: "description", label: "Description", defaultOn: true },
-  { id: "layouts", label: "Court layouts", defaultOn: true },
+  { id: "description", label: "About this group", defaultOn: true },
+  { id: "courts_count", label: "Courts", defaultOn: true },
+  { id: "rules", label: "Blocking rules", defaultOn: true },
   { id: "actions", label: "Actions", required: true, defaultOn: true },
   // Optional (off by default)
-  { id: "courts_count", label: "Courts" },
   { id: "sports", label: "Sports" },
-  { id: "capacity", label: "Total Capacity" },
 ];
 const GROUP_COLS_STORAGE_KEY = "groups-tab-columns-v1";
 const DEFAULT_GROUP_COLS = GROUP_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
@@ -3996,17 +3995,28 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       const pcIds = (pcs ?? []).map((p) => p.id);
       if (pcIds.length === 0) return [] as GroupRow[];
       const { data: cs, error: cErr } = await supabase.from("courts")
-        .select("id, name, capacity, physical_court_id, sports(name)")
+        .select("id, name, physical_court_id, sports(name)")
         .in("physical_court_id", pcIds);
       if (cErr) throw cErr;
       const byPc = new Map<number, GroupRow["layouts"]>();
       (cs ?? []).forEach((c: any) => {
         const arr = byPc.get(c.physical_court_id) ?? [];
-        arr.push({ id: c.id, name: c.name, capacity: c.capacity, sport: c.sports?.name ?? null });
+        arr.push({ id: c.id, name: c.name, sport: c.sports?.name ?? null });
         byPc.set(c.physical_court_id, arr);
       });
-      return (pcs ?? []).map((p: any) => ({ ...p, layouts: byPc.get(p.id) ?? [] }))
-        .filter((g) => g.layouts.length !== 1) as GroupRow[];
+      const courtIds = (cs ?? []).map((c: any) => c.id as number);
+      const rulesByCourt = new Map<number, number>();
+      if (courtIds.length > 0) {
+        const { data: rs, error: rErr } = await supabase.from("court_block_rules")
+          .select("court_id").in("court_id", courtIds);
+        if (rErr) throw rErr;
+        (rs ?? []).forEach((r: any) => rulesByCourt.set(r.court_id, (rulesByCourt.get(r.court_id) ?? 0) + 1));
+      }
+      return (pcs ?? []).map((p: any) => {
+        const layouts = byPc.get(p.id) ?? [];
+        const rulesCount = layouts.reduce((sum, l) => sum + (rulesByCourt.get(l.id) ?? 0), 0);
+        return { ...p, layouts, rulesCount };
+      }).filter((g) => g.layouts.length !== 1) as GroupRow[];
     },
   });
 
@@ -4028,11 +4038,10 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
     switch (id) {
       case "emoji": return <th key={id} className="px-3 py-2 w-10 font-semibold">{cfgButton}</th>;
       case "name": return <th key={id} className="px-3 py-2 font-semibold">Group</th>;
-      case "description": return <th key={id} className="px-3 py-2 font-semibold">Description</th>;
-      case "layouts": return <th key={id} className="px-3 py-2 font-semibold">Court layouts</th>;
+      case "description": return <th key={id} className="px-3 py-2 font-semibold">About this group</th>;
       case "courts_count": return <th key={id} className="px-3 py-2 font-semibold text-center">Courts</th>;
+      case "rules": return <th key={id} className="px-3 py-2 font-semibold text-center">Blocking rules</th>;
       case "sports": return <th key={id} className="px-3 py-2 font-semibold">Sports</th>;
-      case "capacity": return <th key={id} className="px-3 py-2 font-semibold text-center">Total Capacity</th>;
       case "actions": return <th key={id} className="px-3 py-2 font-semibold text-right">Actions</th>;
       default: return null;
     }
@@ -4043,24 +4052,20 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       case "emoji": return <td key={id} className="px-3 py-3 text-lg leading-none">{g.map_emoji ?? "🏟️"}</td>;
       case "name": return <td key={id} className="px-3 py-3"><span className="font-medium">{g.name}</span></td>;
       case "description": return <td key={id} className="px-3 py-3 text-muted-foreground">{g.description || "—"}</td>;
-      case "layouts": return (
-        <td key={id} className="px-3 py-3">
-          {g.layouts.length === 0 ? (
-            <span className="text-xs text-muted-foreground">No courts assigned yet — edit a court and set its physical surface to this group.</span>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {g.layouts.map((l) => (
-                <span key={l.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/50 px-2 py-0.5 text-xs">
-                  <b>{l.sport ?? "—"}</b> · {l.name} · cap {l.capacity}
-                </span>
-              ))}
-            </div>
-          )}
-        </td>
-      );
       case "courts_count": return (
         <td key={id} className="px-3 py-3 text-center">
           <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">{g.layouts.length}</span>
+        </td>
+      );
+      case "rules": return (
+        <td key={id} className="px-3 py-3 text-center">
+          {g.rulesCount > 0 ? (
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-foreground ring-1 ring-border">
+              {g.rulesCount} {g.rulesCount === 1 ? "rule" : "rules"} set up
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">No rules yet</span>
+          )}
         </td>
       );
       case "sports": {
@@ -4070,10 +4075,6 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
             {list.length ? list.join(", ") : "—"}
           </td>
         );
-      }
-      case "capacity": {
-        const total = g.layouts.reduce((sum, l) => sum + (Number(l.capacity) || 0), 0);
-        return <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">{g.layouts.length ? total : "—"}</td>;
       }
       case "actions": return (
         <td key={id} className="px-3 py-3">
@@ -4106,7 +4107,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           </select>
         </label>
         <p className="text-xs text-muted-foreground">
-          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same physical slab.
+          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same physical space.
         </p>
       </div>
       <div className="flex-1 overflow-auto nice-scroll px-4 pb-6 sm:px-6">
@@ -4114,7 +4115,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           <div className="h-24 animate-pulse rounded-xl bg-muted" />
         ) : groups.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts onto one physical slab.
+            No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts that share one physical space.
           </div>
         ) : (
           <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
@@ -4150,7 +4151,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
 }
 
 
-type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> };
+type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; rulesCount: number; layouts: Array<{ id: number; name: string; sport: string | null }> };
 
 function DeleteGroupButton({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
@@ -4215,7 +4216,7 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
               <div className="flex-1">
                 <h3 className="text-base font-semibold">Delete group permanently?</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  <b className="text-foreground">{group.name}</b> will be <b className="text-destructive">permanently deleted</b>. Its courts remain but each becomes an independent slab again.
+                  <b className="text-foreground">{group.name}</b> will be <b className="text-destructive">permanently deleted</b>. Its courts remain but each becomes independent again.
                 </p>
               </div>
             </div>
@@ -4251,10 +4252,10 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     queryKey: ["group-add-eligible", group.venue_id, group.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("courts")
-        .select("id, name, capacity, physical_court_id, sports(name)")
+        .select("id, name, physical_court_id, sports(name)")
         .eq("venue_id", group.venue_id).order("id");
       if (error) throw error;
-      return (data ?? []) as Array<{ id: number; name: string; capacity: number; physical_court_id: number; sports: { name: string } | null }>;
+      return (data ?? []) as Array<{ id: number; name: string; physical_court_id: number; sports: { name: string } | null }>;
     },
   });
 
@@ -4365,7 +4366,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
         </div>
         <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4 p-5">
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            Editing the <b className="text-foreground">whole group</b> — group name, emoji, description, and which courts belong to this physical slab.
+            Editing the <b className="text-foreground">whole group</b> — group name, emoji, description, and which courts belong to this shared space.
           </div>
 
           <Input label="Group name" value={name} onChange={setName} required />
