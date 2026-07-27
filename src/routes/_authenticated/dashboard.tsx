@@ -1872,13 +1872,17 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const courtHours = inheritHours ? venueHours : ownHours;
   const [err, setErr] = useState<string | null>(null);
 
-  const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
+  const sportsQ = useSportsQuery(true);
+  const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
+  const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug ?? court.sports?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
+        sport_id: Number(sportId),
+
         is_indoor: isIndoor,
         coming_soon: comingSoon,
         is_active: isActive,
