@@ -131,6 +131,54 @@ export type Database = {
           },
         ]
       }
+      court_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          changes: Json | null
+          court_id: number
+          created_at: string
+          id: number
+          venue_id: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          changes?: Json | null
+          court_id: number
+          created_at?: string
+          id?: number
+          venue_id: number
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          changes?: Json | null
+          court_id?: number
+          created_at?: string
+          id?: number
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "court_audit_log_court_id_fkey"
+            columns: ["court_id"]
+            isOneToOne: false
+            referencedRelation: "courts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "court_audit_log_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courts: {
         Row: {
           amenities: string[]
@@ -138,6 +186,7 @@ export type Database = {
           blocked_hours: Json
           capacity: number
           coming_soon: boolean
+          created_at: string
           description: string | null
           footprint: number
           hourly_rate: number
@@ -163,6 +212,7 @@ export type Database = {
           blocked_hours?: Json
           capacity?: number
           coming_soon?: boolean
+          created_at?: string
           description?: string | null
           footprint?: number
           hourly_rate: number
@@ -188,6 +238,7 @@ export type Database = {
           blocked_hours?: Json
           capacity?: number
           coming_soon?: boolean
+          created_at?: string
           description?: string | null
           footprint?: number
           hourly_rate?: number
