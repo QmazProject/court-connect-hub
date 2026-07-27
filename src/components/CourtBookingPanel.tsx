@@ -10,6 +10,7 @@ import {
   normalizeRules, rateForHour, priceForHours, priceBreakdown, minRate, maxRate,
   hasVariablePricing, rateBands, peso, type RateRule, type DayKey,
 } from "@/lib/court-pricing";
+import { normalizeHours, effectiveHours, openHoursForDate, describeWindow } from "@/lib/operating-hours";
 
 type Court = {
   id: number;
@@ -17,6 +18,7 @@ type Court = {
   hourly_rate: number;
   is_indoor: boolean;
   operating_hours: Record<string, string>;
+  inherit_venue_hours?: boolean | null;
   blocked_hours: Record<string, number[]> | null;
   blocked_dates: Record<string, number[]> | null;
   description: string | null;
@@ -122,7 +124,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data, error } = await supabase
         .from("courts")
         .select(
-          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, rate_rules, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
+          "id, name, hourly_rate, is_indoor, operating_hours, inherit_venue_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, rate_rules, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours, operating_hours)",
         )
         .eq("id", courtId)
         .maybeSingle();
@@ -239,7 +241,13 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
   const dateOverride = court.blocked_dates?.[date];
   const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
-  const slots: number[] = Array.from({ length: 24 }, (_, i) => i);
+  const venueHours = normalizeHours((court.venues as unknown as { operating_hours?: unknown } | null)?.operating_hours);
+  const openHours = openHoursForDate(
+    effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours),
+    date,
+  );
+  const slots: number[] = Array.from({ length: 24 }, (_, i) => i).filter((h) => openHours.has(h));
+  const closedToday = slots.length === 0;
   const capacity = Math.max(1, court.capacity ?? 1);
   const slotInfo = (hour: number) => availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false };
   const isBooked = (hour: number) => slotInfo(hour).remaining <= 0 && !slotInfo(hour).blockedByOther;
