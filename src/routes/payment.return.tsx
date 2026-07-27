@@ -155,6 +155,21 @@ function PaymentReturn() {
           </>
         )}
 
+        {slot && status !== "cancel" && (
+          <div className="mt-5 rounded-xl border border-border bg-secondary/40 p-4 text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your session</p>
+            {(slot.venue || slot.court) && (
+              <p className="mt-1 text-sm font-semibold">
+                {slot.venue ?? "Venue"}{slot.court ? <span className="text-muted-foreground"> · {slot.court}</span> : null}
+              </p>
+            )}
+            <p className="mt-1 text-sm">{slot.date}</p>
+            <p className="text-sm font-medium text-primary">{slot.range}</p>
+          </div>
+        )}
+
+
+
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Link to="/dashboard" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
             My bookings
