@@ -3769,10 +3769,16 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                     <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">ACTIVE</span>
                   )}
                 </td>
-                <td className="px-3 py-3 text-right whitespace-nowrap">
-                  <button onClick={() => setManagingHours(c)} className="mr-1 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20">Hours</button>
-                  <button onClick={() => setEditing(c)} className="mr-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:border-primary hover:text-primary">Edit</button>
-                  <DeleteCourtButton court={c} onDeleted={invalidate} />
+                <td className="px-3 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <button type="button" onClick={() => setManagingHours(c)} title="Manage availability" aria-label={`Manage hours for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+                      <Clock className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <DeleteCourtButton court={c} onDeleted={invalidate} />
+                  </div>
                 </td>
               </tr>
             ))}
