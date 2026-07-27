@@ -2190,6 +2190,8 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [openHours, setOpenHours] = useState<HoursMap>(() => normalizeHours(venue.operating_hours));
   const [conflicts, setConflicts] = useState<HoursConflict[] | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
+  const cancelConflictsFn = useServerFn(cancelBookingsWithRefund);
+
 
   const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
   const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
