@@ -319,11 +319,11 @@ function TenantShell({
             <Menu className="h-4 w-4" /> Menu
           </button>
           <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
-          <NotificationBell />
+          <NotificationBell userId={userId} />
         </div>
         {/* Desktop top bar */}
         <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
-          <NotificationBell />
+          <NotificationBell userId={userId} />
         </div>
 
         <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
