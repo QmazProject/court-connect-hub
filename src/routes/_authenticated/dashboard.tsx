@@ -1662,7 +1662,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setImages([]); setMapEmoji(null); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
