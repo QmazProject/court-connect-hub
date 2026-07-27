@@ -2195,18 +2195,33 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
 
+  const hoursChanged = JSON.stringify(openHours) !== JSON.stringify(normalizeHours(venue.operating_hours));
+
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { force?: boolean }) => {
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
+      if (!opts?.force && hoursChanged) {
+        const found = await findHoursConflicts({ venueId: venue.id, newVenueHours: openHours });
+        if (found.length > 0) {
+          setConflicts(found);
+          return "blocked" as const;
+        }
+      }
       const { error } = await supabase
         .from("venues")
         .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, operating_hours: openHours, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null })
         .eq("id", venue.id);
       if (error) throw error;
+      return "saved" as const;
     },
-    onSuccess: () => { setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); onDoneEditing?.(); },
+    onSuccess: (res) => {
+      if (res === "blocked") return;
+      setConflicts(null);
+      setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); onDoneEditing?.();
+    },
     onError: (e: Error) => setErr(e.message),
   });
+
 
   const del = useMutation({
     mutationFn: async () => {
