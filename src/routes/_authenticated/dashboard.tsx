@@ -2684,17 +2684,39 @@ const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean; defa
 const VENUE_COLS_STORAGE_KEY = "venues-tab-columns-v1";
 const DEFAULT_VENUE_COLS = VENUE_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
 
-function useVenueColumns() {
-  const [selected, setSelected] = useState<string[]>(DEFAULT_VENUE_COLS);
+type ColumnDef = { id: string; label: string; required?: boolean; defaultOn?: boolean };
+
+const COURT_COLUMNS: ColumnDef[] = [
+  { id: "emoji", label: "Emoji", defaultOn: true },
+  { id: "name", label: "Court", required: true, defaultOn: true },
+  { id: "description", label: "About This Court", defaultOn: true },
+  { id: "venue", label: "Venue", defaultOn: true },
+  { id: "sport", label: "Sport", defaultOn: true },
+  { id: "type", label: "Type", defaultOn: true },
+  { id: "rate", label: "Rate / hr", defaultOn: true },
+  { id: "status", label: "Status", defaultOn: true },
+  { id: "created_at", label: "Created At", defaultOn: true },
+  { id: "actions", label: "Actions", required: true, defaultOn: true },
+  // Optional (off by default)
+  { id: "history", label: "History" },
+  { id: "voucher", label: "Voucher" },
+  { id: "surface", label: "Surface" },
+  { id: "capacity", label: "Capacity" },
+];
+const COURT_COLS_STORAGE_KEY = "courts-tab-columns-v1";
+const DEFAULT_COURT_COLS = COURT_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
+
+function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: string, prefKey: string) {
+  const [selected, setSelected] = useState<string[]>(defaults);
   const sanitize = (arr: string[]) => {
-    const valid = arr.filter((id) => VENUE_COLUMNS.some((c) => c.id === id));
-    const required = VENUE_COLUMNS.filter((c) => c.required).map((c) => c.id);
+    const valid = arr.filter((id) => columns.some((c) => c.id === id));
+    const required = columns.filter((c) => c.required).map((c) => c.id);
     return [...required.filter((id) => !valid.includes(id)), ...valid];
   };
   useEffect(() => {
     // 1) instant paint from localStorage
     try {
-      const raw = localStorage.getItem(VENUE_COLS_STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       if (raw) setSelected(sanitize(JSON.parse(raw) as string[]));
     } catch {}
     // 2) authoritative load from Supabase (per-user, follows sign-in)
@@ -2707,18 +2729,18 @@ function useVenueColumns() {
         .select("prefs")
         .eq("user_id", uid)
         .maybeSingle();
-      const cols = (data?.prefs as any)?.venues_columns as string[] | undefined;
+      const cols = (data?.prefs as any)?.[prefKey] as string[] | undefined;
       if (Array.isArray(cols) && cols.length) {
         const merged = sanitize(cols);
         setSelected(merged);
-        try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(merged)); } catch {}
+        try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch {}
       }
     })();
   }, []);
   const save = (next: string[]) => {
     const clean = sanitize(next);
     setSelected(clean);
-    try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(clean)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(clean)); } catch {}
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
@@ -2728,7 +2750,7 @@ function useVenueColumns() {
         .select("prefs")
         .eq("user_id", uid)
         .maybeSingle();
-      const merged = { ...(existing?.prefs as any ?? {}), venues_columns: clean };
+      const merged = { ...(existing?.prefs as any ?? {}), [prefKey]: clean };
       await supabase
         .from("user_preferences")
         .upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
@@ -2737,10 +2759,12 @@ function useVenueColumns() {
   return { selected, save };
 }
 
+const useVenueColumns = () => useColumnPrefs(VENUE_COLUMNS, DEFAULT_VENUE_COLS, VENUE_COLS_STORAGE_KEY, "venues_columns");
+const useCourtColumns = () => useColumnPrefs(COURT_COLUMNS, DEFAULT_COURT_COLS, COURT_COLS_STORAGE_KEY, "courts_columns");
 
 type ColumnPreset = { name: string; columns: string[] };
 
-function useColumnPresets() {
+function useColumnPresets(prefKey: string) {
   const [presets, setPresets] = useState<ColumnPreset[]>([]);
   useEffect(() => {
     (async () => {
@@ -2748,21 +2772,22 @@ function useColumnPresets() {
       const uid = auth.user?.id;
       if (!uid) return;
       const { data } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
-      const list = (data?.prefs as any)?.venues_column_presets as ColumnPreset[] | undefined;
+      const list = (data?.prefs as any)?.[prefKey] as ColumnPreset[] | undefined;
       if (Array.isArray(list)) setPresets(list);
     })();
-  }, []);
+  }, [prefKey]);
   const persist = async (next: ColumnPreset[]) => {
     setPresets(next);
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) return;
     const { data: existing } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
-    const merged = { ...(existing?.prefs as any ?? {}), venues_column_presets: next };
+    const merged = { ...(existing?.prefs as any ?? {}), [prefKey]: next };
     await supabase.from("user_preferences").upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
   };
   return { presets, persist };
 }
+
 
 function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void }) {
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
