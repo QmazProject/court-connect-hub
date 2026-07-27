@@ -2364,7 +2364,35 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setContactPhone(venue.contact_phone ?? ""); setContactEmail(venue.contact_email ?? ""); setOperatingHoursText(venue.operating_hours_text ?? ""); setCancellationHours(venue.refund_cutoff_hours ?? 24); setCancellationNotes(venue.cancellation_notes ?? ""); setRules(venue.rules ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
 
+        {conflicts && conflicts.length > 0 && (
+          <HoursConflictDialog
+            conflicts={conflicts}
+            busy={conflictBusy || save.isPending}
+            onDismiss={() => setConflicts(null)}
+            onKeep={() => save.mutate({ force: true })}
+            onCancelThem={async () => {
+              setConflictBusy(true);
+              try {
+                await cancelConflictsFn({
+                  data: {
+                    bookingIds: conflicts.flatMap((c) => c.bookingIds),
+                    reason: "The venue's operating hours changed and this slot is no longer available.",
+                    refundMode: "auto",
+                  },
+                });
+                save.mutate({ force: true });
+              } catch (e) {
+                setErr((e as Error).message);
+                setConflicts(null);
+              } finally {
+                setConflictBusy(false);
+              }
+            }}
+          />
+        )}
+
       </div>
+
     );
   }
 
