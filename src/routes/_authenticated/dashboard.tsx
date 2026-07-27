@@ -117,6 +117,7 @@ type Court = {
   map_emoji: string | null;
   physical_court_id: number;
   capacity: number;
+  created_at?: string | null;
   voucher_enabled?: boolean | null;
   rate_rules?: unknown;
   sports: { name: string; slug?: string } | null;
@@ -3706,6 +3707,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [editing, setEditing] = useState<CourtRow | null>(null);
   const [managingHours, setManagingHours] = useState<CourtRow | null>(null);
+  const [historyCourt, setHistoryCourt] = useState<CourtRow | null>(null);
 
   const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
   const invalidate = () => {
@@ -3743,6 +3745,8 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
               <th className="px-3 py-2.5">Type</th>
               <th className="px-3 py-2.5 text-right">Rate / hr</th>
               <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5 w-32">Created At</th>
+              <th className="px-3 py-2.5 w-24 text-center">History</th>
               <th className="px-3 py-2.5 text-right">Actions</th>
             </tr>
           </thead>
@@ -3770,6 +3774,19 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                   )}
                 </td>
                 <td className="px-3 py-3">
+                  {c.created_at ? (
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-foreground">{new Date(c.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+                      <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                    </div>
+                  ) : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-3 py-3 text-center">
+                  <button type="button" onClick={() => setHistoryCourt(c)} title="Audit history" aria-label={`View audit history for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+                    <HistoryIcon className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+                <td className="px-3 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button type="button" onClick={() => setManagingHours(c)} title="Manage availability" aria-label={`Manage hours for ${c.name}`} className="rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/20">Hours</button>
                     <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
@@ -3783,6 +3800,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
           </tbody>
         </table>
       )}
+      <CourtAuditHistoryModal court={historyCourt} onClose={() => setHistoryCourt(null)} />
       <CourtDrawer title="Edit court" open={editing !== null} onClose={() => setEditing(null)}>
         {editing && (
           <EditCourt
@@ -3803,6 +3821,76 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
         )}
       </CourtDrawer>
     </>
+  );
+}
+
+type CourtAuditEntry = { id: number; court_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
+
+function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name: string } | null; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["court-audit", court?.id],
+    enabled: !!court,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("court_audit_log" as never)
+        .select("*")
+        .eq("court_id", court!.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as CourtAuditEntry[];
+    },
+  });
+
+  if (!court) return null;
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  return (
+    <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Court history</div>
+            <div className="font-semibold">{court.name}</div>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto px-5 py-4">
+          {isLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : !data || data.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground italic">No history yet.</div>
+          ) : (
+            <ol className="relative space-y-4 border-l border-border pl-5">
+              {data.map((e) => (
+                <li key={e.id} className="relative">
+                  <span className={`absolute -left-[26px] top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
+                      {e.action === "created" ? "Created" : "Last modified"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{fmt(e.created_at)}</span>
+                  </div>
+                  <div className="mt-1 text-sm">
+                    <span className="text-muted-foreground">by </span>
+                    <span className="font-medium">{e.actor_name?.trim() || "Unknown"}</span>
+                  </div>
+                  {e.action === "updated" && e.changes && Object.keys(e.changes).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {Object.keys(e.changes).map((k) => (
+                        <span key={k} className="inline-flex rounded-md bg-secondary/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">{k}</span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
