@@ -2188,6 +2188,9 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [contactEmail, setContactEmail] = useState(venue.contact_email ?? "");
   const [operatingHoursText, setOperatingHoursText] = useState(venue.operating_hours_text ?? "");
   const [openHours, setOpenHours] = useState<HoursMap>(() => normalizeHours(venue.operating_hours));
+  const [conflicts, setConflicts] = useState<HoursConflict[] | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+
   const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
   const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
   const [rules, setRules] = useState(venue.rules ?? "");
