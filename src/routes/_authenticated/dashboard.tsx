@@ -230,7 +230,7 @@ function Dashboard() {
       )}
       {section === "bookings" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <BookingsSection venues={venues} />
+          <BookingsSection venues={venues} userId={user.id} />
         </div>
       )}
       {section === "customers" && (
