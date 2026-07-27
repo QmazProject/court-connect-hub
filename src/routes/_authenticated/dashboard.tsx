@@ -744,6 +744,10 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
         </div>
       </div>
 
+      <CourtBlockRulesEditor courts={selectedCourts} rules={rules} onChange={setRules} />
+
+
+
       {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
       <div className="flex items-center justify-end gap-2">
