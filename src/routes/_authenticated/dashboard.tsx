@@ -632,13 +632,12 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
   });
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [caps, setCaps] = useState<Record<number, string>>({});
   const [rules, setRules] = useState<Set<string>>(new Set());
-  const toggle = (id: number, cur: number) => {
+  const toggle = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      else next.add(id);
       // Default: every selected court blocks every other one, both ways.
       setRules(allPairsEnabled(Array.from(next)));
       return next;
@@ -659,13 +658,9 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
       if (error) throw error;
       const ids = Array.from(selected);
       if (ids.length > 0) {
-        for (const id of ids) {
-          const cap = Math.max(1, Math.floor(Number(caps[id] ?? "1") || 1));
-          const footprint = 1 / cap;
-          const { error: upErr } = await supabase.from("courts")
-            .update({ physical_court_id: pc.id, capacity: cap, footprint }).eq("id", id);
-          if (upErr) throw upErr;
-        }
+        const { error: upErr } = await supabase.from("courts")
+          .update({ physical_court_id: pc.id }).in("id", ids);
+        if (upErr) throw upErr;
         // Replace pairwise blocking rules for the selected courts
         const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
         if (delErr) throw delErr;
@@ -711,7 +706,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
-        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab. Set the max simultaneous matches per hour (capacity) for each.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab.</p>
         <div className="mt-3 max-h-64 overflow-y-auto nice-scroll">
           {courtsQ.isLoading ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted" />
@@ -723,19 +718,11 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
                 const checked = selected.has(c.id);
                 return (
                   <li key={c.id} className={"flex items-center gap-3 rounded-lg border p-2 text-sm " + (checked ? "border-primary bg-primary/5" : "border-border")}>
-                    <input type="checkbox" checked={checked} onChange={() => toggle(c.id, c.capacity ?? 1)} />
+                    <input type="checkbox" checked={checked} onChange={() => toggle(c.id)} />
                     <div className="flex-1">
                       <div className="font-medium">{c.name}</div>
                       <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"} · ₱{Number(c.hourly_rate).toFixed(0)}/hr</div>
                     </div>
-                    {checked && (
-                      <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        Cap
-                        <input type="number" min={1} value={caps[c.id] ?? String(c.capacity ?? 1)}
-                          onChange={(e) => setCaps((s) => ({ ...s, [c.id]: e.target.value }))}
-                          className="w-16 rounded-md border border-input bg-background px-2 py-1 text-sm" />
-                      </label>
-                    )}
                   </li>
                 );
               })}
