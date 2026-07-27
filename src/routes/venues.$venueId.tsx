@@ -872,19 +872,23 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   });
 
   const sharedPartners = useMemo(() => {
+    const nameById = new Map<number, string>();
+    for (const c of courts) nameById.set(c.id, `${c.map_emoji ? `${c.map_emoji} ` : ""}${c.name}`);
+    const add = (id: number, label: string) => {
+      const list = m.get(id) ?? [];
+      if (!list.includes(label)) list.push(label);
+      m.set(id, list);
+    };
     const m = new Map<number, string[]>();
     for (const r of sharedQ.data ?? []) {
-      const label = `${r.courts?.map_emoji ? `${r.courts.map_emoji} ` : ""}${r.courts?.name ?? `Court #${r.blocked_court_id}`}`;
-      for (const id of [r.court_id, r.blocked_court_id]) {
-        const key = id === r.court_id ? r.court_id : r.blocked_court_id;
-        void key;
-      }
-      const list = m.get(r.court_id) ?? [];
-      if (!list.includes(label)) list.push(label);
-      m.set(r.court_id, list);
+      const blockedLabel =
+        `${r.courts?.map_emoji ? `${r.courts.map_emoji} ` : ""}${r.courts?.name ?? `Court #${r.blocked_court_id}`}`;
+      const srcLabel = nameById.get(r.court_id) ?? `Court #${r.court_id}`;
+      add(r.court_id, blockedLabel);
+      add(r.blocked_court_id, srcLabel);
     }
     return m;
-  }, [sharedQ.data]);
+  }, [sharedQ.data, courts]);
 
 
   const weekdayKey = useMemo(() => {
