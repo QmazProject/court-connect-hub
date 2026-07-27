@@ -1152,6 +1152,21 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                         <span className="text-sm font-bold text-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</span>
                       </div>
                       <h3 className="mt-3 font-display text-2xl font-bold tracking-tight">{c.name}</h3>
+                      {(sharedPartners.get(c.id)?.length ?? 0) > 0 && (
+                        <div
+                          className="mt-2 inline-flex max-w-full items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800"
+                          title={`Shares a space with: ${sharedPartners.get(c.id)!.join(", ")}. Booking this court blocks those hours on the others.`}
+                        >
+                          <span aria-hidden>🔗</span>
+                          <span className="min-w-0">
+                            Shared space
+                            <span className="ml-1 font-normal">
+                              — booking this blocks {sharedPartners.get(c.id)!.slice(0, 2).join(", ")}
+                              {sharedPartners.get(c.id)!.length > 2 && ` +${sharedPartners.get(c.id)!.length - 2} more`}
+                            </span>
+                          </span>
+                        </div>
+                      )}
                       {c.description && (
                         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
                       )}
