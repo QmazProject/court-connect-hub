@@ -41,6 +41,7 @@ type Court = {
     longitude: number | null;
     payment_mode: "none" | "full" | "downpayment_50";
     refund_cutoff_hours: number;
+    operating_hours?: Record<string, string> | null;
   } | null;
 };
 
@@ -463,7 +464,13 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             </div>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              Tap a time slot to select or deselect it; consecutive time slots are automatically combined into a single time range.
+              {closedToday
+                ? "This court is closed on this date. Pick another day."
+                : `Open ${describeWindow(
+                    effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours)[
+                      (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[new Date(`${date}T00:00:00`).getDay()]
+                    ],
+                  )} · tap a time slot to select or deselect it; consecutive slots are automatically combined into a single time range.`}
             </p>
 
             {variablePricing && (
