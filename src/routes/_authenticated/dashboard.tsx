@@ -27,7 +27,7 @@ import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, AlertTriangle, History as HistoryIcon,
+  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, Clock, AlertTriangle, History as HistoryIcon,
   TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent,
 } from "lucide-react";
 
@@ -3766,7 +3766,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
                 <td className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>
-                <td className="px-3 py-3 text-right font-semibold text-primary tabular-nums">₱{Number(c.hourly_rate).toFixed(0)}</td>
+                <td className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>
                 <td className="px-3 py-3">
                   {c.coming_soon ? (
                     <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
@@ -3789,7 +3789,9 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                 </td>
                 <td className="px-3 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={() => setManagingHours(c)} title="Manage availability" aria-label={`Manage hours for ${c.name}`} className="rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary transition hover:bg-primary/20">Hours</button>
+                    <button type="button" onClick={() => setManagingHours(c)} title="Manage availability" aria-label={`Manage hours for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+                      <Clock className="h-3.5 w-3.5" />
+                    </button>
                     <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
