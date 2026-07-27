@@ -1848,6 +1848,8 @@ function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; o
 function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venueEmoji: string | null; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
+  const [sportId, setSportId] = useState<string>(String(court.sport_id ?? ""));
+
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
   const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [isActive, setIsActive] = useState(court.is_active !== false);
@@ -1870,13 +1872,17 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const courtHours = inheritHours ? venueHours : ownHours;
   const [err, setErr] = useState<string | null>(null);
 
-  const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
+  const sportsQ = useSportsQuery(true);
+  const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
+  const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug ?? court.sports?.slug) || "🎾";
 
   const mut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
+        sport_id: Number(sportId),
+
         is_indoor: isIndoor,
         coming_soon: comingSoon,
         is_active: isActive,
@@ -1900,10 +1906,19 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
+    <form onSubmit={(e) => { e.preventDefault(); if (!sportId) { setErr("Pick a sport"); return; } mut.mutate(); }} className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input label="Court name" value={name} onChange={setName} required />
         <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Sport</span>
+          <select value={sportId} onChange={(e) => setSportId(e.target.value)} required
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            <option value="">Select…</option>
+            {(sportsQ.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+
         <label className="flex items-end gap-2 pb-2 text-sm">
           <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
           Indoor court
