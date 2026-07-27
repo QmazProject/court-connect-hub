@@ -4933,15 +4933,18 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           </div>
         ) : (
           <ul className="grid gap-3">
-            {shown.map((b) => {
+            {shown.map((sess) => {
+              const b = sess.first;
               const tx = txByBooking.get(b.id);
-              const h = hours(b.start_time, b.end_time);
-              const amount = tx?.amount != null ? Number(tx.amount) : (b.courts?.hourly_rate ?? 0) * h;
+              const h = sess.hours;
+              const txTotal = sess.ids.reduce((sum, id) => sum + Number(txByBooking.get(id)?.amount ?? 0), 0);
+              const amount = txTotal > 0 ? txTotal : (b.courts?.hourly_rate ?? 0) * h;
               const venueInactive = b.courts?.venues?.is_active === false;
               const paymentFailed = b.payment_status !== "paid" && b.status !== "cancelled";
 
               return (
-                <li key={b.id} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <li key={sess.key} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{b.courts?.map_emoji ?? "🎾"}</div>
