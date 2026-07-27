@@ -4379,61 +4379,29 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
           </div>
           <Textarea label="About this Group (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
 
-          <div className="rounded-xl border border-border p-3">
-            <div className="text-sm font-semibold">Courts in this group</div>
-            <p className="mt-1 text-xs text-muted-foreground">Adjust capacity (max simultaneous matches per hour) or detach a court from the group.</p>
-            <div className="mt-3 grid gap-2">
-              {group.layouts.length === 0 && <p className="text-xs text-muted-foreground">No courts assigned yet. Attach some below.</p>}
-              {group.layouts.map((l) => (
-                <div key={l.id} className="flex items-center gap-2 rounded-lg border border-border bg-secondary/30 px-2 py-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm font-medium">{l.name}</div>
-                    <div className="text-[11px] text-muted-foreground">{l.sport ?? "—"}</div>
-                  </div>
-                  <label className="text-[11px] text-muted-foreground">
-                    Capacity
-                    <input type="number" min={1} value={caps[l.id] ?? String(l.capacity)}
-                      onChange={(e) => setCaps((c) => ({ ...c, [l.id]: e.target.value }))}
-                      className="ml-1 w-16 rounded-md border border-input bg-background px-2 py-1 text-xs" />
-                  </label>
-                  <button type="button" onClick={() => removeMember(l.id)}
-                    className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:border-destructive hover:text-destructive">
-                    Detach
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <CourtBlockRulesEditor courts={ruleCourts} rules={rules} onChange={setRulesDraft} />
 
           <div className="rounded-xl border border-dashed border-border p-3">
-            <div className="text-sm font-semibold">Add courts to this group</div>
-            <p className="mt-1 text-xs text-muted-foreground">Tick courts from this venue to attach onto this physical slab.</p>
+            <div className="text-sm font-semibold">Courts in this group</div>
+            <p className="mt-1 text-xs text-muted-foreground">Tick courts from this venue to include them in this group; untick to detach.</p>
             <div className="mt-3 grid gap-2">
-              {eligible.length === 0 && <p className="text-xs text-muted-foreground">No other courts in this venue.</p>}
+              {eligible.length === 0 && <p className="text-xs text-muted-foreground">No courts in this venue.</p>}
               {eligible.map((c) => {
-                const checked = addSel.has(c.id);
+                const isMember = memberSet.has(c.id);
+                const checked = isMember ? !detachSel.has(c.id) : addSel.has(c.id);
                 return (
                   <label key={c.id} className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm ${checked ? "border-primary bg-primary/5" : "border-border"}`}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleAdd(c.id, c.capacity)} />
+                    <input type="checkbox" checked={checked} onChange={() => (isMember ? toggleDetach(c.id) : toggleAdd(c.id))} />
                     <div className="flex-1 min-w-0">
                       <div className="truncate font-medium">{c.name}</div>
                       <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"}</div>
                     </div>
-                    {checked && (
-                      <label className="text-[11px] text-muted-foreground">
-                        Capacity
-                        <input type="number" min={1} value={addCaps[c.id] ?? "1"}
-                          onChange={(e) => setAddCaps((v) => ({ ...v, [c.id]: e.target.value }))}
-                          className="ml-1 w-16 rounded-md border border-input bg-background px-2 py-1 text-xs" />
-                      </label>
-                    )}
                   </label>
                 );
               })}
             </div>
           </div>
+
 
           {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
           <div className="flex items-center justify-end gap-2">
