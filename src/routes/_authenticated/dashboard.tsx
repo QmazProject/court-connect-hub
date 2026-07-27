@@ -4775,8 +4775,13 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
 
   const totalSpent = (txQ.data ?? []).filter((t) => t.status === "paid").reduce((s, t) => s + Number(t.amount || 0), 0);
   const nextUp = upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+  const allSessions = groupBookingSessions(rows);
+  const nextUpSession = nextUp ? allSessions.find((s) => s.ids.includes(nextUp.id)) : undefined;
 
-  const shown = tab === "upcoming" ? upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time)) : tab === "past" ? past : cancelled;
+  const shown = (tab === "upcoming"
+    ? groupBookingSessions(upcoming).sort((a, b) => a.start_time.localeCompare(b.start_time))
+    : groupBookingSessions(tab === "past" ? past : cancelled).sort((a, b) => b.start_time.localeCompare(a.start_time)));
+
 
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
