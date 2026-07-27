@@ -3742,6 +3742,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
             <tr>
               <th className="px-4 py-2.5 w-10"></th>
               <th className="px-3 py-2.5">Court</th>
+              <th className="px-3 py-2.5">About This Court</th>
               <th className="px-3 py-2.5">Venue</th>
               <th className="px-3 py-2.5">Sport</th>
               <th className="px-3 py-2.5">Type</th>
@@ -3761,7 +3762,11 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                 <td className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>
                 <td className="px-3 py-3">
                   <div className="font-semibold">{c.name}</div>
-                  {c.description && <div className="text-[11px] text-muted-foreground line-clamp-1 max-w-[240px]">{c.description}</div>}
+                </td>
+                <td className="px-3 py-3">
+                  {c.description?.trim() ? (
+                    <p title={c.description} className="line-clamp-2 max-w-[260px] whitespace-normal break-words text-[12px] leading-snug text-muted-foreground">{c.description}</p>
+                  ) : <span className="text-muted-foreground">—</span>}
                 </td>
                 <td className="px-3 py-3">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
