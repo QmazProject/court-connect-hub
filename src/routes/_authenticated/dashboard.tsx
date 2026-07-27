@@ -2555,8 +2555,8 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
       if (cErr) throw cErr;
       const counts = new Map<number, number>();
       (cs ?? []).forEach((c: any) => counts.set(c.physical_court_id, (counts.get(c.physical_court_id) ?? 0) + 1));
-      // Mirror the Court Groups table: auto-created single-court surfaces are not real groups
-      return pcIds.filter((id) => (counts.get(id) ?? 0) !== 1).length;
+      // Mirror the Court Groups table: only surfaces shared by 2+ courts are real groups
+      return pcIds.filter((id) => (counts.get(id) ?? 0) >= 2).length;
     },
   });
   const groupsTotal = groupsTotalQ.data ?? 0;
