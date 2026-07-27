@@ -4241,14 +4241,12 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   const [name, setName] = useState(group.name);
   const [emoji, setEmoji] = useState<string | null>(group.map_emoji);
   const [description, setDescription] = useState(group.description ?? "");
-  const [caps, setCaps] = useState<Record<number, string>>(() =>
-    Object.fromEntries(group.layouts.map((l) => [l.id, String(l.capacity ?? 1)])),
-  );
   const [addSel, setAddSel] = useState<Set<number>>(new Set());
-  const [addCaps, setAddCaps] = useState<Record<number, string>>({});
+  const [detachSel, setDetachSel] = useState<Set<number>>(new Set());
   const [err, setErr] = useState<string | null>(null);
+  const memberSet = new Set(group.layouts.map((l) => l.id));
 
-  // Courts in same venue that could be added to this group (currently on other slabs)
+  // All courts in this venue (members are pre-ticked, others can be attached)
   const eligibleQ = useQuery({
     queryKey: ["group-add-eligible", group.venue_id, group.id],
     queryFn: async () => {
@@ -4256,12 +4254,13 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
         .select("id, name, capacity, physical_court_id, sports(name)")
         .eq("venue_id", group.venue_id).order("id");
       if (error) throw error;
-      return (data ?? []).filter((c: any) => c.physical_court_id !== group.id) as Array<{ id: number; name: string; capacity: number; physical_court_id: number; sports: { name: string } | null }>;
+      return (data ?? []) as Array<{ id: number; name: string; capacity: number; physical_court_id: number; sports: { name: string } | null }>;
     },
   });
 
   // Pairwise blocking rules among the courts of this group
-  const memberIds = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+  const memberIds = [...group.layouts.filter((l) => !detachSel.has(l.id)).map((l) => l.id), ...Array.from(addSel)];
+
   const rulesQ = useQuery({
     queryKey: ["court-block-rules", group.id, group.layouts.map((l) => l.id).join(",")],
     enabled: group.layouts.length > 0,
