@@ -4281,11 +4281,16 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
                 <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>Loading…</td></tr>
               ) : rows.length === 0 ? (
                 <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>No bookings match these filters yet.</td></tr>
-              ) : rows.map((r) => {
+              ) : sessions.map((s) => {
+                const r = s.first;
                 const p = nameMap.get(r.user_id);
                 return (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="px-4 py-3 whitespace-nowrap">{fmt(r.start_time)}<div className="text-[11px] text-muted-foreground">→ {new Date(r.end_time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</div></td>
+                  <tr key={s.key} className="border-t border-border">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {formatDateLabel(s.start_time)}
+                      <div className="text-[11px] text-muted-foreground">{formatSessionLabel(s.start_time, s.end_time)}</div>
+                      {s.ids.length > 1 && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.ids.length} slots</div>}
+                    </td>
                     <td className="px-4 py-3">{r.courts?.venues?.name ?? "—"}<div className="text-[11px] text-muted-foreground">{r.courts?.name ?? `Court #${r.court_id}`}</div></td>
                     <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
                     <td className="px-4 py-3">{stBadge(r.status)}</td>
@@ -4293,6 +4298,7 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
                   </tr>
                 );
               })}
+
             </tbody>
           </table>
         </div>
