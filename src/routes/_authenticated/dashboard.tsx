@@ -711,7 +711,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
-        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab. Set the max simultaneous matches per hour (capacity) for each.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab.</p>
         <div className="mt-3 max-h-64 overflow-y-auto nice-scroll">
           {courtsQ.isLoading ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted" />
