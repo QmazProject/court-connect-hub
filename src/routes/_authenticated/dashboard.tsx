@@ -907,6 +907,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [operatingHoursText, setOperatingHoursText] = useState("");
+  const [openHours, setOpenHours] = useState<HoursMap>(() => fullWeek());
   const [cancellationHours, setCancellationHours] = useState<number>(24);
   const [cancellationNotes, setCancellationNotes] = useState("");
   const [rules, setRules] = useState("");
@@ -923,7 +924,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
       if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const cleanFees = fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) }));
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null });
+      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, operating_hours: openHours, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null });
       if (error) throw error;
     },
     onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); setContactPhone(""); setContactEmail(""); setOperatingHoursText(""); setCancellationHours(24); setCancellationNotes(""); setRules(""); onCreated(); },
@@ -1018,7 +1019,8 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
         <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
         <div className="sm:col-span-2">
-          <Textarea label="Operating hours" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="e.g. Mon–Fri 8AM–10PM, Sat–Sun 6AM–12AM" />
+          <OperatingHoursEditor hours={openHours} onChange={setOpenHours} hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere." />
+            <Textarea label="Operating hours note (optional)" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="Extra note shown to players, e.g. Holiday hours may vary" />
         </div>
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
@@ -1560,6 +1562,10 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(null));
   const [voucherEnabled, setVoucherEnabled] = useState(false);
   const [rateRules, setRateRules] = useState<RateRule[]>([]);
+  const venueHours = useVenueHours(venueId);
+  const [inheritHours, setInheritHours] = useState(true);
+  const [ownHours, setOwnHours] = useState<HoursMap>(() => fullWeek());
+  const courtHours = inheritHours ? venueHours : ownHours;
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
@@ -1626,6 +1632,8 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         blocked_dates: datesToPayload(availDates),
         voucher_enabled: voucherEnabled,
         rate_rules: normalizeRules(rateRules),
+        inherit_venue_hours: inheritHours,
+        operating_hours: inheritHours ? {} : ownHours,
       });
 
       if (error) {
@@ -1682,6 +1690,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         Tick "Coming soon" if this court isn't open yet. Tick "Accept vouchers" to let players redeem discount codes you create in the Vouchers module for this court.
       </p>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
+      <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
       <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -1846,6 +1855,10 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
   const [voucherEnabled, setVoucherEnabled] = useState<boolean>(!!court.voucher_enabled);
   const [rateRules, setRateRules] = useState<RateRule[]>(() => normalizeRules(court.rate_rules));
+  const venueHours = useVenueHours(court.venue_id);
+  const [inheritHours, setInheritHours] = useState<boolean>(court.inherit_venue_hours !== false);
+  const [ownHours, setOwnHours] = useState<HoursMap>(() => normalizeHours(court.operating_hours));
+  const courtHours = inheritHours ? venueHours : ownHours;
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
@@ -1899,6 +1912,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         blocked_dates: datesToPayload(availDates),
         voucher_enabled: voucherEnabled,
         rate_rules: normalizeRules(rateRules),
+        inherit_venue_hours: inheritHours,
+        operating_hours: inheritHours ? {} : ownHours,
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -1925,6 +1940,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         </label>
       </div>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
+      <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
       <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -2157,6 +2173,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [contactPhone, setContactPhone] = useState(venue.contact_phone ?? "");
   const [contactEmail, setContactEmail] = useState(venue.contact_email ?? "");
   const [operatingHoursText, setOperatingHoursText] = useState(venue.operating_hours_text ?? "");
+  const [openHours, setOpenHours] = useState<HoursMap>(() => normalizeHours(venue.operating_hours));
   const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
   const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
   const [rules, setRules] = useState(venue.rules ?? "");
@@ -2169,7 +2186,7 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null })
+        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, operating_hours: openHours, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null })
         .eq("id", venue.id);
       if (error) throw error;
     },
@@ -2267,7 +2284,8 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
           <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
           <div className="sm:col-span-2">
-            <Textarea label="Operating hours" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="e.g. Mon–Fri 8AM–10PM, Sat–Sun 6AM–12AM" />
+            <OperatingHoursEditor hours={openHours} onChange={setOpenHours} hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere." />
+            <Textarea label="Operating hours note (optional)" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="Extra note shown to players, e.g. Holiday hours may vary" />
           </div>
           <label className="block">
             <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
