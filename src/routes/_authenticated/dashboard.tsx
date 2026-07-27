@@ -678,20 +678,6 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
           if (insErr) throw insErr;
         }
       }
-      // Replace pairwise blocking rules for all courts in this group
-      const ids = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
-      if (ids.length > 0) {
-        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
-        if (delErr) throw delErr;
-        const rows = Array.from(rules)
-          .map((k) => k.split(">").map(Number))
-          .filter(([a, b]) => ids.includes(a) && ids.includes(b))
-          .map(([a, b]) => ({ court_id: a, blocked_court_id: b, venue_id: group.venue_id }));
-        if (rows.length > 0) {
-          const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
-          if (insErr) throw insErr;
-        }
-      }
     },
     onSuccess: onCreated,
     onError: (e: Error) => setErr(e.message),
@@ -4360,6 +4346,20 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
         const { error: upErr } = await supabase.from("courts")
           .update({ physical_court_id: group.id, capacity: cap, footprint }).eq("id", id);
         if (upErr) throw upErr;
+      }
+      // Replace pairwise blocking rules for all courts in this group
+      const ids = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+      if (ids.length > 0) {
+        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        if (delErr) throw delErr;
+        const rows = Array.from(rules)
+          .map((k) => k.split(">").map(Number))
+          .filter(([a, b]) => ids.includes(a) && ids.includes(b))
+          .map(([a, b]) => ({ court_id: a, blocked_court_id: b, venue_id: group.venue_id }));
+        if (rows.length > 0) {
+          const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
+          if (insErr) throw insErr;
+        }
       }
     },
     onSuccess: () => {
