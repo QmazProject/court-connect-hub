@@ -659,13 +659,9 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
       if (error) throw error;
       const ids = Array.from(selected);
       if (ids.length > 0) {
-        for (const id of ids) {
-          const cap = Math.max(1, Math.floor(Number(caps[id] ?? "1") || 1));
-          const footprint = 1 / cap;
-          const { error: upErr } = await supabase.from("courts")
-            .update({ physical_court_id: pc.id, capacity: cap, footprint }).eq("id", id);
-          if (upErr) throw upErr;
-        }
+        const { error: upErr } = await supabase.from("courts")
+          .update({ physical_court_id: pc.id }).in("id", ids);
+        if (upErr) throw upErr;
         // Replace pairwise blocking rules for the selected courts
         const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
         if (delErr) throw delErr;
