@@ -8,6 +8,8 @@ import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRa
 
 import { RateRulesEditor } from "@/components/RateRulesEditor";
 import { normalizeRules, type RateRule } from "@/lib/court-pricing";
+import { OperatingHoursEditor, CourtHoursEditor } from "@/components/OperatingHoursEditor";
+import { normalizeHours, openHoursForDay, openHoursForDate, effectiveHours, fullWeek, describeWindow, HOUR_DAY_KEYS, type DayKey, type HoursMap } from "@/lib/operating-hours";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -89,7 +91,7 @@ function isInPhilippines(lat: number | null, lng: number | null): boolean {
 }
 
 export type FeeItem = { label: string; amount: number };
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null; contact_phone?: string | null; contact_email?: string | null; operating_hours_text?: string | null; refund_cutoff_hours?: number | null; cancellation_notes?: string | null; rules?: string | null };
+type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null; contact_phone?: string | null; contact_email?: string | null; operating_hours?: unknown; operating_hours_text?: string | null; refund_cutoff_hours?: number | null; cancellation_notes?: string | null; rules?: string | null };
 
 const ACTIVE_INFO_TEXT = "A venue can only be set inactive when none of its courts have upcoming or in-progress confirmed bookings. If bookings exist, wait until their end time passes. Any pending (awaiting-payment) bookings will be automatically cancelled and those players will be notified to pick another venue. Inactive venues are hidden from the landing page map and list.";
 type Sport = { id: number; name: string; slug?: string };
@@ -101,6 +103,8 @@ type Court = {
   images: string[] | null;
   blocked_hours: Record<string, number[]> | null;
   blocked_dates: Record<string, number[]> | null;
+  operating_hours?: Record<string, string> | null;
+  inherit_venue_hours?: boolean | null;
   coming_soon: boolean | null;
   map_emoji: string | null;
   physical_court_id: number;
@@ -1275,14 +1279,16 @@ export function datesToPayload(dateBlocks: Record<string, Set<number>>): Blocked
 }
 
 function AvailabilityGrid({
-  weekly, setWeekly, dateBlocks, setDateBlocks,
+  weekly, setWeekly, dateBlocks, setDateBlocks, hours,
 }: {
   weekly: Record<string, Set<number>>;
   setWeekly: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
   dateBlocks: Record<string, Set<number>>;
   setDateBlocks: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
+  hours?: HoursMap;
 }) {
   const [mode, setMode] = useState<"weekly" | "date">("weekly");
+  const openOnDay = (day: string) => (hours ? openHoursForDay(hours, day as DayKey) : null);
   const toggleWeekly = (day: string, hour: number) => {
     setWeekly((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
@@ -1340,10 +1346,13 @@ function AvailabilityGrid({
               </div>
               <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+                  const open = openOnDay(d.key);
+                  const closed = !!open && !open.has(h);
                   const isBlocked = weekly[d.key]?.has(h);
                   return (
-                    <button key={h} type="button" onClick={() => toggleWeekly(d.key, h)}
-                      className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
+                    <button key={h} type="button" disabled={closed} onClick={() => toggleWeekly(d.key, h)}
+                      title={closed ? "Outside operating hours" : undefined}
+                      className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (closed ? "cursor-not-allowed bg-muted text-muted-foreground/60 line-through" : isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
                       {fmtHour(h)} – {fmtHour((h + 1) % 24)}
                     </button>
                   );
@@ -1374,10 +1383,13 @@ function AvailabilityGrid({
 
           <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+              const openSet = hours ? openHoursForDate(hours, selectedDate) : null;
+              const closed = !!openSet && !openSet.has(h);
               const isBlocked = currentDateSet.has(h);
               return (
-                <button key={h} type="button" onClick={() => toggleDate(h)}
-                  className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
+                <button key={h} type="button" disabled={closed} onClick={() => toggleDate(h)}
+                  title={closed ? "Outside operating hours" : undefined}
+                  className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (closed ? "cursor-not-allowed bg-muted text-muted-foreground/60 line-through" : isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
                   {fmtHour(h)} – {fmtHour((h + 1) % 24)}
                 </button>
               );
@@ -1404,8 +1416,23 @@ function AvailabilityGrid({
   );
 }
 
+function useVenueHours(venueId: number | undefined) {
+  const q = useQuery({
+    queryKey: ["venue-hours", venueId],
+    enabled: !!venueId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("venues").select("operating_hours").eq("id", venueId!).single();
+      if (error) throw error;
+      return normalizeHours((data as { operating_hours?: unknown }).operating_hours);
+    },
+  });
+  return q.data ?? fullWeek();
+}
+
 function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
   const [err, setErr] = useState<string | null>(null);
+  const venueHours = useVenueHours(court.venue_id);
+  const courtHours = effectiveHours(court, venueHours);
   const [weekly, setWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(court.blocked_hours));
   const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
 
@@ -1426,7 +1453,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold">Availability · {court.name}</h3>
-          <p className="text-xs text-muted-foreground">Manage weekly recurring closures and specific-date overrides. Player views reflect this in real time.</p>
+          <p className="text-xs text-muted-foreground">Hours outside the operating window are greyed out. Use this to block extra hours inside opening hours, or override a specific date.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
@@ -1436,7 +1463,7 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
         </div>
       </div>
       <div className="mt-3">
-        <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} />
+        <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} hours={courtHours} />
       </div>
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
     </div>
@@ -1444,12 +1471,13 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
 }
 
 function InlineAvailability({
-  weekly, setWeekly, dateBlocks, setDateBlocks,
+  weekly, setWeekly, dateBlocks, setDateBlocks, hours,
 }: {
   weekly: Record<string, Set<number>>;
   setWeekly: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
   dateBlocks: Record<string, Set<number>>;
   setDateBlocks: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
+  hours?: HoursMap;
 }) {
   const [open, setOpen] = useState(false);
   const weeklyBlocked = DAYS.reduce((s, d) => s + (weekly[d.key]?.size ?? 0), 0);
@@ -1474,7 +1502,7 @@ function InlineAvailability({
       </button>
       {open && (
         <div className="border-t border-primary/20 p-3">
-          <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} />
+          <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} hours={hours} />
         </div>
       )}
     </div>
@@ -1717,7 +1745,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           />
         </div>
       </div>
-      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} />
+      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} hours={courtHours} />
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
         <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
@@ -1951,7 +1979,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           />
         </div>
       </div>
-      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} />
+      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} hours={courtHours} />
       {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       <div className="mt-3 flex gap-2">
         <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
