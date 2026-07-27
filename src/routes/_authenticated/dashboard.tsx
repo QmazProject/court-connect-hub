@@ -2656,13 +2656,12 @@ const DEFAULT_COURT_COLS = COURT_COLUMNS.filter((c) => c.defaultOn || c.required
 const GROUP_COLUMNS: ColumnDef[] = [
   { id: "emoji", label: "Emoji", defaultOn: true },
   { id: "name", label: "Group", required: true, defaultOn: true },
-  { id: "description", label: "Description", defaultOn: true },
-  { id: "layouts", label: "Court layouts", defaultOn: true },
+  { id: "description", label: "About this group", defaultOn: true },
+  { id: "courts_count", label: "Courts", defaultOn: true },
+  { id: "rules", label: "Blocking rules", defaultOn: true },
   { id: "actions", label: "Actions", required: true, defaultOn: true },
   // Optional (off by default)
-  { id: "courts_count", label: "Courts" },
   { id: "sports", label: "Sports" },
-  { id: "capacity", label: "Total Capacity" },
 ];
 const GROUP_COLS_STORAGE_KEY = "groups-tab-columns-v1";
 const DEFAULT_GROUP_COLS = GROUP_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
