@@ -3729,12 +3729,118 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<CourtRow | null>(null);
   const [managingHours, setManagingHours] = useState<CourtRow | null>(null);
   const [historyCourt, setHistoryCourt] = useState<CourtRow | null>(null);
+  const [colCfgOpen, setColCfgOpen] = useState(false);
+  const { selected: visibleCols, save: saveCols } = useCourtColumns();
 
   const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
     qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
     qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+  };
+
+  const cfgButton = (
+    <button
+      type="button"
+      onClick={() => setColCfgOpen(true)}
+      title="Configure columns"
+      aria-label="Configure columns"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+    >
+      <TableProperties className="h-4 w-4" />
+    </button>
+  );
+
+  const renderHeader = (id: string) => {
+    switch (id) {
+      case "emoji": return <th key={id} className="px-4 py-2.5 w-10">{cfgButton}</th>;
+      case "name": return <th key={id} className="px-3 py-2.5">Court</th>;
+      case "description": return <th key={id} className="px-3 py-2.5">About This Court</th>;
+      case "venue": return <th key={id} className="px-3 py-2.5">Venue</th>;
+      case "sport": return <th key={id} className="px-3 py-2.5">Sport</th>;
+      case "type": return <th key={id} className="px-3 py-2.5">Type</th>;
+      case "surface": return <th key={id} className="px-3 py-2.5">Surface</th>;
+      case "capacity": return <th key={id} className="px-3 py-2.5 text-center">Capacity</th>;
+      case "rate": return <th key={id} className="px-3 py-2.5 text-right">Rate / hr</th>;
+      case "voucher": return <th key={id} className="px-3 py-2.5 text-center">Voucher</th>;
+      case "status": return <th key={id} className="px-3 py-2.5">Status</th>;
+      case "created_at": return <th key={id} className="px-3 py-2.5 w-32">Created At</th>;
+      case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
+      case "actions": return <th key={id} className="px-3 py-2.5 text-right">Actions</th>;
+      default: return null;
+    }
+  };
+
+  const renderCell = (id: string, c: CourtRow) => {
+    switch (id) {
+      case "emoji": return <td key={id} className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>;
+      case "name": return <td key={id} className="px-3 py-3"><div className="font-semibold">{c.name}</div></td>;
+      case "description": return (
+        <td key={id} className="px-3 py-3">
+          {c.description?.trim() ? (
+            <p title={c.description} className="line-clamp-2 max-w-[260px] whitespace-normal break-words text-[12px] leading-snug text-muted-foreground">{c.description}</p>
+          ) : <span className="text-muted-foreground">—</span>}
+        </td>
+      );
+      case "venue": return (
+        <td key={id} className="px-3 py-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
+            <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
+          </span>
+        </td>
+      );
+      case "sport": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>;
+      case "type": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>;
+      case "surface": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.surface_type?.trim() ? c.surface_type : "—"}</td>;
+      case "capacity": return <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">{c.player_capacity ?? "—"}</td>;
+      case "rate": return <td key={id} className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>;
+      case "voucher": return (
+        <td key={id} className="px-3 py-3 text-center">
+          {c.voucher_enabled ? (
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">True</span>
+          ) : (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">False</span>
+          )}
+        </td>
+      );
+      case "status": return (
+        <td key={id} className="px-3 py-3">
+          {c.coming_soon ? (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
+          ) : (
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">ACTIVE</span>
+          )}
+        </td>
+      );
+      case "created_at": return (
+        <td key={id} className="px-3 py-3">
+          {c.created_at ? (
+            <div className="flex flex-col leading-tight">
+              <span className="text-foreground">{new Date(c.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+              <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+            </div>
+          ) : <span className="text-muted-foreground">—</span>}
+        </td>
+      );
+      case "history": return (
+        <td key={id} className="px-3 py-3 text-center">
+          <button type="button" onClick={() => setHistoryCourt(c)} title="Audit history" aria-label={`View audit history for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+            <HistoryIcon className="h-3.5 w-3.5" />
+          </button>
+        </td>
+      );
+      case "actions": return (
+        <td key={id} className="px-3 py-3">
+          <div className="flex items-center justify-end gap-1">
+            <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <DeleteCourtButton court={c} onDeleted={invalidate} />
+          </div>
+        </td>
+      );
+      default: return null;
+    }
   };
 
   return (
@@ -3759,85 +3865,29 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="sticky top-[41px] z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
             <tr>
-              <th className="px-4 py-2.5 w-10"></th>
-              <th className="px-3 py-2.5">Court</th>
-              <th className="px-3 py-2.5">About This Court</th>
-              <th className="px-3 py-2.5">Venue</th>
-              <th className="px-3 py-2.5">Sport</th>
-              <th className="px-3 py-2.5">Type</th>
-              <th className="px-3 py-2.5">Surface</th>
-              <th className="px-3 py-2.5 text-center">Capacity</th>
-              <th className="px-3 py-2.5 text-right">Rate / hr</th>
-              <th className="px-3 py-2.5 text-center">Voucher</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5 w-32">Created At</th>
-              <th className="px-3 py-2.5 w-24 text-center">History</th>
-              <th className="px-3 py-2.5 text-right">Actions</th>
+              {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2.5">{cfgButton}</th>}
+              {visibleCols.map((id) => renderHeader(id))}
             </tr>
           </thead>
           <tbody>
             {rows.map((c) => (
               <tr key={c.id} className="border-t border-border align-middle hover:bg-secondary/20">
-                <td className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>
-                <td className="px-3 py-3">
-                  <div className="font-semibold">{c.name}</div>
-                </td>
-                <td className="px-3 py-3">
-                  {c.description?.trim() ? (
-                    <p title={c.description} className="line-clamp-2 max-w-[260px] whitespace-normal break-words text-[12px] leading-snug text-muted-foreground">{c.description}</p>
-                  ) : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-3 py-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
-                    <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
-                  </span>
-
-                </td>
-                <td className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
-                <td className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>
-                <td className="px-3 py-3 text-muted-foreground">{c.surface_type?.trim() ? c.surface_type : "—"}</td>
-                <td className="px-3 py-3 text-center tabular-nums text-muted-foreground">{c.player_capacity ?? "—"}</td>
-                <td className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>
-                <td className="px-3 py-3 text-center">
-                  {c.voucher_enabled ? (
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">True</span>
-                  ) : (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">False</span>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  {c.coming_soon ? (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
-                  ) : (
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">ACTIVE</span>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  {c.created_at ? (
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-foreground">{new Date(c.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-                      <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
-                    </div>
-                  ) : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-3 py-3 text-center">
-                  <button type="button" onClick={() => setHistoryCourt(c)} title="Audit history" aria-label={`View audit history for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-                    <HistoryIcon className="h-3.5 w-3.5" />
-                  </button>
-                </td>
-                <td className="px-3 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <DeleteCourtButton court={c} onDeleted={invalidate} />
-                  </div>
-                </td>
+                {!visibleCols.includes("emoji") && <td className="w-8 pl-2 pr-0 py-3" />}
+                {visibleCols.map((id) => renderCell(id, c))}
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      <ColumnConfigModal
+        open={colCfgOpen}
+        onClose={() => setColCfgOpen(false)}
+        selected={visibleCols}
+        onApply={saveCols}
+        columns={COURT_COLUMNS}
+        defaults={DEFAULT_COURT_COLS}
+        presetKey="courts_column_presets"
+      />
       <CourtAuditHistoryModal court={historyCourt} onClose={() => setHistoryCourt(null)} />
       <CourtDrawer title="Edit court" open={editing !== null} onClose={() => setEditing(null)}>
         {editing && (
@@ -3861,6 +3911,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
     </>
   );
 }
+
 
 type CourtAuditEntry = { id: number; court_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
 
