@@ -4245,10 +4245,15 @@ type BookingRow = {
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
 
-function BookingsSection({ venues }: { venues: Venue[] }) {
+function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }) {
+  const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled">("upcoming");
   const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid" | "refunded">("all");
+  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
+  const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
+
+
 
   const bookingsQ = useQuery({
     queryKey: ["tenant-bookings", venueFilter, status, payFilter],
