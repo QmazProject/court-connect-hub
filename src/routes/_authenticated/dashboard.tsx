@@ -119,6 +119,8 @@ type Court = {
   capacity: number;
   created_at?: string | null;
   voucher_enabled?: boolean | null;
+  surface_type?: string | null;
+  player_capacity?: number | null;
   rate_rules?: unknown;
   sports: { name: string; slug?: string } | null;
 };
