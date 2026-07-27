@@ -3758,7 +3758,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
     enabled: venueIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("courts").select("*, sports(name)").in("venue_id", venueIds).order("venue_id").order("id");
+        .from("courts").select("*, sports(name)").in("venue_id", venueIds).order("created_at", { ascending: false }).order("id", { ascending: false });
       if (error) throw error;
       const byId = new Map(venues.map((v) => [v.id, v]));
       return (data as unknown as Court[]).map((c) => ({ ...c, venue: byId.get(c.venue_id)! })) as CourtRow[];
