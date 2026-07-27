@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { normalizeRules, hasVariablePricing, minRate, maxRate, peso } from "@/lib/court-pricing";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass, CalendarDays } from "lucide-react";
@@ -67,6 +68,7 @@ type Court = {
   id: number;
   name: string;
   hourly_rate: number;
+  rate_rules?: unknown;
   is_indoor: boolean;
   description: string | null;
   amenities: string[] | null;
@@ -120,7 +122,7 @@ function VenueDetail() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, is_indoor, description, amenities, images, coming_soon, operating_hours, map_emoji, sports!inner(name, slug)")
+        .select("id, name, hourly_rate, rate_rules, is_indoor, description, amenities, images, coming_soon, operating_hours, map_emoji, sports!inner(name, slug)")
         .eq("venue_id", Number(venueId))
         .order("coming_soon", { ascending: true })
         .order("id");
@@ -1146,8 +1148,23 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                       )}
                       <div className="mt-4 flex items-center justify-between gap-3">
                         <div>
-                          <span className="text-3xl font-extrabold text-black [text-shadow:0_0_10px_rgba(59,130,246,0.85),0_0_20px_rgba(59,130,246,0.55)]">₱{Number(c.hourly_rate).toFixed(0)}</span>
-                          <span className="text-sm text-muted-foreground"> / hour</span>
+                          {(() => {
+                            const rr = normalizeRules((c as unknown as { rate_rules?: unknown }).rate_rules);
+                            const varies = hasVariablePricing(Number(c.hourly_rate), rr);
+                            const lo = varies ? minRate(Number(c.hourly_rate), rr) : Number(c.hourly_rate);
+                            return (
+                              <>
+                                {varies && <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">from</span>}
+                                <span className="text-3xl font-extrabold text-black [text-shadow:0_0_10px_rgba(59,130,246,0.85),0_0_20px_rgba(59,130,246,0.55)]">₱{lo.toFixed(0)}</span>
+                                <span className="text-sm text-muted-foreground"> / hour</span>
+                                {varies && (
+                                  <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    up to {peso(maxRate(Number(c.hourly_rate), rr))} · varies by time &amp; day
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                         {soon ? (
                           <span className="text-xs font-semibold text-amber-600">Opening soon</span>

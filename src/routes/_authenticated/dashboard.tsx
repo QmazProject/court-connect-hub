@@ -6,6 +6,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRange } from "@/lib/booking-groups";
 
+import { RateRulesEditor } from "@/components/RateRulesEditor";
+import { normalizeRules, type RateRule } from "@/lib/court-pricing";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -104,6 +106,7 @@ type Court = {
   physical_court_id: number;
   capacity: number;
   voucher_enabled?: boolean | null;
+  rate_rules?: unknown;
   sports: { name: string; slug?: string } | null;
 };
 type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null };
@@ -1528,6 +1531,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(null));
   const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(null));
   const [voucherEnabled, setVoucherEnabled] = useState(false);
+  const [rateRules, setRateRules] = useState<RateRule[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
@@ -1593,6 +1597,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         blocked_hours: weeklyToPayload(availWeekly),
         blocked_dates: datesToPayload(availDates),
         voucher_enabled: voucherEnabled,
+        rate_rules: normalizeRules(rateRules),
       });
 
       if (error) {
@@ -1604,7 +1609,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1648,6 +1653,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       <p className="mt-2 text-[11px] text-muted-foreground">
         Tick "Coming soon" if this court isn't open yet. Tick "Accept vouchers" to let players redeem discount codes you create in the Vouchers module for this court.
       </p>
+      <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -1811,6 +1817,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(court.blocked_hours));
   const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
   const [voucherEnabled, setVoucherEnabled] = useState<boolean>(!!court.voucher_enabled);
+  const [rateRules, setRateRules] = useState<RateRule[]>(() => normalizeRules(court.rate_rules));
   const [err, setErr] = useState<string | null>(null);
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
@@ -1863,6 +1870,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         blocked_hours: weeklyToPayload(availWeekly),
         blocked_dates: datesToPayload(availDates),
         voucher_enabled: voucherEnabled,
+        rate_rules: normalizeRules(rateRules),
       }).eq("id", court.id);
       if (error) throw error;
     },
@@ -1888,6 +1896,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           Accept vouchers
         </label>
       </div>
+      <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">

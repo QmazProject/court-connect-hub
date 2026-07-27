@@ -6,6 +6,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { X } from "lucide-react";
+import {
+  normalizeRules, rateForHour, priceForHours, priceBreakdown, minRate, maxRate,
+  hasVariablePricing, rateBands, peso, type RateRule, type DayKey,
+} from "@/lib/court-pricing";
 
 type Court = {
   id: number;
@@ -25,6 +29,7 @@ type Court = {
   surface_type: string | null;
   player_capacity: number | null;
   voucher_enabled: boolean | null;
+  rate_rules: unknown;
   sports: { name: string } | null;
   venues: {
     name: string;
@@ -117,7 +122,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       const { data, error } = await supabase
         .from("courts")
         .select(
-          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
+          "id, name, hourly_rate, is_indoor, operating_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, rate_rules, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours)",
         )
         .eq("id", courtId)
         .maybeSingle();
@@ -163,6 +168,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           status: "confirmed",
+          unit_price: rateForHour(Number(courtQ.data!.hourly_rate), normalizeRules(courtQ.data!.rate_rules), date, hour),
           voucher_id: applyVoucher ? voucher!.id : null,
           discount_amount: applyVoucher ? voucher!.discount : 0,
         };
@@ -191,7 +197,10 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
     if (!voucherCode.trim() || !courtQ.data) return;
     setVoucherLoading(true); setVoucherErr(null);
     try {
-      const amount = Number(courtQ.data.hourly_rate) * Math.max(1, selected.length);
+      const rules = normalizeRules(courtQ.data.rate_rules);
+      const amount = selected.length
+        ? priceForHours(Number(courtQ.data.hourly_rate), rules, date, selected)
+        : Number(courtQ.data.hourly_rate);
       const { data, error } = await supabase.rpc("preview_voucher", {
         _code: voucherCode.trim(),
         _court_id: courtId,
@@ -221,6 +230,12 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   }
 
   const court = courtQ.data;
+  const rules = normalizeRules(court.rate_rules);
+  const baseRate = Number(court.hourly_rate);
+  const variablePricing = hasVariablePricing(baseRate, rules);
+  const rateOf = (hour: number) => rateForHour(baseRate, rules, date, hour);
+  const subtotal = priceForHours(baseRate, rules, date, selected);
+  const breakdown = priceBreakdown(baseRate, rules, date, selected);
   const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
   const dateOverride = court.blocked_dates?.[date];
   const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
@@ -287,7 +302,17 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             />
             <DetailRow
               label="Rate"
-              value={<span><span className="font-bold text-primary">₱{Number(court.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/ hour</span></span>}
+              value={
+                variablePricing ? (
+                  <span className="block">
+                    <span className="font-bold text-primary">from {peso(minRate(baseRate, rules))}</span>{" "}
+                    <span className="text-xs text-muted-foreground">/ hour · up to {peso(maxRate(baseRate, rules))}</span>
+                    <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rates vary by time &amp; day</span>
+                  </span>
+                ) : (
+                  <span><span className="font-bold text-primary">{peso(baseRate)}</span> <span className="text-xs text-muted-foreground">/ hour</span></span>
+                )
+              }
             />
             <DetailRow label="Surface type" value={court.surface_type || <span className="text-muted-foreground">Not specified</span>} />
             <DetailRow
@@ -433,6 +458,25 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
               Tap a time slot to select or deselect it; consecutive time slots are automatically combined into a single time range.
             </p>
 
+            {variablePricing && (
+              <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">Rate card</div>
+                {([["Weekdays (Mon–Fri)", "wed"], ["Weekends (Sat–Sun)", "sat"]] as [string, DayKey][]).map(([title, day]) => (
+                  <div key={day} className="mt-1.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {rateBands(baseRate, rules, day).map((b) => (
+                        <span key={`${day}-${b.start}`} className="rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium">
+                          {fmtHour(b.start)}–{fmtHour(b.end % 24)} · <b>{peso(b.rate)}</b>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="mt-1.5 text-[10px] text-muted-foreground">Each hour is charged at its own rate; your total adds them up.</p>
+              </div>
+            )}
+
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-yellow-500/60 bg-yellow-300" /> Selected</span>
@@ -476,6 +520,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                     className={"flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " + stateClass}
                   >
                     <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
+                    <span className="mt-0.5 text-[10px] font-semibold tabular-nums">{peso(rateOf(h))}</span>
                     {label && <span className="mt-0.5 text-[9px] uppercase tracking-wide">{label}</span>}
                   </button>
                 );
@@ -531,9 +576,19 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                   <>
                     Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span>
                     {voucher ? (
-                      <> · Subtotal <span className="line-through">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span> · Total <span className="font-semibold text-emerald-700">₱{Math.max(0, Number(court.hourly_rate) * selected.length - voucher.discount).toFixed(2)}</span></>
+                      <> · Subtotal <span className="line-through">{peso(subtotal)}</span> · Total <span className="font-semibold text-emerald-700">₱{Math.max(0, subtotal - voucher.discount).toFixed(2)}</span></>
                     ) : (
-                      <> · Total <span className="font-semibold text-foreground">₱{(Number(court.hourly_rate) * selected.length).toFixed(0)}</span></>
+                      <> · Total <span className="font-semibold text-foreground">{peso(subtotal)}</span></>
+                    )}
+                    {variablePricing && breakdown.length > 0 && (
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        {breakdown.map((b, i) => (
+                          <span key={b.rate}>
+                            {i > 0 && " + "}
+                            {b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}
+                          </span>
+                        ))}
+                      </div>
                     )}
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {groupHourRanges(selected).map((r) => {
@@ -599,7 +654,8 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           courtId={courtId}
           date={date}
           hours={selected}
-          hourlyRate={Number(court.hourly_rate)}
+          subtotal={subtotal}
+          breakdown={breakdown}
           voucherCode={voucher ? voucherCode.trim() : null}
           discount={voucher?.discount ?? 0}
           paymentMode={court.venues?.payment_mode ?? "full"}
@@ -719,17 +775,18 @@ export function CourtBookingPanel({
 }
 
 function CheckoutDrawer({
-  courtId, date, hours, hourlyRate, voucherCode, discount, paymentMode, venueName, courtName,
+  courtId, date, hours, subtotal, breakdown, voucherCode, discount, paymentMode, venueName, courtName,
   onClose, payLoading, setPayLoading, onError,
 }: {
-  courtId: number; date: string; hours: number[]; hourlyRate: number;
+  courtId: number; date: string; hours: number[]; subtotal: number;
+  breakdown: { rate: number; hours: number }[];
   voucherCode: string | null; discount: number;
   paymentMode: "full" | "downpayment_50" | "none"; venueName: string; courtName: string;
   onClose: () => void; payLoading: PmMethod | null;
   setPayLoading: (m: PmMethod | null) => void;
   onError: (m: string) => void;
 }) {
-  const fullAmount = Math.max(0, hourlyRate * hours.length - (discount || 0));
+  const fullAmount = Math.max(0, subtotal - (discount || 0));
   const dueNow = paymentMode === "downpayment_50" ? fullAmount * 0.5 : fullAmount;
 
   const pay = async (method: PmMethod) => {
@@ -758,6 +815,18 @@ function CheckoutDrawer({
 
         <div className="mt-4 rounded-xl bg-secondary/50 p-3 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span>{hours.length}</span></div>
+          {breakdown.length > 1 && breakdown.map((b) => (
+            <div key={b.rate} className="mt-1 flex justify-between text-xs text-muted-foreground">
+              <span>{b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}</span>
+              <span>{peso(b.rate * b.hours)}</span>
+            </div>
+          ))}
+          {discount > 0 && (
+            <div className="mt-1 flex justify-between text-xs"><span className="text-muted-foreground">Subtotal</span><span>{peso(subtotal)}</span></div>
+          )}
+          {discount > 0 && (
+            <div className="mt-1 flex justify-between text-xs text-emerald-700"><span>Voucher discount</span><span>−₱{discount.toFixed(2)}</span></div>
+          )}
           <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total</span><span>₱{fullAmount.toFixed(2)}</span></div>
           {paymentMode === "downpayment_50" && (
             <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now (50%)</span><span className="text-primary">₱{dueNow.toFixed(2)}</span></div>

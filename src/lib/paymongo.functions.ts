@@ -23,7 +23,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
 
     const { data: court, error: courtErr } = await supabase
       .from("courts")
-      .select("id, name, hourly_rate, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours)")
+      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours)")
       .eq("id", data.courtId)
       .maybeSingle();
     if (courtErr || !court) throw new Error("Court not found");
@@ -32,7 +32,13 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     if (venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
 
     const totalHours = data.hours.length;
-    const fullAmount = Number(court.hourly_rate) * totalHours;
+
+    // Authoritative pricing: resolve each selected hour against the court's rate rules.
+    const { normalizeRules, rateForDayHour, DAY_KEYS } = await import("./court-pricing");
+    const rules = normalizeRules((court as unknown as { rate_rules: unknown }).rate_rules);
+    const dayKey = DAY_KEYS[new Date(`${data.date}T00:00:00Z`).getUTCDay()];
+    const unitPrices = data.hours.map((h) => rateForDayHour(Number(court.hourly_rate), rules, dayKey, h));
+    const fullAmount = unitPrices.reduce((a, b) => a + b, 0);
 
     // Voucher preview: authoritative discount computed server-side.
     let voucherId: string | null = null;
@@ -67,6 +73,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
         end_time: end.toISOString(),
         status: "pending",
         payment_status: "unpaid",
+        unit_price: unitPrices[idx],
         voucher_id: idx === 0 ? voucherId : null,
         discount_amount: idx === 0 ? Number(discountAmount.toFixed(2)) : 0,
       };
@@ -148,7 +155,7 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
 
     const { data: bookings, error: bErr } = await supabase
       .from("bookings")
-      .select("id, court_id, user_id, start_time, end_time, status, payment_status, courts(name, hourly_rate, venue_id, venues(name, payment_mode))")
+      .select("id, court_id, user_id, start_time, end_time, status, payment_status, unit_price, courts(name, hourly_rate, venue_id, venues(name, payment_mode))")
       .in("id", data.bookingIds);
     if (bErr || !bookings || bookings.length === 0) throw new Error("Bookings not found");
     if (bookings.length !== data.bookingIds.length) throw new Error("Some bookings could not be loaded");
@@ -169,7 +176,10 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
     if (!venue || venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
 
     const totalHours = bookings.length;
-    const fullAmount = Number(first.courts.hourly_rate) * totalHours;
+    const fullAmount = bookings.reduce(
+      (sum, b) => sum + Number((b as unknown as { unit_price: number | null }).unit_price ?? first.courts.hourly_rate),
+      0,
+    );
     const collectAmount =
       venue.payment_mode === "downpayment_50" ? Math.round(fullAmount * 50) / 100 : fullAmount;
     const centavos = Math.round(collectAmount * 100);

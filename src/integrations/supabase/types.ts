@@ -24,6 +24,7 @@ export type Database = {
           payment_status: string
           start_time: string
           status: string
+          unit_price: number | null
           user_id: string
           voucher_id: string | null
         }
@@ -36,6 +37,7 @@ export type Database = {
           payment_status?: string
           start_time: string
           status?: string
+          unit_price?: number | null
           user_id?: string
           voucher_id?: string | null
         }
@@ -48,6 +50,7 @@ export type Database = {
           payment_status?: string
           start_time?: string
           status?: string
+          unit_price?: number | null
           user_id?: string
           voucher_id?: string | null
         }
@@ -86,6 +89,7 @@ export type Database = {
           operating_hours: Json
           physical_court_id: number
           player_capacity: number | null
+          rate_rules: Json
           sport_id: number
           surface_type: string | null
           venue_id: number
@@ -108,6 +112,7 @@ export type Database = {
           operating_hours?: Json
           physical_court_id: number
           player_capacity?: number | null
+          rate_rules?: Json
           sport_id: number
           surface_type?: string | null
           venue_id: number
@@ -130,6 +135,7 @@ export type Database = {
           operating_hours?: Json
           physical_court_id?: number
           player_capacity?: number | null
+          rate_rules?: Json
           sport_id?: number
           surface_type?: string | null
           venue_id?: number
@@ -613,6 +619,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      court_price_for_hours: {
+        Args: { _court_id: number; _hours: string[] }
+        Returns: number
+      }
+      court_rate_for_hour: {
+        Args: { _court_id: number; _ts: string }
+        Returns: number
+      }
       get_court_availability: {
         Args: { _court_id: number; _from: string; _to: string }
         Returns: {
