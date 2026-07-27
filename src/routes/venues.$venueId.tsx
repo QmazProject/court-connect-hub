@@ -127,6 +127,7 @@ function VenueDetail() {
         .from("courts")
         .select("id, name, hourly_rate, rate_rules, is_indoor, description, amenities, images, coming_soon, operating_hours, inherit_venue_hours, map_emoji, sports!inner(name, slug)")
         .eq("venue_id", Number(venueId))
+        .eq("is_active", true)
         .order("coming_soon", { ascending: true })
         .order("id");
       if (sport) q = q.eq("sports.slug", sport);
@@ -674,7 +675,8 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       const { data, error } = await supabase
         .from("courts")
         .select("sports!inner(slug)")
-        .eq("venue_id", venue!.id);
+        .eq("venue_id", venue!.id)
+        .eq("is_active", true);
       if (error) throw error;
       const set = new Set<string>();
       for (const row of (data ?? []) as unknown as { sports: { slug: string } | null }[]) {
@@ -768,6 +770,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
         .from("courts")
         .select("venue_id, hourly_rate, sports!inner(slug), venues!inner(id, name, address, latitude, longitude, images, map_emoji, is_active)")
         .eq("sports.slug", selectedSport!)
+        .eq("is_active", true)
         .eq("venues.is_active", true)
         .neq("venue_id", venue?.id ?? -1);
       if (error) throw error;
