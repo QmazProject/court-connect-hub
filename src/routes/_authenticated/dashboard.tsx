@@ -17,6 +17,13 @@ import { MapInfoButton } from "@/components/MapInfoButton";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { NotificationBell } from "@/components/NotificationBell";
+import { BookingChat } from "@/components/BookingChat";
+import { CancelRefundDialog, type CancelTarget } from "@/components/CancelRefundDialog";
+import { HoursConflictDialog, type HoursConflict } from "@/components/HoursConflictDialog";
+import { findHoursConflicts } from "@/lib/hours-conflicts";
+import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
+
 const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
@@ -155,7 +162,7 @@ function Dashboard() {
 
   if (profileQ.isLoading) {
     return (
-      <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
         <Skeleton />
       </TenantShell>
     );
@@ -168,7 +175,7 @@ function Dashboard() {
   const loadingVenues = venuesQ.isLoading;
 
   return (
-    <TenantShell section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
       {section === "dashboard" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
@@ -223,7 +230,7 @@ function Dashboard() {
       )}
       {section === "bookings" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <BookingsSection venues={venues} />
+          <BookingsSection venues={venues} userId={user.id} />
         </div>
       )}
       {section === "customers" && (
@@ -259,7 +266,7 @@ function Dashboard() {
 
 
 function TenantShell({
-  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed,
+  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId,
 }: {
   children: React.ReactNode;
   section: SectionKey;
@@ -268,7 +275,9 @@ function TenantShell({
   setMobileOpen: (v: boolean) => void;
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
+  userId?: string;
 }) {
+
   const current = NAV.find((n) => n.key === section);
   return (
     <div className="flex h-[100dvh] w-full">
@@ -310,8 +319,13 @@ function TenantShell({
             <Menu className="h-4 w-4" /> Menu
           </button>
           <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
-          <span className="w-16" />
+          <NotificationBell userId={userId} />
         </div>
+        {/* Desktop top bar */}
+        <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
+          <NotificationBell userId={userId} />
+        </div>
+
         <div className="mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </div>
@@ -2174,6 +2188,11 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [contactEmail, setContactEmail] = useState(venue.contact_email ?? "");
   const [operatingHoursText, setOperatingHoursText] = useState(venue.operating_hours_text ?? "");
   const [openHours, setOpenHours] = useState<HoursMap>(() => normalizeHours(venue.operating_hours));
+  const [conflicts, setConflicts] = useState<HoursConflict[] | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const cancelConflictsFn = useServerFn(cancelBookingsWithRefund);
+
+
   const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
   const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
   const [rules, setRules] = useState(venue.rules ?? "");
@@ -2181,18 +2200,33 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
 
+  const hoursChanged = JSON.stringify(openHours) !== JSON.stringify(normalizeHours(venue.operating_hours));
+
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { force?: boolean }) => {
       if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
+      if (!opts?.force && hoursChanged) {
+        const found = await findHoursConflicts({ venueId: venue.id, newVenueHours: openHours });
+        if (found.length > 0) {
+          setConflicts(found);
+          return "blocked" as const;
+        }
+      }
       const { error } = await supabase
         .from("venues")
         .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, operating_hours: openHours, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null })
         .eq("id", venue.id);
       if (error) throw error;
+      return "saved" as const;
     },
-    onSuccess: () => { setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); onDoneEditing?.(); },
+    onSuccess: (res) => {
+      if (res === "blocked") return;
+      setConflicts(null);
+      setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); onDoneEditing?.();
+    },
     onError: (e: Error) => setErr(e.message),
   });
+
 
   const del = useMutation({
     mutationFn: async () => {
@@ -2326,13 +2360,41 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
         </div>
         {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => save.mutate()} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+          <button onClick={() => save.mutate({})} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
           <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setContactPhone(venue.contact_phone ?? ""); setContactEmail(venue.contact_email ?? ""); setOperatingHoursText(venue.operating_hours_text ?? ""); setCancellationHours(venue.refund_cutoff_hours ?? 24); setCancellationNotes(venue.cancellation_notes ?? ""); setRules(venue.rules ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
         </div>
 
+        {conflicts && conflicts.length > 0 && (
+          <HoursConflictDialog
+            conflicts={conflicts}
+            busy={conflictBusy || save.isPending}
+            onDismiss={() => setConflicts(null)}
+            onKeep={() => save.mutate({ force: true })}
+            onCancelThem={async () => {
+              setConflictBusy(true);
+              try {
+                await cancelConflictsFn({
+                  data: {
+                    bookingIds: conflicts.flatMap((c) => c.bookingIds),
+                    reason: "The venue's operating hours changed and this slot is no longer available.",
+                    refundMode: "auto",
+                  },
+                });
+                save.mutate({ force: true });
+              } catch (e) {
+                setErr((e as Error).message);
+                setConflicts(null);
+              } finally {
+                setConflictBusy(false);
+              }
+            }}
+          />
+        )}
+
       </div>
+
     );
   }
 
@@ -4231,10 +4293,15 @@ type BookingRow = {
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
 
-function BookingsSection({ venues }: { venues: Venue[] }) {
+function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }) {
+  const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled">("upcoming");
   const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid" | "refunded">("all");
+  const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
+  const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
+
+
 
   const bookingsQ = useQuery({
     queryKey: ["tenant-bookings", venueFilter, status, payFilter],
@@ -4333,16 +4400,21 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Payment</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {bookingsQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>Loading…</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>No bookings match these filters yet.</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No bookings match these filters yet.</td></tr>
               ) : sessions.map((s) => {
                 const r = s.first;
                 const p = nameMap.get(r.user_id);
+                const paid = s.items.some((i) => i.payment_status === "paid");
+                const cancelled = r.status === "cancelled";
+                const venueId = r.courts?.venue_id;
+                const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
                 return (
                   <tr key={s.key} className="border-t border-border">
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -4354,6 +4426,26 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
                     <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
                     <td className="px-4 py-3">{stBadge(r.status)}</td>
                     <td className="px-4 py-3">{payBadge(r.payment_status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5 whitespace-nowrap">
+                        {venueId && (
+                          <button
+                            onClick={() => setChat({ bookingId: r.id, venueId, playerId: r.user_id, title: p?.full_name || "Player", subtitle: label })}
+                            className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
+                          >
+                            Message
+                          </button>
+                        )}
+                        {!cancelled && (
+                          <button
+                            onClick={() => setCancelTarget({ bookingIds: s.ids, label, hasPaid: paid })}
+                            className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -4362,9 +4454,33 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
           </table>
         </div>
       </div>
+
+      {cancelTarget && (
+        <CancelRefundDialog
+          target={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ["tenant-bookings"] });
+            qc.invalidateQueries({ queryKey: ["notifications"] });
+          }}
+        />
+      )}
+
+      {chat && (
+        <BookingChat
+          bookingId={chat.bookingId}
+          venueId={chat.venueId}
+          playerId={chat.playerId}
+          meId={userId}
+          title={`Chat with ${chat.title}`}
+          subtitle={chat.subtitle}
+          onClose={() => setChat(null)}
+        />
+      )}
     </div>
   );
 }
+
 
 // ================= Customers =================
 
@@ -4775,6 +4891,8 @@ type PlayerBooking = {
 function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName: string; email: string }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"upcoming" | "past" | "cancelled">("upcoming");
+  const [chat, setChat] = useState<{ bookingId: number; venueId: number; title: string; subtitle: string } | null>(null);
+
 
   const bookingsQ = useQuery({
     queryKey: ["player-bookings", userId],
@@ -4919,7 +5037,11 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Hi, {fullName || email.split("@")[0]} 👋</h1>
           <p className="mt-1 text-sm text-muted-foreground">Track your court bookings, upcoming games and payment history.</p>
         </div>
-        <Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+        <div className="flex items-center gap-2">
+          <NotificationBell userId={userId} />
+          <Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+        </div>
+
       </div>
 
       {/* KPI tiles */}
@@ -5032,9 +5154,22 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                   {(() => {
                     const isUnpaidUpcoming = tab === "upcoming" && b.payment_status !== "paid" && b.status !== "cancelled" && new Date(b.start_time) > now;
                     const isPaidUpcoming = tab === "upcoming" && b.payment_status === "paid" && new Date(b.start_time) > now;
-                    if (!isUnpaidUpcoming && !isPaidUpcoming) return null;
+                    const vId = b.courts?.venues?.id;
                     return (
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+                        {vId && (
+                          <button
+                            onClick={() => setChat({
+                              bookingId: b.id,
+                              venueId: vId,
+                              title: b.courts?.venues?.name ?? "Venue",
+                              subtitle: `${fmtDate(sess.start_time)} · ${formatSessionLabel(sess.start_time, sess.end_time)}`,
+                            })}
+                            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
+                          >
+                            Message venue
+                          </button>
+                        )}
                         {isUnpaidUpcoming && (
                           <>
                             <button
@@ -5066,6 +5201,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                       </div>
                     );
                   })()}
+
                 </li>
               );
             })}
@@ -5082,6 +5218,18 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           Sign out
         </button>
       </div>
+
+      {chat && (
+        <BookingChat
+          bookingId={chat.bookingId}
+          venueId={chat.venueId}
+          playerId={userId}
+          meId={userId}
+          title={chat.title}
+          subtitle={chat.subtitle}
+          onClose={() => setChat(null)}
+        />
+      )}
 
 
       {/* Pay now modal */}

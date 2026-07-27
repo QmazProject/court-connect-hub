@@ -14,6 +14,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 const chLogo = { url: "/CHicon.png" };
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
@@ -85,7 +86,7 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function Header() {
-  const [session, setSession] = useState<{ name?: string; role?: string } | null>(null);
+  const [session, setSession] = useState<{ id?: string; name?: string; role?: string } | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -97,7 +98,7 @@ function Header() {
     async function hydrate(userId: string | undefined, fallbackName: string | undefined) {
       if (!userId) { if (mounted) setSession(null); return; }
       const { data } = await supabase.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
-      if (mounted) setSession({ name: data?.full_name || fallbackName, role: data?.role });
+      if (mounted) setSession({ id: userId, name: data?.full_name || fallbackName, role: data?.role });
     }
     supabase.auth.getUser().then(({ data }) => hydrate(data.user?.id, (data.user?.user_metadata as { full_name?: string } | undefined)?.full_name));
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
@@ -182,7 +183,9 @@ function Header() {
         <nav className="flex items-center gap-2">
           {session ? (
             <>
+              <NotificationBell userId={session.id} />
               <Link to="/dashboard" className="rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary">
+
                 {session.role === "tenant" ? "Dashboard" : "My bookings"}
               </Link>
               {session.name && <span className="hidden max-w-[160px] truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
