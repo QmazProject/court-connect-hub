@@ -168,6 +168,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           status: "confirmed",
+          unit_price: rateForHour(Number(courtQ.data!.hourly_rate), normalizeRules(courtQ.data!.rate_rules), date, hour),
           voucher_id: applyVoucher ? voucher!.id : null,
           discount_amount: applyVoucher ? voucher!.discount : 0,
         };
@@ -456,6 +457,25 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             <p className="mt-2 text-xs text-muted-foreground">
               Tap a time slot to select or deselect it; consecutive time slots are automatically combined into a single time range.
             </p>
+
+            {variablePricing && (
+              <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">Rate card</div>
+                {([["Weekdays (Mon–Fri)", "wed"], ["Weekends (Sat–Sun)", "sat"]] as [string, DayKey][]).map(([title, day]) => (
+                  <div key={day} className="mt-1.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {rateBands(baseRate, rules, day).map((b) => (
+                        <span key={`${day}-${b.start}`} className="rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium">
+                          {fmtHour(b.start)}–{fmtHour(b.end % 24)} · <b>{peso(b.rate)}</b>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="mt-1.5 text-[10px] text-muted-foreground">Each hour is charged at its own rate; your total adds them up.</p>
+              </div>
+            )}
 
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
