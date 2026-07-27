@@ -75,9 +75,8 @@ function prevDayKey(day: DayKey): DayKey {
   return HOUR_DAY_KEYS[(i + 6) % 7];
 }
 
-/** The hours (0–23) a court is open on a given calendar date, in venue-local time. */
-export function openHoursForDate(hours: HoursMap, dateISO: string): Set<number> {
-  const day = dayKeyOf(dateISO);
+/** The hours (0–23) a court is open on a given weekday, including yesterday's overnight tail. */
+export function openHoursForDay(hours: HoursMap, day: DayKey): Set<number> {
   const open = new Set<number>();
 
   const w = parseWindow(hours[day]);
@@ -90,6 +89,11 @@ export function openHoursForDate(hours: HoursMap, dateISO: string): Set<number> 
   if (wp && wp[1] < wp[0]) for (let h = 0; h < wp[1]; h++) open.add(h); // yesterday's tail
 
   return open;
+}
+
+/** The hours (0–23) a court is open on a given calendar date, in venue-local time. */
+export function openHoursForDate(hours: HoursMap, dateISO: string): Set<number> {
+  return openHoursForDay(hours, dayKeyOf(dateISO));
 }
 
 /** Effective schedule for a court: its own only when it opts out of the venue's. */
