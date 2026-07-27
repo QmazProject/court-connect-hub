@@ -1906,10 +1906,19 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
+    <form onSubmit={(e) => { e.preventDefault(); if (!sportId) { setErr("Pick a sport"); return; } mut.mutate(); }} className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input label="Court name" value={name} onChange={setName} required />
         <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
+        <label className="block">
+          <span className="text-xs font-medium text-muted-foreground">Sport</span>
+          <select value={sportId} onChange={(e) => setSportId(e.target.value)} required
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+            <option value="">Select…</option>
+            {(sportsQ.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+
         <label className="flex items-end gap-2 pb-2 text-sm">
           <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
           Indoor court
