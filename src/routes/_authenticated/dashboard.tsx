@@ -2777,6 +2777,7 @@ function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: st
 
 const useVenueColumns = () => useColumnPrefs(VENUE_COLUMNS, DEFAULT_VENUE_COLS, VENUE_COLS_STORAGE_KEY, "venues_columns");
 const useCourtColumns = () => useColumnPrefs(COURT_COLUMNS, DEFAULT_COURT_COLS, COURT_COLS_STORAGE_KEY, "courts_columns");
+const useGroupColumns = () => useColumnPrefs(GROUP_COLUMNS, DEFAULT_GROUP_COLS, GROUP_COLS_STORAGE_KEY, "groups_columns");
 
 type ColumnPreset = { name: string; columns: string[] };
 
