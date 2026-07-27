@@ -3995,17 +3995,28 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       const pcIds = (pcs ?? []).map((p) => p.id);
       if (pcIds.length === 0) return [] as GroupRow[];
       const { data: cs, error: cErr } = await supabase.from("courts")
-        .select("id, name, capacity, physical_court_id, sports(name)")
+        .select("id, name, physical_court_id, sports(name)")
         .in("physical_court_id", pcIds);
       if (cErr) throw cErr;
       const byPc = new Map<number, GroupRow["layouts"]>();
       (cs ?? []).forEach((c: any) => {
         const arr = byPc.get(c.physical_court_id) ?? [];
-        arr.push({ id: c.id, name: c.name, capacity: c.capacity, sport: c.sports?.name ?? null });
+        arr.push({ id: c.id, name: c.name, sport: c.sports?.name ?? null });
         byPc.set(c.physical_court_id, arr);
       });
-      return (pcs ?? []).map((p: any) => ({ ...p, layouts: byPc.get(p.id) ?? [] }))
-        .filter((g) => g.layouts.length !== 1) as GroupRow[];
+      const courtIds = (cs ?? []).map((c: any) => c.id as number);
+      const rulesByCourt = new Map<number, number>();
+      if (courtIds.length > 0) {
+        const { data: rs, error: rErr } = await supabase.from("court_block_rules")
+          .select("court_id").in("court_id", courtIds);
+        if (rErr) throw rErr;
+        (rs ?? []).forEach((r: any) => rulesByCourt.set(r.court_id, (rulesByCourt.get(r.court_id) ?? 0) + 1));
+      }
+      return (pcs ?? []).map((p: any) => {
+        const layouts = byPc.get(p.id) ?? [];
+        const rulesCount = layouts.reduce((sum, l) => sum + (rulesByCourt.get(l.id) ?? 0), 0);
+        return { ...p, layouts, rulesCount };
+      }).filter((g) => g.layouts.length !== 1) as GroupRow[];
     },
   });
 
