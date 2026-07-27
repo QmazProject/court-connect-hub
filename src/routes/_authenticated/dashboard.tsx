@@ -1599,8 +1599,6 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
-  const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
-  const [capacity, setCapacity] = useState("1");
   const [surfaceType, setSurfaceType] = useState("");
   const [playerCapacity, setPlayerCapacity] = useState("");
   const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(null));
@@ -1614,49 +1612,23 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
-  const pcQ = useQuery({
-    queryKey: ["physical-courts", venueId],
-    enabled: open || !!alwaysOpen,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", venueId).order("id");
-      if (error) throw error;
-      return data as { id: number; name: string; map_emoji: string | null }[];
-    },
-  });
 
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
-  // Suggest capacity when picking an existing surface that already hosts this sport
-  const siblingsQ = useQuery({
-    queryKey: ["pc-siblings", physicalCourtId, sportId],
-    enabled: (open || !!alwaysOpen) && physicalCourtId !== "new" && !!sportId,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("courts")
-        .select("id, name, capacity, sport_id, sports(name)")
-        .eq("physical_court_id", Number(physicalCourtId));
-      if (error) throw error;
-      return data as unknown as Array<{ id: number; name: string; capacity: number; sport_id: number; sports: { name: string } | null }>;
-    },
-  });
-  const sameSportSibling = (siblingsQ.data ?? []).find((c) => String(c.sport_id) === sportId);
-
   const mut = useMutation({
     mutationFn: async () => {
-      let pcId: number;
-      let createdPcId: number | null = null;
-      if (physicalCourtId === "new") {
-        const { data, error } = await supabase.from("physical_courts").insert({
-          venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
-        }).select("id").single();
-        if (error) throw error;
-        pcId = data.id;
-        createdPcId = data.id;
-      } else {
-        pcId = Number(physicalCourtId);
-      }
-      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
+      // Every court gets its own physical space row; shared-space blocking is
+      // configured separately through court groups.
+      const { data: pcRow, error: pcErr } = await supabase.from("physical_courts").insert({
+        venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
+      }).select("id").single();
+      if (pcErr) throw pcErr;
+      const pcId: number = pcRow.id;
+      const createdPcId: number | null = pcRow.id;
+      const cap = 1;
       const footprint = 1 / cap;
+
       const { error } = await supabase.from("courts").insert({
         venue_id: venueId,
         sport_id: Number(sportId),
