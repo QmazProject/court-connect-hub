@@ -16,12 +16,17 @@ export type Database = {
     Tables: {
       bookings: {
         Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           court_id: number
           created_at: string
           discount_amount: number
           end_time: string
           id: number
           payment_status: string
+          refund_mode: string | null
+          refund_status: string
           start_time: string
           status: string
           unit_price: number | null
@@ -29,12 +34,17 @@ export type Database = {
           voucher_id: string | null
         }
         Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           court_id: number
           created_at?: string
           discount_amount?: number
           end_time: string
           id?: never
           payment_status?: string
+          refund_mode?: string | null
+          refund_status?: string
           start_time: string
           status?: string
           unit_price?: number | null
@@ -42,12 +52,17 @@ export type Database = {
           voucher_id?: string | null
         }
         Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           court_id?: number
           created_at?: string
           discount_amount?: number
           end_time?: string
           id?: never
           payment_status?: string
+          refund_mode?: string | null
+          refund_status?: string
           start_time?: string
           status?: string
           unit_price?: number | null
@@ -67,6 +82,51 @@ export type Database = {
             columns: ["voucher_id"]
             isOneToOne: false
             referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          booking_id: number
+          created_at: string
+          id: string
+          last_message_at: string | null
+          player_id: string
+          updated_at: string
+          venue_id: number
+        }
+        Insert: {
+          booking_id: number
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          player_id: string
+          updated_at?: string
+          venue_id: number
+        }
+        Update: {
+          booking_id?: number
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          player_id?: string
+          updated_at?: string
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -195,6 +255,83 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_id: string
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          booking_id: number | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          link: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+          venue_id: number | null
+        }
+        Insert: {
+          body?: string | null
+          booking_id?: number | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+          venue_id?: number | null
+        }
+        Update: {
+          body?: string | null
+          booking_id?: number | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+          venue_id?: number | null
         }
         Relationships: []
       }
@@ -653,7 +790,24 @@ export type Database = {
           start_time: string
         }[]
       }
+      is_conversation_participant: {
+        Args: { _conversation_id: string; _uid: string }
+        Returns: boolean
+      }
       is_tenant: { Args: { _user_id: string }; Returns: boolean }
+      notify_user: {
+        Args: {
+          _body?: string
+          _booking_id?: number
+          _conversation_id?: string
+          _link?: string
+          _title: string
+          _type: string
+          _user_id: string
+          _venue_id?: number
+        }
+        Returns: string
+      }
       parse_hours_window: { Args: { _raw: string }; Returns: number[] }
       preview_voucher: {
         Args: { _amount: number; _code: string; _court_id: number }
@@ -665,6 +819,14 @@ export type Database = {
           reason: string
           voucher_id: string
         }[]
+      }
+      staff_cancel_bookings: {
+        Args: { _booking_ids: number[]; _reason: string; _refund_mode: string }
+        Returns: number
+      }
+      staff_mark_refund_settled: {
+        Args: { _booking_ids: number[] }
+        Returns: number
       }
       venue_has_active_bookings: {
         Args: { _venue_id: number }
