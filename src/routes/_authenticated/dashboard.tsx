@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRange } from "@/lib/booking-groups";
 
+import { CourtBlockRulesEditor, allPairsEnabled, ruleKey, type RuleCourt } from "@/components/CourtBlockRulesEditor";
 import { RateRulesEditor } from "@/components/RateRulesEditor";
 import { normalizeRules, type RateRule } from "@/lib/court-pricing";
 import { OperatingHoursEditor, CourtHoursEditor } from "@/components/OperatingHoursEditor";
@@ -671,7 +672,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
         const rows = Array.from(rules)
           .map((k) => k.split(">").map(Number))
           .filter(([a, b]) => selected.has(a) && selected.has(b))
-          .map(([a, b]) => ({ court_id: a, blocks_court_id: b, venue_id: venueId }));
+          .map(([a, b]) => ({ court_id: a, blocked_court_id: b, venue_id: venueId }));
         if (rows.length > 0) {
           const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
           if (insErr) throw insErr;
