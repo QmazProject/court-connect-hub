@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { normalizeHours, effectiveHours, openHoursForDate, describeWeek } from "@/lib/operating-hours";
 import { normalizeRules, hasVariablePricing, minRate, maxRate, peso } from "@/lib/court-pricing";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
@@ -59,6 +60,7 @@ type Venue = {
   contact_phone: string | null;
   contact_email: string | null;
   operating_hours_text: string | null;
+  operating_hours: Record<string, string> | null;
   refund_cutoff_hours: number | null;
   cancellation_notes: string | null;
   rules: string | null;
@@ -75,6 +77,7 @@ type Court = {
   images: string[] | null;
   coming_soon: boolean | null;
   operating_hours: Record<string, string> | null;
+  inherit_venue_hours: boolean | null;
   map_emoji: string | null;
   sports: { name: string; slug: string } | null;
 
@@ -109,7 +112,7 @@ function VenueDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("venues")
-        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes, contact_phone, contact_email, operating_hours_text, refund_cutoff_hours, cancellation_notes, rules")
+        .select("id, name, address, latitude, longitude, description, images, amenities, food_beverages, facility_services, fees, fees_notes, contact_phone, contact_email, operating_hours_text, operating_hours, refund_cutoff_hours, cancellation_notes, rules")
         .eq("id", Number(venueId))
         .maybeSingle();
       if (error) throw error;
@@ -122,7 +125,7 @@ function VenueDetail() {
     queryFn: async () => {
       let q = supabase
         .from("courts")
-        .select("id, name, hourly_rate, rate_rules, is_indoor, description, amenities, images, coming_soon, operating_hours, map_emoji, sports!inner(name, slug)")
+        .select("id, name, hourly_rate, rate_rules, is_indoor, description, amenities, images, coming_soon, operating_hours, inherit_venue_hours, map_emoji, sports!inner(name, slug)")
         .eq("venue_id", Number(venueId))
         .order("coming_soon", { ascending: true })
         .order("id");
@@ -174,8 +177,8 @@ function VenueDetail() {
           key: "hours",
           icon: <Clock className="h-4 w-4" />,
           label: "Operating Hours",
-          preview: (venue.operating_hours_text ?? "").split(/\r?\n/)[0] ?? "",
-          show: !!venue.operating_hours_text,
+          preview: describeWeek(normalizeHours(venue.operating_hours))[0]?.window ?? "",
+          show: true,
         },
         {
           key: "amenities",
@@ -320,7 +323,21 @@ function VenueDetail() {
           </dl>
         );
       case "hours":
-        return <p className="whitespace-pre-line text-sm text-foreground">{venue.operating_hours_text}</p>;
+        return (
+          <div className="space-y-2">
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {describeWeek(normalizeHours(venue.operating_hours)).map((r) => (
+                <li key={r.days} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span className="font-medium text-foreground">{r.days}</span>
+                  <span className="text-muted-foreground">{r.window}</span>
+                </li>
+              ))}
+            </ul>
+            {venue.operating_hours_text && (
+              <p className="whitespace-pre-line text-xs text-muted-foreground">{venue.operating_hours_text}</p>
+            )}
+          </div>
+        );
       case "amenities":
         return <CheckList items={venue.amenities ?? []} />;
       case "fb":
@@ -838,15 +855,8 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
     return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
   }, [selectedDate]);
 
-  function parseOpHours(oh: Record<string, string> | null | undefined): [number, number] {
-    const raw = oh?.[weekdayKey] ?? "00:00-24:00";
-    const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(raw.trim());
-    if (!m) return [0, 24];
-    const start = Math.max(0, Math.min(24, parseInt(m[1], 10)));
-    const end = Math.max(0, Math.min(24, parseInt(m[3], 10)));
-    if (end <= start) return [0, 24];
-    return [start, end];
-  }
+
+  const venueHours = useMemo(() => normalizeHours(venue?.operating_hours), [venue?.operating_hours]);
 
   const availability = useMemo(() => {
     const byCourt = new Map<number, { total: number; booked: number; past: number }>();
@@ -858,26 +868,29 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
     const nowHrCeil = isToday ? Math.min(24, Math.ceil((now - dayStart) / 3600_000)) : 0;
     for (const c of courts) {
       if (c.coming_soon) continue;
-      const [oh0, oh1] = parseOpHours(c.operating_hours);
-      const total = oh1 - oh0;
+      const openSet = openHoursForDate(
+        effectiveHours({ inherit_venue_hours: c.inherit_venue_hours, operating_hours: c.operating_hours }, venueHours),
+        selectedDate,
+      );
+      const total = openSet.size;
       const unavailable = new Set<number>();
       // Mark past hours within operating window
       if (isPast) {
-        for (let h = oh0; h < oh1; h++) unavailable.add(h);
+        for (const h of openSet) unavailable.add(h);
       } else if (isToday) {
-        for (let h = oh0; h < oh1 && h < nowHrCeil; h++) unavailable.add(h);
+        for (const h of openSet) if (h < nowHrCeil) unavailable.add(h);
       }
       const pastCount = unavailable.size;
       const bookedSet = new Set<number>();
       for (const b of bookingsQ.data ?? []) {
         if (b.court_id !== c.id) continue;
-        const s = Math.max(new Date(b.start_time).getTime(), dayStart + oh0 * 3600_000);
-        const e = Math.min(new Date(b.end_time).getTime(), dayStart + oh1 * 3600_000);
+        const s = Math.max(new Date(b.start_time).getTime(), dayStart);
+        const e = Math.min(new Date(b.end_time).getTime(), dayStart + 24 * 3600_000);
         if (e <= s) continue;
         const startHr = Math.floor((s - dayStart) / 3600_000);
         const endHr = Math.ceil((e - dayStart) / 3600_000);
         for (let h = startHr; h < endHr; h++) {
-          if (h >= oh0 && h < oh1 && !unavailable.has(h)) bookedSet.add(h);
+          if (openSet.has(h) && !unavailable.has(h)) bookedSet.add(h);
           unavailable.add(h);
         }
       }
@@ -888,7 +901,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       });
     }
     return byCourt;
-  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr]);
+  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr, venueHours]);
 
   const isPastDate = selectedDate < todayStr;
 
