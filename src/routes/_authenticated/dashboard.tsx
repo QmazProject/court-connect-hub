@@ -2789,7 +2789,7 @@ function useColumnPresets(prefKey: string) {
 }
 
 
-function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void }) {
+function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_COLUMNS, defaults = DEFAULT_VENUE_COLS, presetKey = "venues_column_presets" }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void; columns?: ColumnDef[]; defaults?: string[]; presetKey?: string }) {
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
   const [availActive, setAvailActive] = useState<string | null>(null);
   const [selActive, setSelActive] = useState<string | null>(null);
