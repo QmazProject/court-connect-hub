@@ -728,14 +728,6 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
                       <div className="font-medium">{c.name}</div>
                       <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"} · ₱{Number(c.hourly_rate).toFixed(0)}/hr</div>
                     </div>
-                    {checked && (
-                      <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        Cap
-                        <input type="number" min={1} value={caps[c.id] ?? String(c.capacity ?? 1)}
-                          onChange={(e) => setCaps((s) => ({ ...s, [c.id]: e.target.value }))}
-                          className="w-16 rounded-md border border-input bg-background px-2 py-1 text-sm" />
-                      </label>
-                    )}
                   </li>
                 );
               })}
