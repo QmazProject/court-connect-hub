@@ -5100,9 +5100,22 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                   {(() => {
                     const isUnpaidUpcoming = tab === "upcoming" && b.payment_status !== "paid" && b.status !== "cancelled" && new Date(b.start_time) > now;
                     const isPaidUpcoming = tab === "upcoming" && b.payment_status === "paid" && new Date(b.start_time) > now;
-                    if (!isUnpaidUpcoming && !isPaidUpcoming) return null;
+                    const vId = b.courts?.venues?.id;
                     return (
                       <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+                        {vId && (
+                          <button
+                            onClick={() => setChat({
+                              bookingId: b.id,
+                              venueId: vId,
+                              title: b.courts?.venues?.name ?? "Venue",
+                              subtitle: `${fmtDate(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)}`,
+                            })}
+                            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
+                          >
+                            Message venue
+                          </button>
+                        )}
                         {isUnpaidUpcoming && (
                           <>
                             <button
@@ -5134,6 +5147,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                       </div>
                     );
                   })()}
+
                 </li>
               );
             })}
