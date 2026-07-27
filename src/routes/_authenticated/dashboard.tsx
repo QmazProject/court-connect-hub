@@ -4052,24 +4052,20 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       case "emoji": return <td key={id} className="px-3 py-3 text-lg leading-none">{g.map_emoji ?? "🏟️"}</td>;
       case "name": return <td key={id} className="px-3 py-3"><span className="font-medium">{g.name}</span></td>;
       case "description": return <td key={id} className="px-3 py-3 text-muted-foreground">{g.description || "—"}</td>;
-      case "layouts": return (
-        <td key={id} className="px-3 py-3">
-          {g.layouts.length === 0 ? (
-            <span className="text-xs text-muted-foreground">No courts assigned yet — edit a court and set its physical surface to this group.</span>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {g.layouts.map((l) => (
-                <span key={l.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/50 px-2 py-0.5 text-xs">
-                  <b>{l.sport ?? "—"}</b> · {l.name} · cap {l.capacity}
-                </span>
-              ))}
-            </div>
-          )}
-        </td>
-      );
       case "courts_count": return (
         <td key={id} className="px-3 py-3 text-center">
           <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">{g.layouts.length}</span>
+        </td>
+      );
+      case "rules": return (
+        <td key={id} className="px-3 py-3 text-center">
+          {g.rulesCount > 0 ? (
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-foreground ring-1 ring-border">
+              {g.rulesCount} {g.rulesCount === 1 ? "rule" : "rules"} set up
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">No rules yet</span>
+          )}
         </td>
       );
       case "sports": {
@@ -4079,10 +4075,6 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
             {list.length ? list.join(", ") : "—"}
           </td>
         );
-      }
-      case "capacity": {
-        const total = g.layouts.reduce((sum, l) => sum + (Number(l.capacity) || 0), 0);
-        return <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">{g.layouts.length ? total : "—"}</td>;
       }
       case "actions": return (
         <td key={id} className="px-3 py-3">
