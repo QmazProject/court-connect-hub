@@ -3771,7 +3771,16 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
                 <td className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>
+                <td className="px-3 py-3 text-muted-foreground">{c.surface_type?.trim() ? c.surface_type : "—"}</td>
+                <td className="px-3 py-3 text-center tabular-nums text-muted-foreground">{c.player_capacity ?? "—"}</td>
                 <td className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>
+                <td className="px-3 py-3 text-center">
+                  {c.voucher_enabled ? (
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">True</span>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">False</span>
+                  )}
+                </td>
                 <td className="px-3 py-3">
                   {c.coming_soon ? (
                     <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
