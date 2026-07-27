@@ -4252,10 +4252,10 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     queryKey: ["group-add-eligible", group.venue_id, group.id],
     queryFn: async () => {
       const { data, error } = await supabase.from("courts")
-        .select("id, name, capacity, physical_court_id, sports(name)")
+        .select("id, name, physical_court_id, sports(name)")
         .eq("venue_id", group.venue_id).order("id");
       if (error) throw error;
-      return (data ?? []) as Array<{ id: number; name: string; capacity: number; physical_court_id: number; sports: { name: string } | null }>;
+      return (data ?? []) as Array<{ id: number; name: string; physical_court_id: number; sports: { name: string } | null }>;
     },
   });
 
