@@ -706,7 +706,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
-        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same physical slab.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same shared space (e.g. 3 badminton + 4 pickleball courts painted on one hall).</p>
         <div className="mt-3 max-h-64 overflow-y-auto nice-scroll">
           {courtsQ.isLoading ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted" />
@@ -4107,7 +4107,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           </select>
         </label>
         <p className="text-xs text-muted-foreground">
-          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same physical slab.
+          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same physical space.
         </p>
       </div>
       <div className="flex-1 overflow-auto nice-scroll px-4 pb-6 sm:px-6">
@@ -4115,7 +4115,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           <div className="h-24 animate-pulse rounded-xl bg-muted" />
         ) : groups.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts onto one physical slab.
+            No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts that share one physical space.
           </div>
         ) : (
           <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
@@ -4216,7 +4216,7 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
               <div className="flex-1">
                 <h3 className="text-base font-semibold">Delete group permanently?</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  <b className="text-foreground">{group.name}</b> will be <b className="text-destructive">permanently deleted</b>. Its courts remain but each becomes an independent slab again.
+                  <b className="text-foreground">{group.name}</b> will be <b className="text-destructive">permanently deleted</b>. Its courts remain but each becomes independent again.
                 </p>
               </div>
             </div>
@@ -4366,7 +4366,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
         </div>
         <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4 p-5">
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            Editing the <b className="text-foreground">whole group</b> — group name, emoji, description, and which courts belong to this physical slab.
+            Editing the <b className="text-foreground">whole group</b> — group name, emoji, description, and which courts belong to this shared space.
           </div>
 
           <Input label="Group name" value={name} onChange={setName} required />
