@@ -4214,6 +4214,8 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
   const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p]));
 
   const rows = bookingsQ.data ?? [];
+  const sessions = groupBookingSessions(rows).sort((a, b) => b.start_time.localeCompare(a.start_time));
+
   const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && r.status !== "cancelled").length;
   const paidCount = rows.filter((r) => r.payment_status === "paid").length;
   const unpaidCount = rows.filter((r) => r.payment_status === "unpaid" && r.status !== "cancelled").length;
