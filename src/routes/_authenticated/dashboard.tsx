@@ -3600,7 +3600,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
           <option value="all">All venues</option>
           {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
         </select>
-        <span className="ml-auto text-xs text-muted-foreground">{rows.length} court{rows.length === 1 ? "" : "s"}</span>
+        
       </div>
       {courtsQ.isLoading ? (
         <div className="p-6"><div className="h-24 animate-pulse rounded-lg bg-muted" /></div>
