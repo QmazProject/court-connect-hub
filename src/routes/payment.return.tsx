@@ -59,13 +59,44 @@ function PaymentReturn() {
       if (!bookingId) return;
       const { data } = await supabase
         .from("transactions")
-        .select("status, amount")
+        .select("status, amount, provider_ref")
         .eq("booking_id", bookingId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (cancelled || !data) return;
-      setAmount(Number(data.amount));
+
+      // Sum the whole checkout session (bookings are stored one row per hour).
+      let total = Number(data.amount);
+      let ids = [bookingId];
+      if (data.provider_ref) {
+        const { data: sess } = await supabase
+          .from("transactions")
+          .select("booking_id, amount")
+          .eq("provider_ref", data.provider_ref);
+        if (sess && sess.length > 0) {
+          total = sess.reduce((s, t) => s + Number(t.amount ?? 0), 0);
+          ids = Array.from(new Set(sess.map((t) => t.booking_id as number)));
+        }
+      }
+      if (cancelled) return;
+      setAmount(total);
+
+      const { data: bks } = await supabase
+        .from("bookings")
+        .select("id, court_id, start_time, end_time, status, payment_status, courts(name, venues(name))")
+        .in("id", ids);
+      if (!cancelled && bks && bks.length > 0) {
+        const grouped = groupBookingSessions(bks as unknown as (HourlyBooking & { courts: { name: string; venues: { name: string } | null } | null })[]);
+        const s = grouped[0];
+        setSlot({
+          date: formatDateLabel(s.start_time),
+          range: formatSessionLabel(s.start_time, s.end_time),
+          court: s.first.courts?.name ?? null,
+          venue: s.first.courts?.venues?.name ?? null,
+        });
+      }
+
       if (data.status === "paid" || data.status === "failed") {
         setTxStatus(data.status as "paid" | "failed");
       }
@@ -77,6 +108,7 @@ function PaymentReturn() {
     poll();
     return () => { cancelled = true; clearInterval(timer); };
   }, [ref, status]);
+
 
   const stopAt = 20;
   const timedOut = pollCount > stopAt && txStatus === "pending";
