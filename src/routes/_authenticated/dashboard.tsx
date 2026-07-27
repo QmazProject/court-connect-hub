@@ -632,13 +632,21 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [caps, setCaps] = useState<Record<number, string>>({});
+  const [rules, setRules] = useState<Set<string>>(new Set());
   const toggle = (id: number, cur: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      if (next.has(id)) next.delete(id);
+      else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      // Default: every selected court blocks every other one, both ways.
+      setRules(allPairsEnabled(Array.from(next)));
       return next;
     });
   };
+
+  const selectedCourts: RuleCourt[] = (courtsQ.data ?? [])
+    .filter((c) => selected.has(c.id))
+    .map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null }));
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -657,11 +665,23 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
             .update({ physical_court_id: pc.id, capacity: cap, footprint }).eq("id", id);
           if (upErr) throw upErr;
         }
+        // Replace pairwise blocking rules for the selected courts
+        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        if (delErr) throw delErr;
+        const rows = Array.from(rules)
+          .map((k) => k.split(">").map(Number))
+          .filter(([a, b]) => selected.has(a) && selected.has(b))
+          .map(([a, b]) => ({ court_id: a, blocks_court_id: b, venue_id: venueId }));
+        if (rows.length > 0) {
+          const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
+          if (insErr) throw insErr;
+        }
       }
     },
     onSuccess: onCreated,
     onError: (e: Error) => setErr(e.message),
   });
+
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4">
