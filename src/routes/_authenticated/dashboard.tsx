@@ -1969,22 +1969,13 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
       </div>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
-      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
-            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
-              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
-            </select>
-          </label>
-          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
-        </div>
+      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared space</div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Group with other courts that share the same slab so bookings correctly conflict.
+          Which other courts this one blocks is managed in <b className="text-foreground">Court groups</b> — create or edit a group to pick the courts and their blocking rules.
         </p>
       </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
