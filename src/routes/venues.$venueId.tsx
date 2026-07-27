@@ -853,6 +853,40 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
     },
   });
 
+  // Courts that share a physical space with another court (block rules)
+  const sharedQ = useQuery({
+    queryKey: ["venue-block-rules", venue?.id],
+    enabled: !!venue?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("court_block_rules")
+        .select("court_id, blocked_court_id, courts!court_block_rules_blocked_court_id_fkey(name, map_emoji)")
+        .eq("venue_id", venue!.id);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{
+        court_id: number;
+        blocked_court_id: number;
+        courts: { name: string; map_emoji: string | null } | null;
+      }>;
+    },
+  });
+
+  const sharedPartners = useMemo(() => {
+    const m = new Map<number, string[]>();
+    for (const r of sharedQ.data ?? []) {
+      const label = `${r.courts?.map_emoji ? `${r.courts.map_emoji} ` : ""}${r.courts?.name ?? `Court #${r.blocked_court_id}`}`;
+      for (const id of [r.court_id, r.blocked_court_id]) {
+        const key = id === r.court_id ? r.court_id : r.blocked_court_id;
+        void key;
+      }
+      const list = m.get(r.court_id) ?? [];
+      if (!list.includes(label)) list.push(label);
+      m.set(r.court_id, list);
+    }
+    return m;
+  }, [sharedQ.data]);
+
+
   const weekdayKey = useMemo(() => {
     const d = new Date(`${selectedDate}T00:00:00`);
     return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
