@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.block_court_deactivation() FROM PUBLIC, anon, authenticated;
