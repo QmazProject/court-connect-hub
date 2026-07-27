@@ -4843,6 +4843,8 @@ type PlayerBooking = {
 function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName: string; email: string }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"upcoming" | "past" | "cancelled">("upcoming");
+  const [chat, setChat] = useState<{ bookingId: number; venueId: number; title: string; subtitle: string } | null>(null);
+
 
   const bookingsQ = useQuery({
     queryKey: ["player-bookings", userId],
