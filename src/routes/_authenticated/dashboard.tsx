@@ -3789,9 +3789,6 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                 </td>
                 <td className="px-3 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={() => setManagingHours(c)} title="Manage availability" aria-label={`Manage hours for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-                      <Clock className="h-3.5 w-3.5" />
-                    </button>
                     <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
