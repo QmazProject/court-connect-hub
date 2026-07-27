@@ -678,6 +678,20 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
           if (insErr) throw insErr;
         }
       }
+      // Replace pairwise blocking rules for all courts in this group
+      const ids = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+      if (ids.length > 0) {
+        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        if (delErr) throw delErr;
+        const rows = Array.from(rules)
+          .map((k) => k.split(">").map(Number))
+          .filter(([a, b]) => ids.includes(a) && ids.includes(b))
+          .map(([a, b]) => ({ court_id: a, blocked_court_id: b, venue_id: group.venue_id }));
+        if (rows.length > 0) {
+          const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
+          if (insErr) throw insErr;
+        }
+      }
     },
     onSuccess: onCreated,
     onError: (e: Error) => setErr(e.message),
@@ -4273,6 +4287,26 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     },
   });
 
+  // Pairwise blocking rules among the courts of this group
+  const memberIds = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+  const rulesQ = useQuery({
+    queryKey: ["court-block-rules", group.id, group.layouts.map((l) => l.id).join(",")],
+    enabled: group.layouts.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("court_block_rules")
+        .select("court_id, blocked_court_id")
+        .in("court_id", group.layouts.map((l) => l.id));
+      if (error) throw error;
+      return (data ?? []).map((r) => ruleKey(r.court_id, r.blocked_court_id));
+    },
+  });
+  const [rulesDraft, setRulesDraft] = useState<Set<string> | null>(null);
+  const rules = rulesDraft ?? new Set(rulesQ.data ?? []);
+  const ruleCourts: RuleCourt[] = [
+    ...group.layouts.map((l) => ({ id: l.id, name: l.name, sport: l.sport })),
+    ...(eligibleQ.data ?? []).filter((c) => addSel.has(c.id)).map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null })),
+  ];
+
   const toggleAdd = (id: number, cur: number) => {
     setAddSel((prev) => {
       const next = new Set(prev);
@@ -4383,6 +4417,8 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
               ))}
             </div>
           </div>
+
+          <CourtBlockRulesEditor courts={ruleCourts} rules={rules} onChange={setRulesDraft} />
 
           <div className="rounded-xl border border-dashed border-border p-3">
             <div className="text-sm font-semibold">Add courts to this group</div>
