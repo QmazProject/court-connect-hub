@@ -266,7 +266,7 @@ function Dashboard() {
 
 
 function TenantShell({
-  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed,
+  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId,
 }: {
   children: React.ReactNode;
   section: SectionKey;
@@ -275,7 +275,9 @@ function TenantShell({
   setMobileOpen: (v: boolean) => void;
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
+  userId?: string;
 }) {
+
   const current = NAV.find((n) => n.key === section);
   return (
     <div className="flex h-[100dvh] w-full">
