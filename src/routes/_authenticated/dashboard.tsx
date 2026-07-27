@@ -4352,16 +4352,21 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Payment</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {bookingsQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>Loading…</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>No bookings match these filters yet.</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No bookings match these filters yet.</td></tr>
               ) : sessions.map((s) => {
                 const r = s.first;
                 const p = nameMap.get(r.user_id);
+                const paid = s.items.some((i) => i.payment_status === "paid");
+                const cancelled = r.status === "cancelled";
+                const venueId = r.courts?.venue_id;
+                const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
                 return (
                   <tr key={s.key} className="border-t border-border">
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -4373,6 +4378,26 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                     <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
                     <td className="px-4 py-3">{stBadge(r.status)}</td>
                     <td className="px-4 py-3">{payBadge(r.payment_status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5 whitespace-nowrap">
+                        {venueId && (
+                          <button
+                            onClick={() => setChat({ bookingId: r.id, venueId, playerId: r.user_id, title: p?.full_name || "Player", subtitle: label })}
+                            className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
+                          >
+                            Message
+                          </button>
+                        )}
+                        {!cancelled && (
+                          <button
+                            onClick={() => setCancelTarget({ bookingIds: s.ids, label, hasPaid: paid })}
+                            className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -4381,9 +4406,33 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
           </table>
         </div>
       </div>
+
+      {cancelTarget && (
+        <CancelRefundDialog
+          target={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ["tenant-bookings"] });
+            qc.invalidateQueries({ queryKey: ["notifications"] });
+          }}
+        />
+      )}
+
+      {chat && (
+        <BookingChat
+          bookingId={chat.bookingId}
+          venueId={chat.venueId}
+          playerId={chat.playerId}
+          meId={userId}
+          title={`Chat with ${chat.title}`}
+          subtitle={chat.subtitle}
+          onClose={() => setChat(null)}
+        />
+      )}
     </div>
   );
 }
+
 
 // ================= Customers =================
 
