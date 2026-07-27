@@ -16,13 +16,15 @@ function CourtRedirect() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courts")
-        .select("id, venue_id")
+        .select("id, venue_id, is_active")
         .eq("id", Number(courtId))
+        .eq("is_active", true)
         .maybeSingle();
       if (error) throw error;
       return data as { id: number; venue_id: number } | null;
     },
   });
+
 
   useEffect(() => {
     if (q.data?.venue_id) {
