@@ -4951,8 +4951,9 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{b.courts?.venues?.name ?? "Venue"} · <span className="text-muted-foreground">{b.courts?.name}</span></p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{b.courts?.sports?.name ?? "Sport"} · {h} hr{h > 1 ? "s" : ""}</p>
-                        <p className="mt-1 text-sm">{fmtDate(b.start_time)}</p>
-                        <p className="text-xs text-muted-foreground">{fmtTime(b.start_time)} – {fmtTime(b.end_time)}</p>
+                        <p className="mt-1 text-sm">{fmtDate(sess.start_time)}</p>
+                        <p className="text-xs text-muted-foreground">{formatTimeRange(sess.start_time, sess.end_time)}{sess.ids.length > 1 ? ` · ${sess.ids.length} slots` : ""}</p>
+
                         {b.courts?.venues?.address && <p className="mt-1 truncate text-[11px] text-muted-foreground">📍 {b.courts.venues.address}</p>}
                       </div>
                     </div>
