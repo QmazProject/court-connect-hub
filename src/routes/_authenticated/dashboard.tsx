@@ -113,6 +113,7 @@ type Court = {
   operating_hours?: Record<string, string> | null;
   inherit_venue_hours?: boolean | null;
   coming_soon: boolean | null;
+  is_active?: boolean | null;
   map_emoji: string | null;
   physical_court_id: number;
   capacity: number;
@@ -121,6 +122,31 @@ type Court = {
   sports: { name: string; slug?: string } | null;
 };
 type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null };
+
+function CourtStatusField({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-end gap-2 pb-2 text-sm">
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
+        <span>Court status — <b className={value ? "text-emerald-600" : "text-muted-foreground"}>{value ? "Active" : "Inactive"}</b></span>
+      </label>
+      <span className="group relative inline-flex">
+        <span
+          tabIndex={0}
+          aria-label="Court status help"
+          className="grid h-4 w-4 cursor-help place-items-center rounded-full border border-border text-[10px] font-bold text-muted-foreground"
+        >
+          ?
+        </span>
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-2.5 text-[11px] leading-relaxed text-popover-foreground shadow-lg group-hover:block group-focus-within:block">
+          <b>Active</b> courts are visible to players and open for booking.
+          <br />
+          You can set a court to <b>Inactive</b> only when it has no upcoming bookings or scheduled sessions. If bookings still exist, deactivation is blocked — cancel them or wait until they finish first.
+        </span>
+      </span>
+    </div>
+  );
+}
 
 const DAYS: { key: string; label: string }[] = [
   { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
