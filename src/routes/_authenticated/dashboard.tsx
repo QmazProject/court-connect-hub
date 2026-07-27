@@ -624,10 +624,10 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
     enabled: !!venueId,
     queryFn: async () => {
       const { data, error } = await supabase.from("courts")
-        .select("id, name, capacity, hourly_rate, physical_court_id, sports(name)")
+        .select("id, name, hourly_rate, physical_court_id, sports(name)")
         .eq("venue_id", venueId).order("id");
       if (error) throw error;
-      return data as unknown as Array<{ id: number; name: string; capacity: number; hourly_rate: number; physical_court_id: number; sports: { name: string } | null }>;
+      return data as unknown as Array<{ id: number; name: string; hourly_rate: number; physical_court_id: number; sports: { name: string } | null }>;
     },
   });
 
