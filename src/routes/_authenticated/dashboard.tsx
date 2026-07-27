@@ -1590,6 +1590,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [sportId, setSportId] = useState<string>("");
   const [isIndoor, setIsIndoor] = useState(false);
   const [comingSoon, setComingSoon] = useState(false);
+  const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
   const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -1662,6 +1663,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
         coming_soon: comingSoon,
+        is_active: isActive,
         description: description || null,
         amenities: parseList(amenities),
         images,
@@ -1685,7 +1687,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1725,6 +1727,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           <input type="checkbox" checked={voucherEnabled} onChange={(e) => setVoucherEnabled(e.target.checked)} />
           Accept vouchers
         </label>
+        <CourtStatusField value={isActive} onChange={setIsActive} />
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
         Tick "Coming soon" if this court isn't open yet. Tick "Accept vouchers" to let players redeem discount codes you create in the Vouchers module for this court.
@@ -1879,6 +1882,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [rate, setRate] = useState(String(court.hourly_rate));
   const [isIndoor, setIsIndoor] = useState(court.is_indoor);
   const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
+  const [isActive, setIsActive] = useState(court.is_active !== false);
   const [description, setDescription] = useState(court.description ?? "");
   const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState<string[]>(court.images ?? []);
@@ -1939,6 +1943,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         hourly_rate: Number(rate),
         is_indoor: isIndoor,
         coming_soon: comingSoon,
+        is_active: isActive,
         description: description || null,
         amenities: parseList(amenities),
         images,
@@ -1978,6 +1983,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           <input type="checkbox" checked={voucherEnabled} onChange={(e) => setVoucherEnabled(e.target.checked)} />
           Accept vouchers
         </label>
+        <CourtStatusField value={isActive} onChange={setIsActive} />
       </div>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
