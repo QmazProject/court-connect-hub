@@ -4151,7 +4151,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
 }
 
 
-type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> };
+type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; rulesCount: number; layouts: Array<{ id: number; name: string; sport: string | null }> };
 
 function DeleteGroupButton({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
