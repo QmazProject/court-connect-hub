@@ -4016,7 +4016,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
         const layouts = byPc.get(p.id) ?? [];
         const rulesCount = layouts.reduce((sum, l) => sum + (rulesByCourt.get(l.id) ?? 0), 0);
         return { ...p, layouts, rulesCount };
-      }).filter((g) => g.layouts.length !== 1) as GroupRow[];
+      }).filter((g) => g.layouts.length >= 2) as GroupRow[];
     },
   });
 
