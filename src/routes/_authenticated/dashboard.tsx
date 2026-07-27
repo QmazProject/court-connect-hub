@@ -2569,13 +2569,29 @@ function SettingsSection({
 
 function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
   const [tab, setTab] = useState<"venues" | "courts" | "groups">("venues");
+  const venueIds = venues.map((v) => v.id);
+  const courtsTotalQ = useQuery({
+    queryKey: ["venues-court-counts", venueIds],
+    enabled: venueIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courts").select("venue_id").in("venue_id", venueIds);
+      if (error) throw error;
+      const map: Record<number, number> = {};
+      (data ?? []).forEach((c: any) => { map[c.venue_id] = (map[c.venue_id] ?? 0) + 1; });
+      return map;
+    },
+  });
+  const courtsTotal = Object.values(courtsTotalQ.data ?? {}).reduce((a, b) => a + b, 0);
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
         <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
           Venues <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{venues.length}</span>
         </TabBtn>
-        <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>Courts</TabBtn>
+        <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>
+          Courts <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{courtsTotal}</span>
+        </TabBtn>
+
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
           Court Groups
           <span className="group relative ml-1 inline-flex">
