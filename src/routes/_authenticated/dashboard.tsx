@@ -684,7 +684,7 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
         <div className="font-semibold text-primary">What is a court group?</div>
         <p className="mt-1 text-muted-foreground">
-          A group represents one <b>physical slab</b> that can be configured for different sports (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically block each other.
+          A group represents one <b>shared space</b> that can be set up for different sports (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically block each other.
         </p>
       </div>
 
@@ -2576,7 +2576,7 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
             <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">?</span>
             <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-3 text-left text-xs font-normal normal-case text-popover-foreground shadow-lg group-hover:block">
               <span className="block font-semibold text-primary">What is a Court Group / Physical Surface?</span>
-              <span className="mt-1 block text-muted-foreground">One physical slab can host different sports at different capacities — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.</span>
+              <span className="mt-1 block text-muted-foreground">One shared space can host different sports — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.</span>
             </span>
           </span>
         </TabBtn>
