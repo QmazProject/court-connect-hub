@@ -3679,7 +3679,8 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
                 </td>
                 <td className="px-3 py-3 text-right whitespace-nowrap">
                   <button onClick={() => setManagingHours(c)} className="mr-1 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20">Hours</button>
-                  <button onClick={() => setEditing(c)} className="rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:border-primary hover:text-primary">Edit</button>
+                  <button onClick={() => setEditing(c)} className="mr-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:border-primary hover:text-primary">Edit</button>
+                  <DeleteCourtButton court={c} onDeleted={invalidate} />
                 </td>
               </tr>
             ))}
