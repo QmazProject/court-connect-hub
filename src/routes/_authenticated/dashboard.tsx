@@ -4038,11 +4038,10 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
     switch (id) {
       case "emoji": return <th key={id} className="px-3 py-2 w-10 font-semibold">{cfgButton}</th>;
       case "name": return <th key={id} className="px-3 py-2 font-semibold">Group</th>;
-      case "description": return <th key={id} className="px-3 py-2 font-semibold">Description</th>;
-      case "layouts": return <th key={id} className="px-3 py-2 font-semibold">Court layouts</th>;
+      case "description": return <th key={id} className="px-3 py-2 font-semibold">About this group</th>;
       case "courts_count": return <th key={id} className="px-3 py-2 font-semibold text-center">Courts</th>;
+      case "rules": return <th key={id} className="px-3 py-2 font-semibold text-center">Blocking rules</th>;
       case "sports": return <th key={id} className="px-3 py-2 font-semibold">Sports</th>;
-      case "capacity": return <th key={id} className="px-3 py-2 font-semibold text-center">Total Capacity</th>;
       case "actions": return <th key={id} className="px-3 py-2 font-semibold text-right">Actions</th>;
       default: return null;
     }
