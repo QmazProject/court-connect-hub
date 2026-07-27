@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { normalizeRules, minRate, hasVariablePricing } from "@/lib/court-pricing";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -114,8 +115,8 @@ function Landing() {
       const term = dQuery.trim();
       const usesCourtFilter = !!(filterSport || dMin || dMax);
       const courtsSelect = usesCourtFilter
-        ? "courts!inner(id, name, hourly_rate, map_emoji, sports!inner(slug, name))"
-        : "courts(id, name, hourly_rate, map_emoji, sports(slug, name))";
+        ? "courts!inner(id, name, hourly_rate, rate_rules, map_emoji, sports!inner(slug, name))"
+        : "courts(id, name, hourly_rate, rate_rules, map_emoji, sports(slug, name))";
       let q = supabase
         .from("venues")
         .select(`id, name, address, latitude, longitude, map_emoji, ${courtsSelect}`)
@@ -137,7 +138,7 @@ function Landing() {
         latitude: number | null;
         longitude: number | null;
         map_emoji: string | null;
-        courts: { id: number; name: string; hourly_rate: number; map_emoji: string | null; sports: { slug: string; name: string } | null }[];
+        courts: { id: number; name: string; hourly_rate: number; rate_rules?: unknown; map_emoji: string | null; sports: { slug: string; name: string } | null }[];
       };
       const sportDefault = (slug?: string | null) => {
         switch (slug) {
@@ -153,7 +154,7 @@ function Landing() {
         }
       };
       return (data as unknown as Row[]).map<MapVenue & { sports: string[] }>((v) => {
-        const rates = v.courts?.map((c) => Number(c.hourly_rate)) ?? [];
+        const rates = v.courts?.map((c) => minRate(Number(c.hourly_rate), normalizeRules(c.rate_rules))) ?? [];
         const sportSet = new Map<string, string>();
         v.courts?.forEach((c) => c.sports && sportSet.set(c.sports.slug, c.sports.name));
         return {
@@ -168,7 +169,8 @@ function Landing() {
           courts: (v.courts ?? []).map((c) => ({
             id: c.id,
             name: c.name,
-            hourly_rate: Number(c.hourly_rate),
+            hourly_rate: minRate(Number(c.hourly_rate), normalizeRules(c.rate_rules)),
+            variableRate: hasVariablePricing(Number(c.hourly_rate), normalizeRules(c.rate_rules)),
             mapEmoji: c.map_emoji ?? v.map_emoji ?? sportDefault(c.sports?.slug) ?? null,
           })),
           sports: Array.from(sportSet.values()),
@@ -762,7 +764,7 @@ function VenueList({
                   </span>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold group-hover:text-primary">{c.name}</div>
-                    <div className="text-xs text-muted-foreground">₱{c.hourly_rate.toFixed(0)} / hour</div>
+                    <div className="text-xs text-muted-foreground">{(c as { variableRate?: boolean }).variableRate ? "from " : ""}₱{c.hourly_rate.toFixed(0)} / hour</div>
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-primary opacity-0 transition group-hover:opacity-100">Book →</span>
