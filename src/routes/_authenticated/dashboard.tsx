@@ -3742,6 +3742,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
             <tr>
               <th className="px-4 py-2.5 w-10"></th>
               <th className="px-3 py-2.5">Court</th>
+              <th className="px-3 py-2.5">About This Court</th>
               <th className="px-3 py-2.5">Venue</th>
               <th className="px-3 py-2.5">Sport</th>
               <th className="px-3 py-2.5">Type</th>
