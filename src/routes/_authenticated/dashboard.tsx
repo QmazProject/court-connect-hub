@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRange } from "@/lib/booking-groups";
 
+import { CourtBlockRulesEditor, allPairsEnabled, ruleKey, type RuleCourt } from "@/components/CourtBlockRulesEditor";
 import { RateRulesEditor } from "@/components/RateRulesEditor";
 import { normalizeRules, type RateRule } from "@/lib/court-pricing";
 import { OperatingHoursEditor, CourtHoursEditor } from "@/components/OperatingHoursEditor";
@@ -632,13 +633,21 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [caps, setCaps] = useState<Record<number, string>>({});
+  const [rules, setRules] = useState<Set<string>>(new Set());
   const toggle = (id: number, cur: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      if (next.has(id)) next.delete(id);
+      else { next.add(id); setCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      // Default: every selected court blocks every other one, both ways.
+      setRules(allPairsEnabled(Array.from(next)));
       return next;
     });
   };
+
+  const selectedCourts: RuleCourt[] = (courtsQ.data ?? [])
+    .filter((c) => selected.has(c.id))
+    .map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null }));
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -657,11 +666,23 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
             .update({ physical_court_id: pc.id, capacity: cap, footprint }).eq("id", id);
           if (upErr) throw upErr;
         }
+        // Replace pairwise blocking rules for the selected courts
+        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        if (delErr) throw delErr;
+        const rows = Array.from(rules)
+          .map((k) => k.split(">").map(Number))
+          .filter(([a, b]) => selected.has(a) && selected.has(b))
+          .map(([a, b]) => ({ court_id: a, blocked_court_id: b, venue_id: venueId }));
+        if (rows.length > 0) {
+          const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
+          if (insErr) throw insErr;
+        }
       }
     },
     onSuccess: onCreated,
     onError: (e: Error) => setErr(e.message),
   });
+
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4">
@@ -722,6 +743,10 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
           )}
         </div>
       </div>
+
+      <CourtBlockRulesEditor courts={selectedCourts} rules={rules} onChange={setRules} />
+
+
 
       {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
@@ -1599,8 +1624,6 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
-  const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
-  const [capacity, setCapacity] = useState("1");
   const [surfaceType, setSurfaceType] = useState("");
   const [playerCapacity, setPlayerCapacity] = useState("");
   const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(null));
@@ -1614,49 +1637,23 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(open || !!alwaysOpen);
-  const pcQ = useQuery({
-    queryKey: ["physical-courts", venueId],
-    enabled: open || !!alwaysOpen,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", venueId).order("id");
-      if (error) throw error;
-      return data as { id: number; name: string; map_emoji: string | null }[];
-    },
-  });
 
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug) || "🎾";
 
-  // Suggest capacity when picking an existing surface that already hosts this sport
-  const siblingsQ = useQuery({
-    queryKey: ["pc-siblings", physicalCourtId, sportId],
-    enabled: (open || !!alwaysOpen) && physicalCourtId !== "new" && !!sportId,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("courts")
-        .select("id, name, capacity, sport_id, sports(name)")
-        .eq("physical_court_id", Number(physicalCourtId));
-      if (error) throw error;
-      return data as unknown as Array<{ id: number; name: string; capacity: number; sport_id: number; sports: { name: string } | null }>;
-    },
-  });
-  const sameSportSibling = (siblingsQ.data ?? []).find((c) => String(c.sport_id) === sportId);
-
   const mut = useMutation({
     mutationFn: async () => {
-      let pcId: number;
-      let createdPcId: number | null = null;
-      if (physicalCourtId === "new") {
-        const { data, error } = await supabase.from("physical_courts").insert({
-          venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
-        }).select("id").single();
-        if (error) throw error;
-        pcId = data.id;
-        createdPcId = data.id;
-      } else {
-        pcId = Number(physicalCourtId);
-      }
-      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
+      // Every court gets its own physical space row; shared-space blocking is
+      // configured separately through court groups.
+      const { data: pcRow, error: pcErr } = await supabase.from("physical_courts").insert({
+        venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
+      }).select("id").single();
+      if (pcErr) throw pcErr;
+      const pcId: number = pcRow.id;
+      const createdPcId: number | null = pcRow.id;
+      const cap = 1;
       const footprint = 1 / cap;
+
       const { error } = await supabase.from("courts").insert({
         venue_id: venueId,
         sport_id: Number(sportId),
@@ -1690,7 +1687,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setImages([]); setMapEmoji(null); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1737,31 +1734,13 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       </p>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
-      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
+      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared space</div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Multiple courts can share one physical slab (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across the same surface are auto-conflict-checked.
-        </p>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
-            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
-              <option value="new">➕ New standalone surface</option>
-              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
-            </select>
-          </label>
-          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
-        </div>
-        {sameSportSibling && (
-          <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-200">
-            ⚠ This surface already has <b>{sameSportSibling.name}</b> ({sameSportSibling.sports?.name}) with capacity <b>{sameSportSibling.capacity}</b>. Keep the same capacity for siblings of the same sport, otherwise availability will behave inconsistently.
-          </p>
-        )}
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Capacity = how many simultaneous matches of this sport fit. Basketball = 1, Badminton = 3, Pickleball = 4.
+          Courts that share the same physical space are set up separately with <b className="text-foreground">+ Create group</b> under Venues &amp; courts, where you pick the courts and configure which ones block each other.
         </p>
       </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
@@ -1888,8 +1867,6 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [description, setDescription] = useState(court.description ?? "");
   const [images, setImages] = useState<string[]>(court.images ?? []);
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
-  const [physicalCourtId, setPhysicalCourtId] = useState<string>(String(court.physical_court_id));
-  const [capacity, setCapacity] = useState(String(court.capacity ?? 1));
   const [surfaceType, setSurfaceType] = useState<string>(((court as unknown as { surface_type?: string | null }).surface_type) ?? "");
   const [playerCapacity, setPlayerCapacity] = useState<string>(
     ((court as unknown as { player_capacity?: number | null }).player_capacity ?? "") === null
@@ -1908,37 +1885,8 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
 
   const fallbackEmoji = venueEmoji || sportEmoji(court.sports?.slug) || "🎾";
 
-  const pcQ = useQuery({
-    queryKey: ["physical-courts", court.venue_id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("physical_courts").select("id, name, map_emoji").eq("venue_id", court.venue_id).order("id");
-      if (error) throw error;
-      return data as { id: number; name: string; map_emoji: string | null }[];
-    },
-  });
-
   const mut = useMutation({
     mutationFn: async () => {
-      const cap = Math.max(1, Math.floor(Number(capacity) || 1));
-      const footprint = 1 / cap;
-      const newPcId = Number(physicalCourtId);
-      const surfaceChanged = newPcId !== court.physical_court_id;
-      const capacityChanged = cap !== court.capacity;
-      if (surfaceChanged || capacityChanged) {
-        const { count, error: cErr } = await supabase.from("bookings")
-          .select("id", { count: "exact", head: true })
-          .eq("court_id", court.id)
-          .eq("status", "confirmed")
-          .gte("end_time", new Date().toISOString());
-        if (cErr) throw cErr;
-        if ((count ?? 0) > 0) {
-          throw new Error(
-            surfaceChanged
-              ? "This court has upcoming confirmed bookings — you can't move it to a different shared surface until those bookings finish or are cancelled."
-              : "This court has upcoming confirmed bookings — you can't change its capacity until those bookings finish or are cancelled."
-          );
-        }
-      }
       const { error } = await supabase.from("courts").update({
         name,
         hourly_rate: Number(rate),
@@ -1948,9 +1896,7 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         description: description || null,
         images,
         map_emoji: mapEmoji,
-        physical_court_id: Number(physicalCourtId),
-        capacity: cap,
-        footprint,
+
         surface_type: surfaceType.trim() || null,
         player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
         blocked_hours: weeklyToPayload(availWeekly),
@@ -1987,22 +1933,13 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
       </div>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
-      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Physical surface</div>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs font-medium text-muted-foreground">Shared surface</span>
-            <select value={physicalCourtId} onChange={(e) => setPhysicalCourtId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
-              {(pcQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.map_emoji ?? "🎾"} {p.name}</option>)}
-            </select>
-          </label>
-          <Input label="Slots per hour (capacity)" value={capacity} onChange={setCapacity} type="number" />
-        </div>
+      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared space</div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Group with other courts that share the same slab so bookings correctly conflict.
+          Which other courts this one blocks is managed in <b className="text-foreground">Court groups</b> — create or edit a group to pick the courts and their blocking rules.
         </p>
       </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
@@ -4336,6 +4273,26 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     },
   });
 
+  // Pairwise blocking rules among the courts of this group
+  const memberIds = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+  const rulesQ = useQuery({
+    queryKey: ["court-block-rules", group.id, group.layouts.map((l) => l.id).join(",")],
+    enabled: group.layouts.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("court_block_rules")
+        .select("court_id, blocked_court_id")
+        .in("court_id", group.layouts.map((l) => l.id));
+      if (error) throw error;
+      return (data ?? []).map((r) => ruleKey(r.court_id, r.blocked_court_id));
+    },
+  });
+  const [rulesDraft, setRulesDraft] = useState<Set<string> | null>(null);
+  const rules = rulesDraft ?? new Set(rulesQ.data ?? []);
+  const ruleCourts: RuleCourt[] = [
+    ...group.layouts.map((l) => ({ id: l.id, name: l.name, sport: l.sport })),
+    ...(eligibleQ.data ?? []).filter((c) => addSel.has(c.id)).map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null })),
+  ];
+
   const toggleAdd = (id: number, cur: number) => {
     setAddSel((prev) => {
       const next = new Set(prev);
@@ -4389,6 +4346,20 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
         const { error: upErr } = await supabase.from("courts")
           .update({ physical_court_id: group.id, capacity: cap, footprint }).eq("id", id);
         if (upErr) throw upErr;
+      }
+      // Replace pairwise blocking rules for all courts in this group
+      const ids = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+      if (ids.length > 0) {
+        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        if (delErr) throw delErr;
+        const rows = Array.from(rules)
+          .map((k) => k.split(">").map(Number))
+          .filter(([a, b]) => ids.includes(a) && ids.includes(b))
+          .map(([a, b]) => ({ court_id: a, blocked_court_id: b, venue_id: group.venue_id }));
+        if (rows.length > 0) {
+          const { error: insErr } = await supabase.from("court_block_rules").insert(rows);
+          if (insErr) throw insErr;
+        }
       }
     },
     onSuccess: () => {
@@ -4446,6 +4417,8 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
               ))}
             </div>
           </div>
+
+          <CourtBlockRulesEditor courts={ruleCourts} rules={rules} onChange={setRulesDraft} />
 
           <div className="rounded-xl border border-dashed border-border p-3">
             <div className="text-sm font-semibold">Add courts to this group</div>

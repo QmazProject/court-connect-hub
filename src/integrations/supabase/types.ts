@@ -179,6 +179,52 @@ export type Database = {
           },
         ]
       }
+      court_block_rules: {
+        Row: {
+          blocked_court_id: number
+          court_id: number
+          created_at: string
+          id: number
+          venue_id: number
+        }
+        Insert: {
+          blocked_court_id: number
+          court_id: number
+          created_at?: string
+          id?: number
+          venue_id: number
+        }
+        Update: {
+          blocked_court_id?: number
+          court_id?: number
+          created_at?: string
+          id?: number
+          venue_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "court_block_rules_blocked_court_id_fkey"
+            columns: ["blocked_court_id"]
+            isOneToOne: false
+            referencedRelation: "courts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "court_block_rules_court_id_fkey"
+            columns: ["court_id"]
+            isOneToOne: false
+            referencedRelation: "courts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "court_block_rules_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courts: {
         Row: {
           amenities: string[]
