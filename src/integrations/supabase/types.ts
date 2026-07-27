@@ -144,6 +144,7 @@ export type Database = {
           id: number
           images: string[]
           inherit_venue_hours: boolean
+          is_active: boolean
           is_indoor: boolean
           map_emoji: string | null
           name: string
@@ -168,6 +169,7 @@ export type Database = {
           id?: never
           images?: string[]
           inherit_venue_hours?: boolean
+          is_active?: boolean
           is_indoor?: boolean
           map_emoji?: string | null
           name: string
@@ -192,6 +194,7 @@ export type Database = {
           id?: never
           images?: string[]
           inherit_venue_hours?: boolean
+          is_active?: boolean
           is_indoor?: boolean
           map_emoji?: string | null
           name?: string
