@@ -4275,36 +4275,25 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   const [rulesDraft, setRulesDraft] = useState<Set<string> | null>(null);
   const rules = rulesDraft ?? new Set(rulesQ.data ?? []);
   const ruleCourts: RuleCourt[] = [
-    ...group.layouts.map((l) => ({ id: l.id, name: l.name, sport: l.sport })),
+    ...group.layouts.filter((l) => !detachSel.has(l.id)).map((l) => ({ id: l.id, name: l.name, sport: l.sport })),
     ...(eligibleQ.data ?? []).filter((c) => addSel.has(c.id)).map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null })),
   ];
 
-  const toggleAdd = (id: number, cur: number) => {
+  const toggleAdd = (id: number) => {
     setAddSel((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else { next.add(id); setAddCaps((c) => ({ ...c, [id]: c[id] ?? String(cur ?? 1) })); }
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
-  const removeMember = async (courtId: number) => {
+  const toggleDetach = (id: number) => {
     setErr(null);
-    // Only allow removing if no upcoming confirmed bookings on that court
-    const { count, error: cErr } = await supabase.from("bookings")
-      .select("id", { count: "exact", head: true })
-      .eq("court_id", courtId)
-      .eq("status", "confirmed")
-      .gte("end_time", new Date().toISOString());
-    if (cErr) { setErr(cErr.message); return; }
-    if ((count ?? 0) > 0) { setErr("This court has upcoming confirmed bookings and cannot be detached from the group until they finish or are cancelled."); return; }
-    const { data: pc, error: pcErr } = await supabase.from("physical_courts")
-      .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` }).select("id").single();
-    if (pcErr) { setErr(pcErr.message); return; }
-    const { error: upErr } = await supabase.from("courts")
-      .update({ physical_court_id: pc.id, capacity: 1, footprint: 1 }).eq("id", courtId);
-    if (upErr) { setErr(upErr.message); return; }
-    qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
-    qc.invalidateQueries({ queryKey: ["group-add-eligible", group.venue_id, group.id] });
+    setDetachSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const mut = useMutation({
@@ -4315,26 +4304,33 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
         .update({ name: name.trim(), map_emoji: emoji, description: description.trim() || null })
         .eq("id", group.id);
       if (error) throw error;
-      // Update capacities of existing members
-      for (const l of group.layouts) {
-        const cap = Math.max(1, Math.floor(Number(caps[l.id] ?? "1") || 1));
-        if (cap !== l.capacity) {
-          const footprint = 1 / cap;
-          const { error: upErr } = await supabase.from("courts")
-            .update({ capacity: cap, footprint }).eq("id", l.id);
-          if (upErr) throw upErr;
-        }
+      // Detach unticked members (blocked if they have upcoming confirmed bookings)
+      for (const id of Array.from(detachSel)) {
+        const { count, error: cErr } = await supabase.from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("court_id", id)
+          .eq("status", "confirmed")
+          .gte("end_time", new Date().toISOString());
+        if (cErr) throw cErr;
+        if ((count ?? 0) > 0) throw new Error("A court you unticked has upcoming confirmed bookings and cannot be detached until they finish or are cancelled.");
+        const { data: pc, error: pcErr } = await supabase.from("physical_courts")
+          .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` }).select("id").single();
+        if (pcErr) throw pcErr;
+        const { error: dErr } = await supabase.from("courts")
+          .update({ physical_court_id: pc.id }).eq("id", id);
+        if (dErr) throw dErr;
+        const { error: rErr } = await supabase.from("court_block_rules").delete().eq("court_id", id);
+        if (rErr) throw rErr;
       }
       // Attach newly selected courts
       for (const id of Array.from(addSel)) {
-        const cap = Math.max(1, Math.floor(Number(addCaps[id] ?? "1") || 1));
-        const footprint = 1 / cap;
         const { error: upErr } = await supabase.from("courts")
-          .update({ physical_court_id: group.id, capacity: cap, footprint }).eq("id", id);
+          .update({ physical_court_id: group.id }).eq("id", id);
         if (upErr) throw upErr;
       }
       // Replace pairwise blocking rules for all courts in this group
-      const ids = [...group.layouts.map((l) => l.id), ...Array.from(addSel)];
+      const ids = memberIds;
+
       if (ids.length > 0) {
         const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
         if (delErr) throw delErr;
