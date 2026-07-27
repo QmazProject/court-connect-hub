@@ -25,7 +25,7 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
 
     const { data: cancelledCount, error } = await supabase.rpc("staff_cancel_bookings", {
       _booking_ids: data.bookingIds,
-      _reason: data.reason ?? null,
+      _reason: data.reason ?? "",
       _refund_mode: data.refundMode,
     });
     if (error) throw new Error(error.message);
