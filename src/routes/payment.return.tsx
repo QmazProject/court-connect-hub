@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { cancelPendingBookings } from "@/lib/paymongo.functions";
+import { groupBookingSessions, formatDateLabel, formatSessionLabel, type HourlyBooking } from "@/lib/booking-groups";
+
 
 type Search = { ref?: string; status?: string };
 
@@ -27,6 +29,8 @@ function PaymentReturn() {
   );
   const [amount, setAmount] = useState<number | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const [slot, setSlot] = useState<{ date: string; range: string; court: string | null; venue: string | null } | null>(null);
+
   const cancelFn = useServerFn(cancelPendingBookings);
   const didCancel = useRef(false);
 
@@ -59,13 +63,44 @@ function PaymentReturn() {
       if (!bookingId) return;
       const { data } = await supabase
         .from("transactions")
-        .select("status, amount")
+        .select("status, amount, provider_ref")
         .eq("booking_id", bookingId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (cancelled || !data) return;
-      setAmount(Number(data.amount));
+
+      // Sum the whole checkout session (bookings are stored one row per hour).
+      let total = Number(data.amount);
+      let ids = [bookingId];
+      if (data.provider_ref) {
+        const { data: sess } = await supabase
+          .from("transactions")
+          .select("booking_id, amount")
+          .eq("provider_ref", data.provider_ref);
+        if (sess && sess.length > 0) {
+          total = sess.reduce((s, t) => s + Number(t.amount ?? 0), 0);
+          ids = Array.from(new Set(sess.map((t) => t.booking_id as number)));
+        }
+      }
+      if (cancelled) return;
+      setAmount(total);
+
+      const { data: bks } = await supabase
+        .from("bookings")
+        .select("id, court_id, start_time, end_time, status, payment_status, courts(name, venues(name))")
+        .in("id", ids);
+      if (!cancelled && bks && bks.length > 0) {
+        const grouped = groupBookingSessions(bks as unknown as (HourlyBooking & { courts: { name: string; venues: { name: string } | null } | null })[]);
+        const s = grouped[0];
+        setSlot({
+          date: formatDateLabel(s.start_time),
+          range: formatSessionLabel(s.start_time, s.end_time),
+          court: s.first.courts?.name ?? null,
+          venue: s.first.courts?.venues?.name ?? null,
+        });
+      }
+
       if (data.status === "paid" || data.status === "failed") {
         setTxStatus(data.status as "paid" | "failed");
       }
@@ -77,6 +112,7 @@ function PaymentReturn() {
     poll();
     return () => { cancelled = true; clearInterval(timer); };
   }, [ref, status]);
+
 
   const stopAt = 20;
   const timedOut = pollCount > stopAt && txStatus === "pending";
@@ -118,6 +154,21 @@ function PaymentReturn() {
             <p className="mt-2 text-sm text-muted-foreground">Hang tight, we're syncing with PayMongo.</p>
           </>
         )}
+
+        {slot && status !== "cancel" && (
+          <div className="mt-5 rounded-xl border border-border bg-secondary/40 p-4 text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your session</p>
+            {(slot.venue || slot.court) && (
+              <p className="mt-1 text-sm font-semibold">
+                {slot.venue ?? "Venue"}{slot.court ? <span className="text-muted-foreground"> · {slot.court}</span> : null}
+              </p>
+            )}
+            <p className="mt-1 text-sm">{slot.date}</p>
+            <p className="text-sm font-medium text-primary">{slot.range}</p>
+          </div>
+        )}
+
+
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Link to="/dashboard" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">

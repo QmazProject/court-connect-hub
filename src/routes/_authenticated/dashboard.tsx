@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
+import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRange } from "@/lib/booking-groups";
+
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -4214,6 +4216,8 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
   const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p]));
 
   const rows = bookingsQ.data ?? [];
+  const sessions = groupBookingSessions(rows).sort((a, b) => b.start_time.localeCompare(a.start_time));
+
   const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && r.status !== "cancelled").length;
   const paidCount = rows.filter((r) => r.payment_status === "paid").length;
   const unpaidCount = rows.filter((r) => r.payment_status === "unpaid" && r.status !== "cancelled").length;
@@ -4281,11 +4285,16 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
                 <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>Loading…</td></tr>
               ) : rows.length === 0 ? (
                 <tr><td className="px-4 py-6 text-muted-foreground" colSpan={5}>No bookings match these filters yet.</td></tr>
-              ) : rows.map((r) => {
+              ) : sessions.map((s) => {
+                const r = s.first;
                 const p = nameMap.get(r.user_id);
                 return (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="px-4 py-3 whitespace-nowrap">{fmt(r.start_time)}<div className="text-[11px] text-muted-foreground">→ {new Date(r.end_time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</div></td>
+                  <tr key={s.key} className="border-t border-border">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {formatDateLabel(s.start_time)}
+                      <div className="text-[11px] text-muted-foreground">{formatSessionLabel(s.start_time, s.end_time)}</div>
+                      {s.ids.length > 1 && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.ids.length} slots</div>}
+                    </td>
                     <td className="px-4 py-3">{r.courts?.venues?.name ?? "—"}<div className="text-[11px] text-muted-foreground">{r.courts?.name ?? `Court #${r.court_id}`}</div></td>
                     <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
                     <td className="px-4 py-3">{stBadge(r.status)}</td>
@@ -4293,6 +4302,7 @@ function BookingsSection({ venues }: { venues: Venue[] }) {
                   </tr>
                 );
               })}
+
             </tbody>
           </table>
         </div>
@@ -4765,8 +4775,13 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
 
   const totalSpent = (txQ.data ?? []).filter((t) => t.status === "paid").reduce((s, t) => s + Number(t.amount || 0), 0);
   const nextUp = upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+  const allSessions = groupBookingSessions(rows);
+  const nextUpSession = nextUp ? allSessions.find((s) => s.ids.includes(nextUp.id)) : undefined;
 
-  const shown = tab === "upcoming" ? upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time)) : tab === "past" ? past : cancelled;
+  const shown = (tab === "upcoming"
+    ? groupBookingSessions(upcoming).sort((a, b) => a.start_time.localeCompare(b.start_time))
+    : groupBookingSessions(tab === "past" ? past : cancelled).sort((a, b) => b.start_time.localeCompare(a.start_time)));
+
 
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
@@ -4878,7 +4893,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Next game</p>
                 <p className="mt-0.5 font-semibold">{nextUp.courts?.venues?.name ?? "Venue"} · {nextUp.courts?.name}</p>
-                <p className="text-xs text-muted-foreground">{fmtDate(nextUp.start_time)} · {fmtTime(nextUp.start_time)}–{fmtTime(nextUp.end_time)} · {nextUp.courts?.sports?.name}</p>
+                <p className="text-xs text-muted-foreground">{fmtDate(nextUp.start_time)} · {formatTimeRange(nextUpSession?.start_time ?? nextUp.start_time, nextUpSession?.end_time ?? nextUp.end_time)} · {nextUp.courts?.sports?.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -4918,23 +4933,27 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           </div>
         ) : (
           <ul className="grid gap-3">
-            {shown.map((b) => {
+            {shown.map((sess) => {
+              const b = sess.first;
               const tx = txByBooking.get(b.id);
-              const h = hours(b.start_time, b.end_time);
-              const amount = tx?.amount != null ? Number(tx.amount) : (b.courts?.hourly_rate ?? 0) * h;
+              const h = sess.hours;
+              const txTotal = sess.ids.reduce((sum, id) => sum + Number(txByBooking.get(id)?.amount ?? 0), 0);
+              const amount = txTotal > 0 ? txTotal : (b.courts?.hourly_rate ?? 0) * h;
               const venueInactive = b.courts?.venues?.is_active === false;
               const paymentFailed = b.payment_status !== "paid" && b.status !== "cancelled";
 
               return (
-                <li key={b.id} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <li key={sess.key} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
                       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{b.courts?.map_emoji ?? "🎾"}</div>
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{b.courts?.venues?.name ?? "Venue"} · <span className="text-muted-foreground">{b.courts?.name}</span></p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{b.courts?.sports?.name ?? "Sport"} · {h} hr{h > 1 ? "s" : ""}</p>
-                        <p className="mt-1 text-sm">{fmtDate(b.start_time)}</p>
-                        <p className="text-xs text-muted-foreground">{fmtTime(b.start_time)} – {fmtTime(b.end_time)}</p>
+                        <p className="mt-1 text-sm">{fmtDate(sess.start_time)}</p>
+                        <p className="text-xs text-muted-foreground">{formatTimeRange(sess.start_time, sess.end_time)}{sess.ids.length > 1 ? ` · ${sess.ids.length} slots` : ""}</p>
+
                         {b.courts?.venues?.address && <p className="mt-1 truncate text-[11px] text-muted-foreground">📍 {b.courts.venues.address}</p>}
                       </div>
                     </div>
