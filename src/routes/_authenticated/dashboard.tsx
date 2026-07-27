@@ -4065,6 +4065,89 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
 
   const groups = groupsQ.data ?? [];
 
+  const cfgButton = (
+    <button
+      type="button"
+      onClick={() => setColCfgOpen(true)}
+      title="Configure columns"
+      aria-label="Configure columns"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+    >
+      <TableProperties className="h-4 w-4" />
+    </button>
+  );
+
+  const renderHeader = (id: string) => {
+    switch (id) {
+      case "emoji": return <th key={id} className="px-3 py-2 w-10 font-semibold">{cfgButton}</th>;
+      case "name": return <th key={id} className="px-3 py-2 font-semibold">Group</th>;
+      case "description": return <th key={id} className="px-3 py-2 font-semibold">Description</th>;
+      case "layouts": return <th key={id} className="px-3 py-2 font-semibold">Court layouts</th>;
+      case "courts_count": return <th key={id} className="px-3 py-2 font-semibold text-center">Courts</th>;
+      case "sports": return <th key={id} className="px-3 py-2 font-semibold">Sports</th>;
+      case "capacity": return <th key={id} className="px-3 py-2 font-semibold text-center">Total Capacity</th>;
+      case "actions": return <th key={id} className="px-3 py-2 font-semibold text-right">Actions</th>;
+      default: return null;
+    }
+  };
+
+  const renderCell = (id: string, g: GroupRow) => {
+    switch (id) {
+      case "emoji": return <td key={id} className="px-3 py-3 text-lg leading-none">{g.map_emoji ?? "🏟️"}</td>;
+      case "name": return <td key={id} className="px-3 py-3"><span className="font-medium">{g.name}</span></td>;
+      case "description": return <td key={id} className="px-3 py-3 text-muted-foreground">{g.description || "—"}</td>;
+      case "layouts": return (
+        <td key={id} className="px-3 py-3">
+          {g.layouts.length === 0 ? (
+            <span className="text-xs text-muted-foreground">No courts assigned yet — edit a court and set its physical surface to this group.</span>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {g.layouts.map((l) => (
+                <span key={l.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/50 px-2 py-0.5 text-xs">
+                  <b>{l.sport ?? "—"}</b> · {l.name} · cap {l.capacity}
+                </span>
+              ))}
+            </div>
+          )}
+        </td>
+      );
+      case "courts_count": return (
+        <td key={id} className="px-3 py-3 text-center">
+          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">{g.layouts.length}</span>
+        </td>
+      );
+      case "sports": {
+        const list = Array.from(new Set(g.layouts.map((l) => l.sport).filter(Boolean))) as string[];
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground text-xs">
+            {list.length ? list.join(", ") : "—"}
+          </td>
+        );
+      }
+      case "capacity": {
+        const total = g.layouts.reduce((sum, l) => sum + (Number(l.capacity) || 0), 0);
+        return <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">{g.layouts.length ? total : "—"}</td>;
+      }
+      case "actions": return (
+        <td key={id} className="px-3 py-3">
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => setEditing(g)}
+              title="Edit group"
+              aria-label={`Edit ${g.name}`}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <DeleteGroupButton group={g} />
+          </div>
+        </td>
+      );
+      default: return null;
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-3 p-4 sm:p-6">
@@ -4090,59 +4173,35 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Group</th>
-                <th className="px-3 py-2 font-semibold">Description</th>
-                <th className="px-3 py-2 font-semibold">Court layouts</th>
-                <th className="px-3 py-2 font-semibold text-right">Actions</th>
+                {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2">{cfgButton}</th>}
+                {visibleCols.map((id) => renderHeader(id))}
               </tr>
             </thead>
             <tbody>
               {groups.map((g) => (
                 <tr key={g.id} className="border-t border-border align-top">
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2 font-medium">
-                      <span className="text-lg">{g.map_emoji ?? "🏟️"}</span>
-                      <span>{g.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-muted-foreground">{g.description || "—"}</td>
-                  <td className="px-3 py-3">
-                    {g.layouts.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">No courts assigned yet — edit a court and set its physical surface to this group.</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {g.layouts.map((l) => (
-                          <span key={l.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/50 px-2 py-0.5 text-xs">
-                            <b>{l.sport ?? "—"}</b> · {l.name} · cap {l.capacity}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(g)}
-                        title="Edit group"
-                        aria-label={`Edit ${g.name}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <DeleteGroupButton group={g} />
-                    </div>
-                  </td>
+                  {!visibleCols.includes("emoji") && <td className="w-8 pl-2 pr-0 py-3" />}
+                  {visibleCols.map((id) => renderCell(id, g))}
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      <ColumnConfigModal
+        open={colCfgOpen}
+        onClose={() => setColCfgOpen(false)}
+        selected={visibleCols}
+        onApply={saveCols}
+        columns={GROUP_COLUMNS}
+        defaults={DEFAULT_GROUP_COLS}
+        presetKey="groups_column_presets"
+      />
       {editing && <EditGroupDrawer group={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
+
 
 type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; layouts: Array<{ id: number; name: string; capacity: number; sport: string | null }> };
 
