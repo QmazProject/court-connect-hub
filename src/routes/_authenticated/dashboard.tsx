@@ -4893,7 +4893,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Next game</p>
                 <p className="mt-0.5 font-semibold">{nextUp.courts?.venues?.name ?? "Venue"} · {nextUp.courts?.name}</p>
-                <p className="text-xs text-muted-foreground">{fmtDate(nextUp.start_time)} · {fmtTime(nextUp.start_time)}–{fmtTime(nextUp.end_time)} · {nextUp.courts?.sports?.name}</p>
+                <p className="text-xs text-muted-foreground">{fmtDate(nextUp.start_time)} · {formatTimeRange(nextUpSession?.start_time ?? nextUp.start_time, nextUpSession?.end_time ?? nextUp.end_time)} · {nextUp.courts?.sports?.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
