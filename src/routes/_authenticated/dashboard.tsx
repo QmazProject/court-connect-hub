@@ -1597,7 +1597,6 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [comingSoon, setComingSoon] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
-  const [amenities, setAmenities] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [physicalCourtId, setPhysicalCourtId] = useState<string>("new");
@@ -1670,7 +1669,6 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
         coming_soon: comingSoon,
         is_active: isActive,
         description: description || null,
-        amenities: parseList(amenities),
         images,
         map_emoji: mapEmoji,
         surface_type: surfaceType.trim() || null,
@@ -1692,7 +1690,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setAmenities(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
+      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setImages([]); setMapEmoji(null); setPhysicalCourtId("new"); setCapacity("1"); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1790,7 +1788,6 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="About this Court" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
-        <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} placeholder="Showers, Parking, Locker room, Water dispenser" />
         <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
         <div className="rounded-xl border border-border bg-background p-3">
           <EmojiPicker
@@ -1889,7 +1886,6 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [comingSoon, setComingSoon] = useState(!!court.coming_soon);
   const [isActive, setIsActive] = useState(court.is_active !== false);
   const [description, setDescription] = useState(court.description ?? "");
-  const [amenities, setAmenities] = useState((court.amenities ?? []).join(", "));
   const [images, setImages] = useState<string[]>(court.images ?? []);
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
   const [physicalCourtId, setPhysicalCourtId] = useState<string>(String(court.physical_court_id));
@@ -1950,7 +1946,6 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         coming_soon: comingSoon,
         is_active: isActive,
         description: description || null,
-        amenities: parseList(amenities),
         images,
         map_emoji: mapEmoji,
         physical_court_id: Number(physicalCourtId),
@@ -2034,7 +2029,6 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="About this Court" value={description} onChange={setDescription} />
-        <Textarea label="Amenities (comma or new line separated)" value={amenities} onChange={setAmenities} />
         <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
         <div className="rounded-xl border border-border bg-background p-3">
           <EmojiPicker
