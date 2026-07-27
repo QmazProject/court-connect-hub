@@ -2798,12 +2798,12 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
   const [presetName, setPresetName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const { presets, persist } = useColumnPresets();
+  const { presets, persist } = useColumnPresets(presetKey);
   useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); setDeleteTarget(null); } }, [open, selected]);
   if (!open) return null;
 
-  const availableCols = VENUE_COLUMNS.filter((c) => !localSelected.includes(c.id));
-  const selectedCols = localSelected.map((id) => VENUE_COLUMNS.find((c) => c.id === id)).filter(Boolean) as typeof VENUE_COLUMNS;
+  const availableCols = columns.filter((c) => !localSelected.includes(c.id));
+  const selectedCols = localSelected.map((id) => columns.find((c) => c.id === id)).filter(Boolean) as ColumnDef[];
   const filteredAvail = availableCols.filter((c) => c.label.toLowerCase().includes(availQuery.toLowerCase()));
   const filteredSel = selectedCols.filter((c) => c.label.toLowerCase().includes(selQuery.toLowerCase()));
   const moveToSelected = () => {
@@ -2813,7 +2813,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
   };
   const moveToAvailable = () => {
     if (!selActive) return;
-    const col = VENUE_COLUMNS.find((c) => c.id === selActive);
+    const col = columns.find((c) => c.id === selActive);
     if (col?.required) return;
     setLocalSelected(localSelected.filter((id) => id !== selActive));
     setSelActive(null);
@@ -2834,7 +2834,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
     [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
     setLocalSelected(next);
   };
-  const resetDefault = () => setLocalSelected(DEFAULT_VENUE_COLS);
+  const resetDefault = () => setLocalSelected(defaults);
   const apply = () => { onApply(localSelected); onClose(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true">
@@ -2924,7 +2924,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
           {/* Arrows */}
           <div className="flex flex-row items-center justify-center gap-2 sm:flex-col">
             <button type="button" onClick={moveToSelected} disabled={!availActive} title="Add" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronRight className="h-4 w-4" /></button>
-            <button type="button" onClick={moveToAvailable} disabled={!selActive || VENUE_COLUMNS.find((c) => c.id === selActive)?.required} title="Remove" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" onClick={moveToAvailable} disabled={!selActive || columns.find((c) => c.id === selActive)?.required} title="Remove" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronLeft className="h-4 w-4" /></button>
           </div>
           {/* Selected */}
           <div className="flex min-h-0 flex-col">
