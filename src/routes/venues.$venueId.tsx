@@ -856,7 +856,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   }, [selectedDate]);
 
 
-  const venueHours = normalizeHours(venue?.operating_hours);
+  const venueHours = useMemo(() => normalizeHours(venue?.operating_hours), [venue?.operating_hours]);
 
   const availability = useMemo(() => {
     const byCourt = new Map<number, { total: number; booked: number; past: number }>();
@@ -901,7 +901,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       });
     }
     return byCourt;
-  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr]);
+  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr, venueHours]);
 
   const isPastDate = selectedDate < todayStr;
 
