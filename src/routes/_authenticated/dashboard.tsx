@@ -2684,17 +2684,39 @@ const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean; defa
 const VENUE_COLS_STORAGE_KEY = "venues-tab-columns-v1";
 const DEFAULT_VENUE_COLS = VENUE_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
 
-function useVenueColumns() {
-  const [selected, setSelected] = useState<string[]>(DEFAULT_VENUE_COLS);
+type ColumnDef = { id: string; label: string; required?: boolean; defaultOn?: boolean };
+
+const COURT_COLUMNS: ColumnDef[] = [
+  { id: "emoji", label: "Emoji", defaultOn: true },
+  { id: "name", label: "Court", required: true, defaultOn: true },
+  { id: "description", label: "About This Court", defaultOn: true },
+  { id: "venue", label: "Venue", defaultOn: true },
+  { id: "sport", label: "Sport", defaultOn: true },
+  { id: "type", label: "Type", defaultOn: true },
+  { id: "rate", label: "Rate / hr", defaultOn: true },
+  { id: "status", label: "Status", defaultOn: true },
+  { id: "created_at", label: "Created At", defaultOn: true },
+  { id: "actions", label: "Actions", required: true, defaultOn: true },
+  // Optional (off by default)
+  { id: "history", label: "History" },
+  { id: "voucher", label: "Voucher" },
+  { id: "surface", label: "Surface" },
+  { id: "capacity", label: "Capacity" },
+];
+const COURT_COLS_STORAGE_KEY = "courts-tab-columns-v1";
+const DEFAULT_COURT_COLS = COURT_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
+
+function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: string, prefKey: string) {
+  const [selected, setSelected] = useState<string[]>(defaults);
   const sanitize = (arr: string[]) => {
-    const valid = arr.filter((id) => VENUE_COLUMNS.some((c) => c.id === id));
-    const required = VENUE_COLUMNS.filter((c) => c.required).map((c) => c.id);
+    const valid = arr.filter((id) => columns.some((c) => c.id === id));
+    const required = columns.filter((c) => c.required).map((c) => c.id);
     return [...required.filter((id) => !valid.includes(id)), ...valid];
   };
   useEffect(() => {
     // 1) instant paint from localStorage
     try {
-      const raw = localStorage.getItem(VENUE_COLS_STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       if (raw) setSelected(sanitize(JSON.parse(raw) as string[]));
     } catch {}
     // 2) authoritative load from Supabase (per-user, follows sign-in)
@@ -2707,18 +2729,18 @@ function useVenueColumns() {
         .select("prefs")
         .eq("user_id", uid)
         .maybeSingle();
-      const cols = (data?.prefs as any)?.venues_columns as string[] | undefined;
+      const cols = (data?.prefs as any)?.[prefKey] as string[] | undefined;
       if (Array.isArray(cols) && cols.length) {
         const merged = sanitize(cols);
         setSelected(merged);
-        try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(merged)); } catch {}
+        try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch {}
       }
     })();
   }, []);
   const save = (next: string[]) => {
     const clean = sanitize(next);
     setSelected(clean);
-    try { localStorage.setItem(VENUE_COLS_STORAGE_KEY, JSON.stringify(clean)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(clean)); } catch {}
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
@@ -2728,7 +2750,7 @@ function useVenueColumns() {
         .select("prefs")
         .eq("user_id", uid)
         .maybeSingle();
-      const merged = { ...(existing?.prefs as any ?? {}), venues_columns: clean };
+      const merged = { ...(existing?.prefs as any ?? {}), [prefKey]: clean };
       await supabase
         .from("user_preferences")
         .upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
@@ -2737,10 +2759,12 @@ function useVenueColumns() {
   return { selected, save };
 }
 
+const useVenueColumns = () => useColumnPrefs(VENUE_COLUMNS, DEFAULT_VENUE_COLS, VENUE_COLS_STORAGE_KEY, "venues_columns");
+const useCourtColumns = () => useColumnPrefs(COURT_COLUMNS, DEFAULT_COURT_COLS, COURT_COLS_STORAGE_KEY, "courts_columns");
 
 type ColumnPreset = { name: string; columns: string[] };
 
-function useColumnPresets() {
+function useColumnPresets(prefKey: string) {
   const [presets, setPresets] = useState<ColumnPreset[]>([]);
   useEffect(() => {
     (async () => {
@@ -2748,23 +2772,24 @@ function useColumnPresets() {
       const uid = auth.user?.id;
       if (!uid) return;
       const { data } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
-      const list = (data?.prefs as any)?.venues_column_presets as ColumnPreset[] | undefined;
+      const list = (data?.prefs as any)?.[prefKey] as ColumnPreset[] | undefined;
       if (Array.isArray(list)) setPresets(list);
     })();
-  }, []);
+  }, [prefKey]);
   const persist = async (next: ColumnPreset[]) => {
     setPresets(next);
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) return;
     const { data: existing } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
-    const merged = { ...(existing?.prefs as any ?? {}), venues_column_presets: next };
+    const merged = { ...(existing?.prefs as any ?? {}), [prefKey]: next };
     await supabase.from("user_preferences").upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
   };
   return { presets, persist };
 }
 
-function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void }) {
+
+function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_COLUMNS, defaults = DEFAULT_VENUE_COLS, presetKey = "venues_column_presets" }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void; columns?: ColumnDef[]; defaults?: string[]; presetKey?: string }) {
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
   const [availActive, setAvailActive] = useState<string | null>(null);
   const [selActive, setSelActive] = useState<string | null>(null);
@@ -2773,12 +2798,12 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
   const [presetName, setPresetName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const { presets, persist } = useColumnPresets();
+  const { presets, persist } = useColumnPresets(presetKey);
   useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); setDeleteTarget(null); } }, [open, selected]);
   if (!open) return null;
 
-  const availableCols = VENUE_COLUMNS.filter((c) => !localSelected.includes(c.id));
-  const selectedCols = localSelected.map((id) => VENUE_COLUMNS.find((c) => c.id === id)).filter(Boolean) as typeof VENUE_COLUMNS;
+  const availableCols = columns.filter((c) => !localSelected.includes(c.id));
+  const selectedCols = localSelected.map((id) => columns.find((c) => c.id === id)).filter(Boolean) as ColumnDef[];
   const filteredAvail = availableCols.filter((c) => c.label.toLowerCase().includes(availQuery.toLowerCase()));
   const filteredSel = selectedCols.filter((c) => c.label.toLowerCase().includes(selQuery.toLowerCase()));
   const moveToSelected = () => {
@@ -2788,7 +2813,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
   };
   const moveToAvailable = () => {
     if (!selActive) return;
-    const col = VENUE_COLUMNS.find((c) => c.id === selActive);
+    const col = columns.find((c) => c.id === selActive);
     if (col?.required) return;
     setLocalSelected(localSelected.filter((id) => id !== selActive));
     setSelActive(null);
@@ -2809,7 +2834,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
     [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
     setLocalSelected(next);
   };
-  const resetDefault = () => setLocalSelected(DEFAULT_VENUE_COLS);
+  const resetDefault = () => setLocalSelected(defaults);
   const apply = () => { onApply(localSelected); onClose(); };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true">
@@ -2899,7 +2924,7 @@ function ColumnConfigModal({ open, onClose, selected, onApply }: { open: boolean
           {/* Arrows */}
           <div className="flex flex-row items-center justify-center gap-2 sm:flex-col">
             <button type="button" onClick={moveToSelected} disabled={!availActive} title="Add" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronRight className="h-4 w-4" /></button>
-            <button type="button" onClick={moveToAvailable} disabled={!selActive || VENUE_COLUMNS.find((c) => c.id === selActive)?.required} title="Remove" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" onClick={moveToAvailable} disabled={!selActive || columns.find((c) => c.id === selActive)?.required} title="Remove" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronLeft className="h-4 w-4" /></button>
           </div>
           {/* Selected */}
           <div className="flex min-h-0 flex-col">
@@ -3704,12 +3729,118 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<CourtRow | null>(null);
   const [managingHours, setManagingHours] = useState<CourtRow | null>(null);
   const [historyCourt, setHistoryCourt] = useState<CourtRow | null>(null);
+  const [colCfgOpen, setColCfgOpen] = useState(false);
+  const { selected: visibleCols, save: saveCols } = useCourtColumns();
 
   const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
     qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
     qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+  };
+
+  const cfgButton = (
+    <button
+      type="button"
+      onClick={() => setColCfgOpen(true)}
+      title="Configure columns"
+      aria-label="Configure columns"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+    >
+      <TableProperties className="h-4 w-4" />
+    </button>
+  );
+
+  const renderHeader = (id: string) => {
+    switch (id) {
+      case "emoji": return <th key={id} className="px-4 py-2.5 w-10">{cfgButton}</th>;
+      case "name": return <th key={id} className="px-3 py-2.5">Court</th>;
+      case "description": return <th key={id} className="px-3 py-2.5">About This Court</th>;
+      case "venue": return <th key={id} className="px-3 py-2.5">Venue</th>;
+      case "sport": return <th key={id} className="px-3 py-2.5">Sport</th>;
+      case "type": return <th key={id} className="px-3 py-2.5">Type</th>;
+      case "surface": return <th key={id} className="px-3 py-2.5">Surface</th>;
+      case "capacity": return <th key={id} className="px-3 py-2.5 text-center">Capacity</th>;
+      case "rate": return <th key={id} className="px-3 py-2.5 text-right">Rate / hr</th>;
+      case "voucher": return <th key={id} className="px-3 py-2.5 text-center">Voucher</th>;
+      case "status": return <th key={id} className="px-3 py-2.5">Status</th>;
+      case "created_at": return <th key={id} className="px-3 py-2.5 w-32">Created At</th>;
+      case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
+      case "actions": return <th key={id} className="px-3 py-2.5 text-right">Actions</th>;
+      default: return null;
+    }
+  };
+
+  const renderCell = (id: string, c: CourtRow) => {
+    switch (id) {
+      case "emoji": return <td key={id} className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>;
+      case "name": return <td key={id} className="px-3 py-3"><div className="font-semibold">{c.name}</div></td>;
+      case "description": return (
+        <td key={id} className="px-3 py-3">
+          {c.description?.trim() ? (
+            <p title={c.description} className="line-clamp-2 max-w-[260px] whitespace-normal break-words text-[12px] leading-snug text-muted-foreground">{c.description}</p>
+          ) : <span className="text-muted-foreground">—</span>}
+        </td>
+      );
+      case "venue": return (
+        <td key={id} className="px-3 py-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
+            <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
+          </span>
+        </td>
+      );
+      case "sport": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>;
+      case "type": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>;
+      case "surface": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.surface_type?.trim() ? c.surface_type : "—"}</td>;
+      case "capacity": return <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">{c.player_capacity ?? "—"}</td>;
+      case "rate": return <td key={id} className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>;
+      case "voucher": return (
+        <td key={id} className="px-3 py-3 text-center">
+          {c.voucher_enabled ? (
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">True</span>
+          ) : (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">False</span>
+          )}
+        </td>
+      );
+      case "status": return (
+        <td key={id} className="px-3 py-3">
+          {c.coming_soon ? (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
+          ) : (
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">ACTIVE</span>
+          )}
+        </td>
+      );
+      case "created_at": return (
+        <td key={id} className="px-3 py-3">
+          {c.created_at ? (
+            <div className="flex flex-col leading-tight">
+              <span className="text-foreground">{new Date(c.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+              <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+            </div>
+          ) : <span className="text-muted-foreground">—</span>}
+        </td>
+      );
+      case "history": return (
+        <td key={id} className="px-3 py-3 text-center">
+          <button type="button" onClick={() => setHistoryCourt(c)} title="Audit history" aria-label={`View audit history for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+            <HistoryIcon className="h-3.5 w-3.5" />
+          </button>
+        </td>
+      );
+      case "actions": return (
+        <td key={id} className="px-3 py-3">
+          <div className="flex items-center justify-end gap-1">
+            <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <DeleteCourtButton court={c} onDeleted={invalidate} />
+          </div>
+        </td>
+      );
+      default: return null;
+    }
   };
 
   return (
@@ -3734,85 +3865,29 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="sticky top-[41px] z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
             <tr>
-              <th className="px-4 py-2.5 w-10"></th>
-              <th className="px-3 py-2.5">Court</th>
-              <th className="px-3 py-2.5">About This Court</th>
-              <th className="px-3 py-2.5">Venue</th>
-              <th className="px-3 py-2.5">Sport</th>
-              <th className="px-3 py-2.5">Type</th>
-              <th className="px-3 py-2.5">Surface</th>
-              <th className="px-3 py-2.5 text-center">Capacity</th>
-              <th className="px-3 py-2.5 text-right">Rate / hr</th>
-              <th className="px-3 py-2.5 text-center">Voucher</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5 w-32">Created At</th>
-              <th className="px-3 py-2.5 w-24 text-center">History</th>
-              <th className="px-3 py-2.5 text-right">Actions</th>
+              {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2.5">{cfgButton}</th>}
+              {visibleCols.map((id) => renderHeader(id))}
             </tr>
           </thead>
           <tbody>
             {rows.map((c) => (
               <tr key={c.id} className="border-t border-border align-middle hover:bg-secondary/20">
-                <td className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>
-                <td className="px-3 py-3">
-                  <div className="font-semibold">{c.name}</div>
-                </td>
-                <td className="px-3 py-3">
-                  {c.description?.trim() ? (
-                    <p title={c.description} className="line-clamp-2 max-w-[260px] whitespace-normal break-words text-[12px] leading-snug text-muted-foreground">{c.description}</p>
-                  ) : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-3 py-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
-                    <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
-                  </span>
-
-                </td>
-                <td className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
-                <td className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>
-                <td className="px-3 py-3 text-muted-foreground">{c.surface_type?.trim() ? c.surface_type : "—"}</td>
-                <td className="px-3 py-3 text-center tabular-nums text-muted-foreground">{c.player_capacity ?? "—"}</td>
-                <td className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>
-                <td className="px-3 py-3 text-center">
-                  {c.voucher_enabled ? (
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">True</span>
-                  ) : (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">False</span>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  {c.coming_soon ? (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
-                  ) : (
-                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">ACTIVE</span>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  {c.created_at ? (
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-foreground">{new Date(c.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-                      <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
-                    </div>
-                  ) : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-3 py-3 text-center">
-                  <button type="button" onClick={() => setHistoryCourt(c)} title="Audit history" aria-label={`View audit history for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-                    <HistoryIcon className="h-3.5 w-3.5" />
-                  </button>
-                </td>
-                <td className="px-3 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <DeleteCourtButton court={c} onDeleted={invalidate} />
-                  </div>
-                </td>
+                {!visibleCols.includes("emoji") && <td className="w-8 pl-2 pr-0 py-3" />}
+                {visibleCols.map((id) => renderCell(id, c))}
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      <ColumnConfigModal
+        open={colCfgOpen}
+        onClose={() => setColCfgOpen(false)}
+        selected={visibleCols}
+        onApply={saveCols}
+        columns={COURT_COLUMNS}
+        defaults={DEFAULT_COURT_COLS}
+        presetKey="courts_column_presets"
+      />
       <CourtAuditHistoryModal court={historyCourt} onClose={() => setHistoryCourt(null)} />
       <CourtDrawer title="Edit court" open={editing !== null} onClose={() => setEditing(null)}>
         {editing && (
@@ -3836,6 +3911,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
     </>
   );
 }
+
 
 type CourtAuditEntry = { id: number; court_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
 
