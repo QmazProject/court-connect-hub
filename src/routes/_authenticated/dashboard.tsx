@@ -5171,6 +5171,18 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
         </button>
       </div>
 
+      {chat && (
+        <BookingChat
+          bookingId={chat.bookingId}
+          venueId={chat.venueId}
+          playerId={userId}
+          meId={userId}
+          title={chat.title}
+          subtitle={chat.subtitle}
+          onClose={() => setChat(null)}
+        />
+      )}
+
 
       {/* Pay now modal */}
       {payFor && (
