@@ -118,6 +118,17 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [voucher, setVoucher] = useState<{ id: string; discount: number; type: string; value: number } | null>(null);
   const [voucherErr, setVoucherErr] = useState<string | null>(null);
   const [voucherLoading, setVoucherLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (alive) setCurrentUserId(data.user?.id ?? null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
@@ -154,6 +165,29 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
       return map;
     },
     enabled: !!courtQ.data,
+  });
+
+  const ownBookingsQ = useQuery({
+    queryKey: ["court-own-bookings", courtId, date, currentUserId],
+    enabled: !!courtQ.data && !!currentUserId,
+    queryFn: async () => {
+      if (!currentUserId) return [];
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("start_time, end_time, status, payment_status, created_at")
+        .eq("court_id", courtId)
+        .eq("user_id", currentUserId)
+        .lt("start_time", dayEnd.toISOString())
+        .gt("end_time", dayStart.toISOString());
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        start_time: string;
+        end_time: string;
+        status: string;
+        payment_status: string;
+        created_at: string;
+      }>;
+    },
   });
 
   const bookMut = useMutation({
@@ -258,6 +292,20 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
     return slotStart < Date.now();
   };
+  const ownSlotInfo = useMemo(() => {
+    const map = new Map<number, { kind: "hold" | "booking" }>();
+    for (const b of ownBookingsQ.data ?? []) {
+      const start = new Date(b.start_time).getTime();
+      const end = new Date(b.end_time).getTime();
+      const startHr = Math.floor((start - dayStart.getTime()) / 3600000);
+      const endHr = Math.ceil((end - dayStart.getTime()) / 3600000);
+      const isHold = b.status === "pending" && b.payment_status !== "paid";
+      for (let h = startHr; h < endHr; h++) {
+        map.set(h, { kind: isHold ? "hold" : "booking" });
+      }
+    }
+    return map;
+  }, [ownBookingsQ.data, dayStart]);
 
   return (
     <div className="flex h-full flex-col">
@@ -495,6 +543,7 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-yellow-500/60 bg-yellow-300" /> Selected</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-primary/50 bg-primary/15" /> Your booking</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-red-500/50 bg-red-300" /> Booked</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-amber-400/60 bg-amber-200/60" /> Unavailable</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-orange-500/50 bg-orange-300" /> Past</span>
@@ -507,11 +556,28 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                 const booked = isBooked(h);
                 const blockedSlot = isBlocked(h);
                 const past = isPast(h);
+                const mine = ownSlotInfo.get(h);
                 const disabled = booked || blockedSlot || past || otherSport;
                 const active = selected.includes(h);
-                const label = blockedSlot ? "Unavailable" : otherSport ? "Other sport" : booked ? "Full" : past ? "Past" : capacity > 1 ? `${info.remaining}/${capacity} left` : "";
+                const label = blockedSlot
+                  ? "Unavailable"
+                  : otherSport
+                    ? "Other sport"
+                    : mine
+                      ? mine.kind === "hold"
+                        ? "Your hold"
+                        : "Your booking"
+                      : booked
+                        ? "Booked"
+                        : past
+                          ? "Past"
+                          : capacity > 1
+                            ? `${info.remaining}/${capacity} left`
+                            : "";
                 const stateClass = active
                   ? "border-yellow-500 bg-yellow-300 text-yellow-950"
+                  : mine
+                    ? "cursor-not-allowed border-primary/50 bg-primary/10 text-primary"
                   : booked
                     ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
                     : otherSport
@@ -524,17 +590,17 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
                 return (
                   <button
                     key={h}
-                    disabled={disabled}
-                    onClick={() => {
-                      setErr(null);
-                      setSelected((prev) =>
-                        prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b),
-                      );
-                    }}
-                    title={otherSport ? "Booked for a different sport" : label}
-                    className={"flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " + stateClass}
-                  >
-                    <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
+                  disabled={disabled}
+                  onClick={() => {
+                    setErr(null);
+                    setSelected((prev) =>
+                      prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b),
+                    );
+                  }}
+                  title={mine ? "Booked by you" : otherSport ? "Booked for a different sport" : label}
+                  className={"flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " + stateClass}
+                >
+                  <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
                     <span className="mt-0.5 text-[10px] font-semibold tabular-nums">{peso(rateOf(h))}</span>
                     {label && <span className="mt-0.5 text-[9px] uppercase tracking-wide">{label}</span>}
                   </button>
