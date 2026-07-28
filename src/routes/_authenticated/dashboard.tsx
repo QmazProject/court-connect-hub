@@ -5096,6 +5096,13 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
         <div className="text-sm font-semibold sm:text-base">{dayLabel}</div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setCompact((v) => !v)}
+            className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold hover:bg-secondary"
+            title="Toggle row height — compact fits all 24 hours on one screen"
+          >
+            {compact ? "Compact 24h" : "Expanded 24h"}
+          </button>
           <select
             value={venueFilter}
             onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
@@ -5104,6 +5111,7 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
             <option value="all">All venues</option>
             {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
+
           <div className="inline-flex flex-wrap items-center gap-1">
             <button
               onClick={() => setSportFilter("all")}
