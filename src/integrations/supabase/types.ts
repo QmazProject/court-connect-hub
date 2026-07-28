@@ -862,6 +862,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      booking_is_active_hold: {
+        Args: { _created_at: string; _status: string }
+        Returns: boolean
+      }
       court_effective_hours: { Args: { _court_id: number }; Returns: Json }
       court_is_open: {
         Args: { _court_id: number; _ts: string }
@@ -889,6 +893,10 @@ export type Database = {
           end_time: string
           start_time: string
         }[]
+      }
+      expire_stale_pending_bookings: {
+        Args: { _older_than?: string }
+        Returns: number
       }
       is_conversation_participant: {
         Args: { _conversation_id: string; _uid: string }
