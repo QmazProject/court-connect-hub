@@ -245,13 +245,13 @@ function Dashboard() {
             open={addCourtOpen}
             onClose={() => setAddCourtOpen(false)}
             venues={venues}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); setAddCourtOpen(false); }}
+            onCreated={() => { ["my-venues", "venues-courts-glance", "venues-court-counts", "all-tenant-courts", "venues-courts-table", "courts", "group-eligible-courts", "physical-courts-full", "physical-courts", "venues-group-counts"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); setAddCourtOpen(false); }}
           />
           <CreateGroupDrawer
             open={createGroupOpen}
             onClose={() => setCreateGroupOpen(false)}
             venues={venues}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["physical-courts-full"] }); qc.invalidateQueries({ queryKey: ["physical-courts"] }); setCreateGroupOpen(false); }}
+            onCreated={() => { ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); setCreateGroupOpen(false); }}
           />
         </div>
       )}
@@ -3698,9 +3698,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
 
   const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
-    qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
-    qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+    ["all-tenant-courts", "venues-courts-glance", "venues-court-counts", "venues-courts-table", "courts", "physical-courts-full", "physical-courts", "venues-group-counts", "group-eligible-courts"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   };
 
   const cfgButton = (
@@ -4189,9 +4187,7 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
     },
     onSuccess: () => {
       setConfirm(false); setErr(null);
-      qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
-      qc.invalidateQueries({ queryKey: ["physical-courts"] });
-      qc.invalidateQueries({ queryKey: ["tenant-venues-full"] });
+      ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     },
     onError: (e: Error) => setErr(e.message),
   });
@@ -4347,9 +4343,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
-      qc.invalidateQueries({ queryKey: ["physical-courts"] });
-      qc.invalidateQueries({ queryKey: ["tenant-venues-full"] });
+      ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       onClose();
     },
     onError: (e: Error) => setErr(e.message),
