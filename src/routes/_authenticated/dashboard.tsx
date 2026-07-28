@@ -5171,10 +5171,15 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                     const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
                     return (
                       <div key={h} style={{ height: ROW_H }} className="relative border-t border-transparent">
-                        <div className="absolute right-2 top-0 -translate-y-1/2 text-[10px] font-medium text-muted-foreground">{label}</div>
+                        <div
+                          className={`absolute right-2 whitespace-nowrap text-[10px] font-medium leading-none text-muted-foreground ${i === 0 ? "top-0.5" : "top-0 -translate-y-1/2"}`}
+                        >
+                          {label}
+                        </div>
                       </div>
                     );
                   })}
+
                 </div>
 
                 {courtsShown.map((c) => {
@@ -5203,25 +5208,33 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                         const sportName = b.courts?.sports?.name ?? "Booking";
                         const player = nameMap.get(b.user_id) || "Player";
                         const range = `${s.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })} – ${e.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}`;
-                        const tight = height < 52;
+                        const density = height < 34 ? "xs" : height < 58 ? "sm" : "full";
                         return (
                           <div
                             key={sess.key}
                             style={{ top, height }}
                             title={`${player} · ${sportName} · ${range} (${sess.hours} hr${sess.hours > 1 ? "s" : ""})`}
-                            className={`absolute inset-x-1 overflow-hidden rounded-lg border ${st.bg} ${st.border} ${st.text} px-2 py-1 shadow-sm`}
+                            className={`absolute inset-x-1 flex flex-col justify-center overflow-hidden rounded-lg border ${st.bg} ${st.border} ${st.text} px-1.5 py-0.5 shadow-sm`}
                           >
-                            <div className="flex items-center gap-1.5 truncate text-[11px] font-semibold">
+                            <div className="flex min-w-0 items-center gap-1 text-[11px] font-semibold leading-tight">
                               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} />
                               <span className="truncate">{player}</span>
+                              {density === "xs" && (
+                                <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] font-medium opacity-70">{sess.hours}h</span>
+                              )}
                             </div>
-                            {!tight && <div className="truncate text-[10px] opacity-80">{sportName}</div>}
-                            <div className="truncate text-[10px] opacity-70">
-                              {range} · {sess.hours}h
-                            </div>
+                            {density !== "xs" && (
+                              <div className="truncate whitespace-nowrap text-[10px] leading-tight opacity-75">
+                                {range} · {sess.hours}h
+                              </div>
+                            )}
+                            {density === "full" && (
+                              <div className="truncate whitespace-nowrap text-[10px] leading-tight opacity-80">{sportName}</div>
+                            )}
                           </div>
                         );
                       })}
+
 
                       {isToday && (() => {
                         const now = new Date();
