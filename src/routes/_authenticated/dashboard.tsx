@@ -1721,13 +1721,6 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       </p>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
-      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared space</div>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Courts that share the same physical space are set up separately with <b className="text-foreground">+ Create group</b> under Venues &amp; courts, where you pick the courts and configure which ones block each other.
-        </p>
-      </div>
-
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
@@ -1935,13 +1928,6 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
       </div>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
-      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared space</div>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Which other courts this one blocks is managed in <b className="text-foreground">Court groups</b> — create or edit a group to pick the courts and their blocking rules.
-        </p>
-      </div>
-
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
