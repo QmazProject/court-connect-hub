@@ -5005,8 +5005,8 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
       const { data, error } = await supabase
         .from("bookings")
         .select("id, court_id, user_id, start_time, end_time, status, payment_status, courts!inner(name, venue_id, sport_id, venues(name), sports(name, slug))")
-        .gte("start_time", dayStart.toISOString())
         .lt("start_time", dayEnd.toISOString())
+        .gt("end_time", dayStart.toISOString())
         .in("courts.venue_id", venueIds)
         .neq("status", "cancelled")
         .order("start_time", { ascending: true });
@@ -5046,16 +5046,22 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
     return slug === sportFilter;
   });
 
-  const HOUR_START = 6;
-  const HOUR_END = 22;
+  // Hourly rows are merged into one session block per player + court run.
+  const sessions = groupBookingSessions(bookings);
+
+  // Full 24-hour day is always visible; "compact" shrinks rows so it fits without scrolling.
+  const [compact, setCompact] = useState(true);
+  const HOUR_START = 0;
+  const HOUR_END = 24;
   const HOURS = HOUR_END - HOUR_START;
-  const ROW_H = 60;
+  const ROW_H = compact ? 34 : 60;
   const gridHeight = HOURS * ROW_H;
 
   const isToday = (() => {
     const t = new Date(); t.setHours(0, 0, 0, 0);
     return t.getTime() === day.getTime();
   })();
+
 
   const nudgeDay = (delta: number) => {
     const d = new Date(day);
