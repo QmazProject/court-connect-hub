@@ -245,13 +245,13 @@ function Dashboard() {
             open={addCourtOpen}
             onClose={() => setAddCourtOpen(false)}
             venues={venues}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); setAddCourtOpen(false); }}
+            onCreated={() => { ["my-venues", "venues-courts-glance", "venues-court-counts", "all-tenant-courts", "venues-courts-table", "courts", "group-eligible-courts", "physical-courts-full", "physical-courts", "venues-group-counts"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); setAddCourtOpen(false); }}
           />
           <CreateGroupDrawer
             open={createGroupOpen}
             onClose={() => setCreateGroupOpen(false)}
             venues={venues}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["physical-courts-full"] }); qc.invalidateQueries({ queryKey: ["physical-courts"] }); setCreateGroupOpen(false); }}
+            onCreated={() => { ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); setCreateGroupOpen(false); }}
           />
         </div>
       )}
