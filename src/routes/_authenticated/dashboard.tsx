@@ -4187,9 +4187,7 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
     },
     onSuccess: () => {
       setConfirm(false); setErr(null);
-      qc.invalidateQueries({ queryKey: ["physical-courts-full"] });
-      qc.invalidateQueries({ queryKey: ["physical-courts"] });
-      qc.invalidateQueries({ queryKey: ["tenant-venues-full"] });
+      ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     },
     onError: (e: Error) => setErr(e.message),
   });
