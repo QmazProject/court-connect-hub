@@ -106,6 +106,13 @@ function VenueDetail() {
   const [openChip, setOpenChip] = useState<ChipKey | null>(null);
   const chipsRef = useRef<HTMLDivElement | null>(null);
   const [panelHidden, setPanelHidden] = useState(false);
+  const userQ = useQuery({
+    queryKey: ["venue-current-user"],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      return data.user?.id ?? null;
+    },
+  });
 
   const venueQ = useQuery({
     queryKey: ["venue", venueId],
@@ -639,6 +646,7 @@ function VenueDetail() {
       <CourtBookingPanel
         courtId={openCourtId ?? null}
         open={!!openCourtId}
+        userId={userQ.data ?? null}
         onOpenChange={(o) => { if (!o) openCourt(null); }}
       />
     </main>
@@ -1589,4 +1597,3 @@ function EmptySport({
     </div>
   );
 }
-

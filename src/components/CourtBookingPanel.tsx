@@ -105,7 +105,7 @@ const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
   { key: "qrph", label: "QR Ph", emoji: "🔳" },
 ];
 
-export function CourtBookingContent({ courtId, onClose }: { courtId: number; onClose?: () => void }) {
+export function CourtBookingContent({ courtId, onClose, userId }: { courtId: number; onClose?: () => void; userId?: string | null }) {
   const qc = useQueryClient();
   const [date, setDate] = useState(todayISO());
   const [selected, setSelected] = useState<number[]>([]);
@@ -118,17 +118,6 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   const [voucher, setVoucher] = useState<{ id: string; discount: number; type: string; value: number } | null>(null);
   const [voucherErr, setVoucherErr] = useState<string | null>(null);
   const [voucherLoading, setVoucherLoading] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (alive) setCurrentUserId(data.user?.id ?? null);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const courtQ = useQuery({
     queryKey: ["court", courtId],
@@ -168,15 +157,15 @@ export function CourtBookingContent({ courtId, onClose }: { courtId: number; onC
   });
 
   const ownBookingsQ = useQuery({
-    queryKey: ["court-own-bookings", courtId, date, currentUserId],
-    enabled: !!courtQ.data && !!currentUserId,
+    queryKey: ["court-own-bookings", courtId, date, userId],
+    enabled: !!courtQ.data && !!userId,
     queryFn: async () => {
-      if (!currentUserId) return [];
+      if (!userId) return [];
       const { data, error } = await supabase
         .from("bookings")
         .select("start_time, end_time, status, payment_status, created_at")
         .eq("court_id", courtId)
-        .eq("user_id", currentUserId)
+        .eq("user_id", userId)
         .lt("start_time", dayEnd.toISOString())
         .gt("end_time", dayStart.toISOString());
       if (error) throw error;
@@ -797,10 +786,12 @@ export function CourtBookingPanel({
   courtId,
   open,
   onOpenChange,
+  userId,
 }: {
   courtId: number | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userId?: string | null;
 }) {
   const isMobile = useIsMobile();
 
@@ -827,7 +818,7 @@ export function CourtBookingPanel({
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="h-[92vh] p-0 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
-          <CourtBookingContent courtId={renderedId} onClose={() => onOpenChange(false)} />
+          <CourtBookingContent courtId={renderedId} userId={userId} onClose={() => onOpenChange(false)} />
         </DrawerContent>
       </Drawer>
     );
@@ -849,7 +840,7 @@ export function CourtBookingPanel({
             Court Profile
           </span>
         </div>
-        <CourtBookingContent courtId={renderedId} onClose={() => onOpenChange(false)} />
+        <CourtBookingContent courtId={renderedId} userId={userId} onClose={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>
   );
