@@ -5144,10 +5144,10 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
         ) : courtsShown.length === 0 ? (
           <div className="p-6 text-sm text-muted-foreground">No courts to display. Add a court to see it here.</div>
         ) : (
-          <div className="nice-scroll overflow-auto">
+          <div className="nice-scroll max-h-[72vh] overflow-auto">
             <div className="min-w-max">
-              <div className="sticky top-0 z-10 flex border-b border-border bg-card/95 backdrop-blur">
-                <div className="w-16 shrink-0" />
+              <div className="sticky top-0 z-20 flex border-b border-border bg-card/95 backdrop-blur">
+                <div className="sticky left-0 z-30 w-16 shrink-0 bg-card/95" />
                 {courtsShown.map((c) => {
                   const st = sportStyle(c.sports?.slug ?? c.sports?.name.toLowerCase());
                   return (
@@ -5164,54 +5164,70 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                 })}
               </div>
 
-              <div className="flex">
-                <div className="w-16 shrink-0" style={{ height: gridHeight }}>
+              <div className="relative flex">
+                <div className="sticky left-0 z-10 w-16 shrink-0 bg-card" style={{ height: gridHeight }}>
                   {Array.from({ length: HOURS }).map((_, i) => {
                     const h = HOUR_START + i;
-                    const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+                    const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
                     return (
-                      <div key={h} style={{ height: ROW_H }} className="relative">
-                        <div className="absolute -top-2 right-2 text-[10px] font-medium text-muted-foreground">{label}</div>
+                      <div key={h} style={{ height: ROW_H }} className="relative border-t border-transparent">
+                        <div className="absolute right-2 top-0 -translate-y-1/2 text-[10px] font-medium text-muted-foreground">{label}</div>
                       </div>
                     );
                   })}
                 </div>
 
                 {courtsShown.map((c) => {
-                  const colBookings = bookings.filter((b) => b.court_id === c.id);
+                  const colSessions = sessions.filter((s) => s.first.court_id === c.id);
                   return (
                     <div key={c.id} className="relative w-40 shrink-0 border-l border-border" style={{ height: gridHeight }}>
                       {Array.from({ length: HOURS }).map((_, i) => (
-                        <div key={i} style={{ top: i * ROW_H, height: ROW_H }} className="absolute inset-x-0 border-t border-border/60" />
+                        <div
+                          key={i}
+                          style={{ top: i * ROW_H, height: ROW_H }}
+                          className={`absolute inset-x-0 border-t ${(HOUR_START + i) % 6 === 0 ? "border-border" : "border-border/40"}`}
+                        />
                       ))}
 
-                      {colBookings.map((b) => {
-                        const s = new Date(b.start_time);
-                        const e = new Date(b.end_time);
-                        const startH = s.getHours() + s.getMinutes() / 60;
-                        const endH = e.getHours() + e.getMinutes() / 60;
+                      {colSessions.map((sess) => {
+                        const b = sess.first;
+                        const s = new Date(sess.start_time);
+                        const e = new Date(sess.end_time);
+                        // Clip overnight sessions to the visible day.
+                        const startH = s < dayStart ? 0 : s.getHours() + s.getMinutes() / 60;
+                        const rawEnd = e > dayEnd ? 24 : e.getHours() + e.getMinutes() / 60;
+                        const endH = rawEnd <= startH ? 24 : rawEnd;
                         const top = Math.max(0, (startH - HOUR_START) * ROW_H);
-                        const height = Math.max(24, (endH - startH) * ROW_H - 4);
+                        const height = Math.max(22, (endH - startH) * ROW_H - 3);
                         const st = sportStyle(b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase());
                         const sportName = b.courts?.sports?.name ?? "Booking";
                         const player = nameMap.get(b.user_id) || "Player";
+                        const range = `${s.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })} – ${e.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}`;
+                        const tight = height < 52;
                         return (
                           <div
-                            key={b.id}
+                            key={sess.key}
                             style={{ top, height }}
-                            className={`absolute inset-x-1 rounded-xl border ${st.bg} ${st.border} ${st.text} px-2.5 py-2 shadow-sm`}
+                            title={`${player} · ${sportName} · ${range} (${sess.hours} hr${sess.hours > 1 ? "s" : ""})`}
+                            className={`absolute inset-x-1 overflow-hidden rounded-lg border ${st.bg} ${st.border} ${st.text} px-2 py-1 shadow-sm`}
                           >
-                            <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
-                              {sportName}
+                            <div className="flex items-center gap-1.5 truncate text-[11px] font-semibold">
+                              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} />
+                              <span className="truncate">{player}</span>
                             </div>
-                            <div className="mt-0.5 truncate text-[11px] opacity-80">{player}</div>
-                            <div className="mt-0.5 text-[10px] opacity-70">
-                              {s.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })} – {e.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}
+                            {!tight && <div className="truncate text-[10px] opacity-80">{sportName}</div>}
+                            <div className="truncate text-[10px] opacity-70">
+                              {range} · {sess.hours}h
                             </div>
                           </div>
                         );
                       })}
+
+                      {isToday && (() => {
+                        const now = new Date();
+                        const nowTop = (now.getHours() + now.getMinutes() / 60 - HOUR_START) * ROW_H;
+                        return <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-primary" style={{ top: nowTop }} />;
+                      })()}
                     </div>
                   );
                 })}
@@ -5221,7 +5237,42 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
         )}
       </div>
 
-      {bookingsQ.isLoading && <div className="text-xs text-muted-foreground">Loading bookings…</div>}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="mb-3 text-sm font-semibold">
+          Players booked on {dayLabel}
+          <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{sessions.length}</span>
+        </div>
+        {bookingsQ.isLoading ? (
+          <div className="text-xs text-muted-foreground">Loading bookings…</div>
+        ) : sessions.length === 0 ? (
+          <div className="text-xs text-muted-foreground">No bookings for this date.</div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {sessions.map((sess) => {
+              const b = sess.first;
+              const st = sportStyle(b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase());
+              return (
+                <li key={sess.key} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${st.dot}`} />
+                    <span className="truncate font-semibold">{nameMap.get(b.user_id) || "Player"}</span>
+                    <span className="truncate text-muted-foreground">
+                      {b.courts?.sports?.name ?? "Sport"} · {b.courts?.name} · {b.courts?.venues?.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{formatSessionLabel(sess.start_time, sess.end_time)}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sess.items.some((i) => i.payment_status === "paid") ? "bg-emerald-100 text-emerald-800" : "bg-secondary text-muted-foreground"}`}>
+                      {sess.items.some((i) => i.payment_status === "paid") ? "Paid" : "Unpaid"}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
     </div>
   );
 }
