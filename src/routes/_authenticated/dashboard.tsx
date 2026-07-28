@@ -5171,10 +5171,15 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                     const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
                     return (
                       <div key={h} style={{ height: ROW_H }} className="relative border-t border-transparent">
-                        <div className="absolute right-2 top-0 -translate-y-1/2 text-[10px] font-medium text-muted-foreground">{label}</div>
+                        <div
+                          className={`absolute right-2 whitespace-nowrap text-[10px] font-medium leading-none text-muted-foreground ${i === 0 ? "top-0.5" : "top-0 -translate-y-1/2"}`}
+                        >
+                          {label}
+                        </div>
                       </div>
                     );
                   })}
+
                 </div>
 
                 {courtsShown.map((c) => {
