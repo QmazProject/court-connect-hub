@@ -3698,9 +3698,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
 
   const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["all-tenant-courts"] });
-    qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
-    qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+    ["all-tenant-courts", "venues-courts-glance", "venues-court-counts", "venues-courts-table", "courts", "physical-courts-full", "physical-courts", "venues-group-counts", "group-eligible-courts"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   };
 
   const cfgButton = (
