@@ -5073,7 +5073,7 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="Calendar" subtitle="Day view across every court and sport." />
+      <SectionHeader title="Calendar" subtitle="Full 24-hour day view across every court, sport and player." />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
