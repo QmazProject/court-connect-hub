@@ -879,6 +879,10 @@ export type Database = {
         Args: { _court_id: number; _ts: string }
         Returns: number
       }
+      expire_stale_pending_bookings: {
+        Args: { _older_than?: string }
+        Returns: number
+      }
       get_court_availability: {
         Args: { _court_id: number; _from: string; _to: string }
         Returns: {
@@ -893,10 +897,6 @@ export type Database = {
           end_time: string
           start_time: string
         }[]
-      }
-      expire_stale_pending_bookings: {
-        Args: { _older_than?: string }
-        Returns: number
       }
       is_conversation_participant: {
         Args: { _conversation_id: string; _uid: string }
