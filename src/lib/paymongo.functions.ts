@@ -63,8 +63,12 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
 
     // Insert bookings as pending + unpaid. Attach voucher/discount to first row.
+    // Hours are venue-local: the server runs in UTC, so resolve each hour
+    // against the venue timezone before storing the instant.
+    const { zonedHourToUtc, DEFAULT_TIMEZONE } = await import("./tz");
+    const tz = venue.timezone || DEFAULT_TIMEZONE;
     const rows = data.hours.map((h, idx) => {
-      const start = new Date(`${data.date}T${String(h).padStart(2, "0")}:00:00`);
+      const start = zonedHourToUtc(data.date, h, tz);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
       return {
         court_id: data.courtId,
