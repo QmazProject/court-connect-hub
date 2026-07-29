@@ -29,6 +29,8 @@ function PaymentReturn() {
   );
   const [amount, setAmount] = useState<number | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const [reservationState, setReservationState] = useState<"active" | "expired" | "cancelled">("active");
+  const [refundPending, setRefundPending] = useState(false);
   const [slot, setSlot] = useState<{ date: string; range: string; court: string | null; venue: string | null } | null>(null);
 
   const cancelFn = useServerFn(cancelPendingBookings);
@@ -88,9 +90,12 @@ function PaymentReturn() {
 
       const { data: bks } = await supabase
         .from("bookings")
-        .select("id, court_id, start_time, end_time, status, payment_status, courts(name, venues(name))")
+        .select("id, court_id, start_time, end_time, status, payment_status, refund_status, courts(name, venues(name))")
         .in("id", ids);
       if (!cancelled && bks && bks.length > 0) {
+        if (bks.some((booking) => booking.status === "expired")) setReservationState("expired");
+        else if (bks.some((booking) => booking.status === "cancelled")) setReservationState("cancelled");
+        setRefundPending(bks.some((booking) => booking.refund_status === "pending"));
         const grouped = groupBookingSessions(bks as unknown as (HourlyBooking & { courts: { name: string; venues: { name: string } | null } | null })[]);
         const s = grouped[0];
         setSlot({
@@ -101,8 +106,8 @@ function PaymentReturn() {
         });
       }
 
-      if (data.status === "paid" || data.status === "failed") {
-        setTxStatus(data.status as "paid" | "failed");
+      if (["paid", "failed", "cancelled", "refunded"].includes(data.status)) {
+        setTxStatus(data.status as "paid" | "failed" | "cancelled" | "refunded");
       }
     };
     const timer = setInterval(() => {
@@ -125,6 +130,14 @@ function PaymentReturn() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-2xl">✕</div>
             <h1 className="mt-4 text-2xl font-bold">Payment cancelled</h1>
             <p className="mt-2 text-sm text-muted-foreground">Your reservation was not placed. You can try again anytime from your dashboard.</p>
+          </>
+        ) : reservationState === "expired" || reservationState === "cancelled" ? (
+          <>
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-2xl">⌛</div>
+            <h1 className="mt-4 text-2xl font-bold">Your reservation has expired</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              The selected time may already have been booked by another player. {refundPending ? "Your payment was received after the hold ended and is awaiting refund." : "Create a new booking to reserve another available slot."}
+            </p>
           </>
         ) : txStatus === "paid" ? (
           <>

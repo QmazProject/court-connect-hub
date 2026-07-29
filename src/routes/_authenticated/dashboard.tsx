@@ -4684,6 +4684,7 @@ type BookingRow = {
   end_time: string;
   status: string;
   payment_status: string;
+  refund_status?: string | null;
   created_at: string;
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
@@ -4691,8 +4692,8 @@ type BookingRow = {
 function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }) {
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
-  const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled">("upcoming");
-  const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid" | "refunded">("all");
+  const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">("upcoming");
+  const [payFilter, setPayFilter] = useState<"all" | "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -4709,7 +4710,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
     queryFn: async () => {
       let q = supabase
         .from("bookings")
-        .select("id, court_id, user_id, start_time, end_time, status, payment_status, created_at, courts(name, venue_id, venues(name))")
+        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, created_at, courts(name, venue_id, venues(name))")
         .order("start_time", { ascending: false })
         .limit(500);
       if (payFilter !== "all") q = q.eq("payment_status", payFilter);
@@ -4718,9 +4719,10 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
       const nowIso = new Date().toISOString();
       let rows = (data as unknown as BookingRow[]) ?? [];
       if (venueFilter !== "all") rows = rows.filter((r) => r.courts?.venue_id === venueFilter);
-      if (status === "upcoming") rows = rows.filter((r) => r.end_time >= nowIso && r.status !== "cancelled");
-      else if (status === "past") rows = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled");
+      if (status === "upcoming") rows = rows.filter((r) => r.end_time >= nowIso && (r.status === "pending" || r.status === "confirmed"));
+      else if (status === "past") rows = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled" && r.status !== "expired");
       else if (status === "cancelled") rows = rows.filter((r) => r.status === "cancelled");
+      else if (status === "expired") rows = rows.filter((r) => r.status === "expired");
       return rows;
     },
   });
@@ -4741,32 +4743,37 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const rows = bookingsQ.data ?? [];
   const sessions = groupBookingSessions(rows).sort((a, b) => b.start_time.localeCompare(a.start_time));
 
-  const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && r.status !== "cancelled").length;
+  const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && (r.status === "pending" || r.status === "confirmed")).length;
   const paidCount = rows.filter((r) => r.payment_status === "paid").length;
-  const unpaidCount = rows.filter((r) => r.payment_status === "unpaid" && r.status !== "cancelled").length;
+  const unpaidCount = rows.filter((r) => r.payment_status === "pending" && r.status === "pending").length;
 
   const fmt = (iso: string) => new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
-  const payBadge = (s: string) => {
+  const payBadge = (s: string, refundStatus?: string | null) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
+      pending: "bg-amber-500/15 text-amber-700",
       unpaid: "bg-amber-500/15 text-amber-700",
+      failed: "bg-destructive/10 text-destructive",
+      cancelled: "bg-muted text-muted-foreground",
       refunded: "bg-muted text-muted-foreground",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+    const label = refundStatus === "pending" ? "Awaiting refund" : s === "pending" ? "Payment pending" : s;
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const stBadge = (s: string) => {
     const map: Record<string, string> = {
       confirmed: "bg-primary/10 text-primary",
       cancelled: "bg-destructive/10 text-destructive",
       pending: "bg-amber-500/15 text-amber-700",
+      expired: "bg-muted text-muted-foreground",
     };
     const label = s === "pending" ? "Payment in progress" : s;
     return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const paymentHoldRemaining = (booking: BookingRow) => {
-    if (booking.status !== "pending" || booking.payment_status === "paid") return null;
+    if (booking.status !== "pending" || booking.payment_status !== "pending") return null;
     const seconds = Math.max(0, Math.ceil((new Date(booking.created_at).getTime() + 15 * 60_000 - nowMs) / 1000));
-    if (seconds === 0) return "Hold expiry overdue";
+    if (seconds === 0) return "Payment hold expired";
     return `Hold expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   };
 
@@ -4788,12 +4795,16 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
           <option value="upcoming">Upcoming</option>
           <option value="past">Past</option>
           <option value="cancelled">Cancelled</option>
+          <option value="expired">Expired</option>
           <option value="all">All</option>
         </select>
         <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
           <option value="all">Any payment</option>
           <option value="paid">Paid</option>
-          <option value="unpaid">Unpaid</option>
+          <option value="pending">Payment pending</option>
+          <option value="unpaid">Unpaid (legacy)</option>
+          <option value="failed">Failed</option>
+          <option value="cancelled">Cancelled</option>
           <option value="refunded">Refunded</option>
         </select>
       </div>
@@ -4836,7 +4847,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                       {stBadge(r.status)}
                       {paymentHoldRemaining(r) && <div className="mt-1 text-[10px] font-medium text-amber-700">{paymentHoldRemaining(r)}</div>}
                     </td>
-                    <td className="px-4 py-3">{payBadge(r.payment_status)}</td>
+                    <td className="px-4 py-3">{payBadge(r.payment_status, r.refund_status)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5 whitespace-nowrap">
                         {venueId && (
@@ -4847,7 +4858,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                             Message
                           </button>
                         )}
-                        {!cancelled && (
+                        {!cancelled && r.status !== "expired" && (
                           <button
                             onClick={() => setCancelTarget({ bookingIds: s.ids, label, hasPaid: paid })}
                             className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
@@ -5366,6 +5377,7 @@ type PlayerBooking = {
   end_time: string;
   status: string;
   payment_status: string;
+  refund_status?: string | null;
   created_at: string;
   courts: {
     name: string;
@@ -5388,7 +5400,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("id, court_id, start_time, end_time, status, payment_status, created_at, courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address, is_active))")
+        .select("id, court_id, start_time, end_time, status, payment_status, refund_status, created_at, courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address, is_active))")
         .eq("user_id", userId)
         .order("start_time", { ascending: false })
         .limit(200);
@@ -5431,9 +5443,9 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
   const now = new Date();
   const nowIso = now.toISOString();
 
-  const upcoming = rows.filter((r) => r.end_time >= nowIso && r.status !== "cancelled");
-  const past = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled");
-  const cancelled = rows.filter((r) => r.status === "cancelled");
+  const upcoming = rows.filter((r) => r.end_time >= nowIso && (r.status === "pending" || r.status === "confirmed"));
+  const past = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled" && r.status !== "expired");
+  const cancelled = rows.filter((r) => r.status === "cancelled" || r.status === "expired");
 
   const totalSpent = (txQ.data ?? []).filter((t) => t.status === "paid").reduce((s, t) => s + Number(t.amount || 0), 0);
   const nextUp = upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
@@ -5450,19 +5462,24 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
   const hours = (a: string, b: string) => Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600000));
   const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const payBadge = (s: string) => {
+  const payBadge = (s: string, refundStatus?: string | null) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
+      pending: "bg-amber-500/15 text-amber-700",
       unpaid: "bg-amber-500/15 text-amber-700",
+      failed: "bg-destructive/10 text-destructive",
+      cancelled: "bg-muted text-muted-foreground",
       refunded: "bg-muted text-muted-foreground",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+    const label = refundStatus === "pending" ? "Awaiting refund" : s === "pending" ? "Payment pending" : s;
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const stBadge = (s: string) => {
     const map: Record<string, string> = {
       confirmed: "bg-primary/10 text-primary",
       pending: "bg-amber-500/15 text-amber-700",
       cancelled: "bg-destructive/10 text-destructive",
+      expired: "bg-muted text-muted-foreground",
       completed: "bg-emerald-500/15 text-emerald-700",
     };
     const label = s === "pending" ? "Awaiting payment" : s;
@@ -5478,7 +5495,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
       .filter((t) => t.provider_ref === tx.provider_ref)
       .map((t) => t.booking_id);
     const eligible = rows
-      .filter((r) => sameSession.includes(r.id) && r.payment_status !== "paid" && r.status !== "cancelled")
+      .filter((r) => sameSession.includes(r.id) && r.status === "pending" && ["pending", "failed", "unpaid"].includes(r.payment_status))
       .map((r) => r.id);
     return eligible.length > 0 ? eligible : [bookingId];
   };
@@ -5606,7 +5623,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
               const txTotal = sess.ids.reduce((sum, id) => sum + Number(txByBooking.get(id)?.amount ?? 0), 0);
               const amount = txTotal > 0 ? txTotal : (b.courts?.hourly_rate ?? 0) * h;
               const venueInactive = b.courts?.venues?.is_active === false;
-              const paymentFailed = b.payment_status !== "paid" && b.status !== "cancelled";
+              const paymentFailed = ["pending", "failed", "unpaid"].includes(b.payment_status) && b.status === "pending";
 
               return (
                 <li key={sess.key} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -5629,7 +5646,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                         {venueInactive && (
                           <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">Venue inactive</span>
                         )}
-                        {payBadge(b.payment_status)}
+                        {payBadge(b.payment_status, b.refund_status)}
                         {stBadge(b.status)}
                       </div>
                       {tx?.method && <p className="text-[10px] uppercase tracking-wider text-muted-foreground">via {tx.method}</p>}
@@ -5641,7 +5658,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
                     </div>
                   )}
                   {(() => {
-                    const isUnpaidUpcoming = tab === "upcoming" && b.payment_status !== "paid" && b.status !== "cancelled" && new Date(b.start_time) > now;
+                    const isUnpaidUpcoming = tab === "upcoming" && b.status === "pending" && ["pending", "failed", "unpaid"].includes(b.payment_status) && new Date(b.start_time) > now;
                     const isPaidUpcoming = tab === "upcoming" && b.payment_status === "paid" && new Date(b.start_time) > now;
                     const vId = b.courts?.venues?.id;
                     return (

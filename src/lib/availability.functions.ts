@@ -31,6 +31,7 @@ export const getCourtAvailability = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => courtSchema.parse(data))
   .handler(async ({ data }): Promise<CourtAvailabilityRow[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.rpc("expire_pending_payment_holds");
     const { data: rows, error } = await supabaseAdmin.rpc("get_court_availability", {
       _court_id: data.courtId,
       _from: data.from,
@@ -44,6 +45,7 @@ export const getVenueDayBookings = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => venueSchema.parse(data))
   .handler(async ({ data }): Promise<VenueDayBookingRow[]> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.rpc("expire_pending_payment_holds");
     const { data: rows, error } = await supabaseAdmin.rpc("get_venue_day_bookings", {
       _venue_id: data.venueId,
       _from: data.from,

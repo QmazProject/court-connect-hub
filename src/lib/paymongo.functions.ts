@@ -16,6 +16,8 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => StartCheckoutInput.parse(data))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.rpc("expire_pending_payment_holds");
     const {
       createCheckoutSession,
       paymongoMode,
@@ -76,7 +78,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
         start_time: start.toISOString(),
         end_time: end.toISOString(),
         status: "pending",
-        payment_status: "unpaid",
+        payment_status: "pending",
         unit_price: unitPrices[idx],
         voucher_id: idx === 0 ? voucherId : null,
         discount_amount: idx === 0 ? Number(discountAmount.toFixed(2)) : 0,
@@ -117,7 +119,6 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       throw e;
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const mode = paymongoMode();
     const perBookingCentavos = Math.round(centavos / bookingIds.length);
     const txRows = bookingIds.map((bid) => ({
@@ -133,7 +134,10 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       mode,
     }));
     const { error: txErr } = await supabaseAdmin.from("transactions").insert(txRows);
-    if (txErr) console.error("[transactions insert]", txErr);
+    if (txErr) {
+      await supabase.from("bookings").update({ status: "cancelled", payment_status: "cancelled", cancel_reason: "Checkout session could not be recorded" }).in("id", bookingIds);
+      throw new Error(`Could not create payment reservation: ${txErr.message}`);
+    }
 
     return {
       checkoutUrl: session.data.attributes.checkout_url,
@@ -156,10 +160,12 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { createCheckoutSession, paymongoMode } = await import("./paymongo.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.rpc("expire_pending_payment_holds");
 
     const { data: bookings, error: bErr } = await supabase
       .from("bookings")
-      .select("id, court_id, user_id, start_time, end_time, status, payment_status, unit_price, courts(name, hourly_rate, venue_id, venues(name, payment_mode))")
+      .select("id, court_id, user_id, start_time, end_time, status, payment_status, created_at, unit_price, courts(name, hourly_rate, venue_id, venues(name, payment_mode))")
       .in("id", data.bookingIds);
     if (bErr || !bookings || bookings.length === 0) throw new Error("Bookings not found");
     if (bookings.length !== data.bookingIds.length) throw new Error("Some bookings could not be loaded");
@@ -167,7 +173,8 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
     for (const b of bookings) {
       if (b.user_id !== userId) throw new Error("Not your booking");
       if (b.payment_status === "paid") throw new Error("Booking already paid");
-      if (b.status === "cancelled") throw new Error("Booking is cancelled");
+      if (b.status !== "pending") throw new Error("Your reservation has expired or was cancelled. Create a new booking to continue.");
+      if (new Date(b.created_at).getTime() <= Date.now() - 15 * 60_000) throw new Error("Your reservation has expired. Create a new booking to continue.");
     }
     const courtIds = new Set(bookings.map((b) => b.court_id));
     if (courtIds.size > 1) throw new Error("All bookings must be on the same court");
@@ -212,7 +219,13 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
       },
     });
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: pendingErr } = await supabase
+      .from("bookings")
+      .update({ payment_status: "pending" })
+      .in("id", bookingIds)
+      .eq("status", "pending");
+    if (pendingErr) throw new Error(pendingErr.message);
+
     // Void previous pending tx for these bookings.
     await supabaseAdmin
       .from("transactions")
@@ -235,7 +248,7 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
       mode,
     }));
     const { error: txErr } = await supabaseAdmin.from("transactions").insert(txRows);
-    if (txErr) console.error("[transactions insert retry]", txErr);
+    if (txErr) throw new Error(`Could not create payment retry: ${txErr.message}`);
 
     return {
       checkoutUrl: session.data.attributes.checkout_url,
@@ -253,14 +266,21 @@ export const cancelPendingBookings = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => CancelInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase
+    const { data: cancelled, error } = await supabase
       .from("bookings")
-      .update({ status: "cancelled" })
+      .update({ status: "cancelled", payment_status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Payment cancelled by player" })
       .in("id", data.bookingIds)
       .eq("user_id", userId)
-      .neq("payment_status", "paid");
+      .eq("status", "pending")
+      .neq("payment_status", "paid")
+      .select("id");
     if (error) throw new Error(error.message);
-    return { ok: true };
+    const ids = (cancelled ?? []).map((booking) => booking.id);
+    if (ids.length > 0) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("transactions").update({ status: "cancelled" }).in("booking_id", ids).eq("status", "pending");
+    }
+    return { ok: true, cancelled: ids.length };
   });
 
 export const getCheckoutStatus = createServerFn({ method: "POST" })

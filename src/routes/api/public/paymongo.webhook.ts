@@ -76,49 +76,62 @@ export const Route = createFileRoute("/api/public/paymongo/webhook")({
           const paymentId = payment?.id;
           const method = payment?.attributes.source?.type ?? "unknown";
 
-          const nowIso = new Date().toISOString();
-          const { data: txs, error: txErr } = await supabaseAdmin
-            .from("transactions")
-            .update({
-              status: "paid",
-              paid_at: nowIso,
-              method,
-              raw: { payment_id: paymentId, event: eventType },
-            })
-            .eq("provider_ref", sessionId)
-            .select("booking_id");
-
-          if (txErr) {
-            console.error("[paymongo webhook] tx update failed", txErr);
+          const { data: finalization, error: finalizationErr } = await supabaseAdmin.rpc("finalize_paid_checkout", {
+            _session_id: sessionId,
+            _payment_id: paymentId ?? "unknown",
+            _method: method,
+          });
+          if (finalizationErr) {
+            console.error("[paymongo webhook] checkout finalization failed", finalizationErr);
             return new Response("DB error", { status: 500 });
           }
+          const result = Array.isArray(finalization) ? finalization[0] : finalization;
 
-          const bookingIds = Array.from(new Set((txs ?? []).map((r) => r.booking_id)));
-          // Promote each pending booking to confirmed one-by-one so slot-conflict
-          // trigger errors don't roll back the whole batch. If a slot was taken
-          // meanwhile, mark that booking cancelled + payment_status='paid' so
-          // it can be refunded manually.
-          for (const bid of bookingIds) {
-            const { error: upErr } = await supabaseAdmin
-              .from("bookings")
-              .update({ status: "confirmed", payment_status: "paid" })
-              .eq("id", bid);
-            if (upErr) {
-              console.error("[paymongo webhook] booking confirm failed, marking as conflict", bid, upErr);
-              await supabaseAdmin
-                .from("bookings")
-                .update({ status: "cancelled", payment_status: "paid" })
-                .eq("id", bid);
+          if (result?.refund_required) {
+            const bookingIds = result.booking_ids ?? [];
+            try {
+              const { data: transactions, error: txErr } = await supabaseAdmin
+                .from("transactions")
+                .select("id, amount, raw")
+                .eq("provider_ref", sessionId)
+                .eq("status", "paid");
+              if (txErr) throw txErr;
+              const totalCentavos = Math.round((transactions ?? []).reduce((sum, tx) => sum + Number(tx.amount), 0) * 100);
+              if (!paymentId || totalCentavos <= 0) throw new Error("Payment reference or refund amount is missing");
+              const { refundPayment } = await import("@/lib/paymongo.server");
+              await refundPayment({ paymentId, amountCentavos: totalCentavos, reason: "requested_by_customer" });
+              await supabaseAdmin.from("transactions").update({ status: "refunded", refunded_at: new Date().toISOString() }).eq("provider_ref", sessionId);
+              await supabaseAdmin.from("bookings").update({ payment_status: "refunded", refund_status: "refunded" }).in("id", bookingIds);
+            } catch (refundErr) {
+              console.error("[paymongo webhook] automatic refund failed", refundErr);
+              // The finalizer already left the booking expired/cancelled with
+              // payment_status='paid' and refund_status='pending' for staff.
             }
           }
         } else if (
           eventType === "checkout_session.payment.failed" ||
           eventType === "payment.failed"
         ) {
+          const { data: failedTransactions, error: failedTxErr } = await supabaseAdmin
+            .from("transactions")
+            .select("booking_id")
+            .eq("provider_ref", sessionId);
+          if (failedTxErr) {
+            console.error("[paymongo webhook] failed-payment lookup failed", failedTxErr);
+            return new Response("DB error", { status: 500 });
+          }
           await supabaseAdmin
             .from("transactions")
             .update({ status: "failed" })
             .eq("provider_ref", sessionId);
+          const bookingIds = Array.from(new Set((failedTransactions ?? []).map((tx) => tx.booking_id)));
+          if (bookingIds.length > 0) {
+            await supabaseAdmin
+              .from("bookings")
+              .update({ payment_status: "failed" })
+              .in("id", bookingIds)
+              .eq("status", "pending");
+          }
         }
 
         return new Response("ok");
