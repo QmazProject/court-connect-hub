@@ -27,7 +27,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       .eq("id", data.courtId)
       .maybeSingle();
     if (courtErr || !court) throw new Error("Court not found");
-    const venue = (court as unknown as { venues: { name: string; payment_mode: string; refund_cutoff_hours: number } | null }).venues;
+    const venue = (court as unknown as { venues: { name: string; payment_mode: string; refund_cutoff_hours: number; timezone: string | null } | null }).venues;
     if (!venue) throw new Error("Venue not found");
     if (venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
 
