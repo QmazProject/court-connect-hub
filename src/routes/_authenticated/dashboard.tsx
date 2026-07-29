@@ -4644,6 +4644,12 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid" | "refunded">("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
 
 
@@ -4703,7 +4709,14 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
       cancelled: "bg-destructive/10 text-destructive",
       pending: "bg-amber-500/15 text-amber-700",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{s}</span>;
+    const label = s === "pending" ? "Payment in progress" : s;
+    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
+  };
+  const paymentHoldRemaining = (booking: BookingRow) => {
+    if (booking.status !== "pending" || booking.payment_status === "paid") return null;
+    const seconds = Math.max(0, Math.ceil((new Date(booking.created_at).getTime() + 15 * 60_000 - nowMs) / 1000));
+    if (seconds === 0) return "Hold expiry overdue";
+    return `Hold expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   };
 
   return (
@@ -4768,7 +4781,10 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                     </td>
                     <td className="px-4 py-3">{r.courts?.venues?.name ?? "—"}<div className="text-[11px] text-muted-foreground">{r.courts?.name ?? `Court #${r.court_id}`}</div></td>
                     <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
-                    <td className="px-4 py-3">{stBadge(r.status)}</td>
+                    <td className="px-4 py-3">
+                      {stBadge(r.status)}
+                      {paymentHoldRemaining(r) && <div className="mt-1 text-[10px] font-medium text-amber-700">{paymentHoldRemaining(r)}</div>}
+                    </td>
                     <td className="px-4 py-3">{payBadge(r.payment_status)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5 whitespace-nowrap">

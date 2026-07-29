@@ -13,6 +13,7 @@ export type CourtAvailabilityRow = {
   hour_start: string;
   remaining: number;
   blocked_by_other_sport: boolean;
+  held_for_payment: boolean;
 };
 
 export type VenueDayBookingRow = {

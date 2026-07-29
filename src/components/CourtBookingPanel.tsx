@@ -135,10 +135,14 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
       const rows = await getCourtAvailability({
         data: { courtId, from: dayBounds.start.toISOString(), to: dayBounds.end.toISOString() },
       });
-      const map = new Map<number, { remaining: number; blockedByOther: boolean }>();
+      const map = new Map<number, { remaining: number; blockedByOther: boolean; heldForPayment: boolean }>();
       rows.forEach((row) => {
         const h = zonedHour(row.hour_start);
-        map.set(h, { remaining: row.remaining, blockedByOther: row.blocked_by_other_sport });
+        map.set(h, {
+          remaining: row.remaining,
+          blockedByOther: row.blocked_by_other_sport,
+          heldForPayment: row.held_for_payment,
+        });
       });
       return map;
     },
@@ -293,9 +297,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i).filter((h) => openHours.has(h));
   const closedToday = slots.length === 0;
   const capacity = Math.max(1, court.capacity ?? 1);
-  const slotInfo = (hour: number) => availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false };
+  const slotInfo = (hour: number) => availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false, heldForPayment: false };
   const isBooked = (hour: number) => slotInfo(hour).remaining <= 0 && !slotInfo(hour).blockedByOther;
   const isBlockedBySport = (hour: number) => slotInfo(hour).blockedByOther;
+  const isPaymentHold = (hour: number) => slotInfo(hour).heldForPayment;
   const isBlocked = (hour: number) => blocked.has(hour);
   const isPast = (hour: number) => {
     const slotStart = zonedHourToUtc(date, hour).getTime();
@@ -541,6 +546,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-yellow-500/60 bg-yellow-300" /> Selected</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-primary/50 bg-primary/15" /> Your booking</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-amber-500/60 bg-amber-200" /> Payment hold</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-red-500/50 bg-red-300" /> Booked</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-amber-400/60 bg-amber-200/60" /> Unavailable</span>
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-orange-500/50 bg-orange-300" /> Past</span>
@@ -550,6 +556,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               {slots.map((h) => {
                 const info = slotInfo(h);
                 const otherSport = isBlockedBySport(h);
+                const paymentHold = isPaymentHold(h);
                 const booked = isBooked(h);
                 const blockedSlot = isBlocked(h);
                 const past = isPast(h);
@@ -558,23 +565,27 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                 const active = selected.includes(h);
                 const label = blockedSlot
                   ? "Unavailable"
-                  : otherSport
-                    ? "Other sport"
-                    : mine
-                      ? mine.kind === "hold"
-                        ? "Your hold"
-                        : "Your booking"
-                      : booked
-                        ? "Booked"
-                        : past
-                          ? "Past"
-                          : capacity > 1
-                            ? `${info.remaining}/${capacity} left`
-                            : "";
+                  : mine
+                    ? mine.kind === "hold"
+                      ? "Your hold"
+                      : "Your booking"
+                    : paymentHold
+                      ? "On hold"
+                      : otherSport
+                        ? "Other sport"
+                        : booked
+                          ? "Booked"
+                          : past
+                            ? "Past"
+                            : capacity > 1
+                              ? `${info.remaining}/${capacity} left`
+                              : "";
                 const stateClass = active
                   ? "border-yellow-500 bg-yellow-300 text-yellow-950"
                   : mine
                     ? "cursor-not-allowed border-primary/50 bg-primary/10 text-primary"
+                  : paymentHold
+                    ? "cursor-not-allowed border-amber-500/60 bg-amber-200 text-amber-950"
                   : booked
                     ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
                     : otherSport
@@ -594,7 +605,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                       prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b),
                     );
                   }}
-                  title={mine ? "Booked by you" : otherSport ? "Booked for a different sport" : label}
+                  title={mine ? "Booked by you" : paymentHold ? "Temporarily held while another player completes payment" : otherSport ? "Booked for a different sport" : label}
                   className={"flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " + stateClass}
                 >
                   <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
