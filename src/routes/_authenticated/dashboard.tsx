@@ -1952,20 +1952,30 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         <CourtStatusField value={isActive} onChange={setIsActive} />
       </div>
       {isSharedSpace && (
-        <section className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="font-semibold text-primary">Shared space</div>
-              <p className="mt-0.5 text-xs text-muted-foreground">This court belongs to <span className="font-medium text-foreground">{sharedSpace!.groupName}</span> with {sharedSpace!.members.filter((member) => member.id !== court.id).length} linked court{sharedSpace!.members.length === 2 ? "" : "s"}.</p>
-            </div>
-            <span className="rounded-full border border-primary/30 bg-background px-2 py-1 text-[11px] font-semibold text-primary">Court group</span>
-          </div>
-          <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
-            <p><span className="font-semibold text-foreground">Blocks:</span> {sharedSpace!.blocks.length ? sharedSpace!.blocks.join(", ") : "No courts"}</p>
-            <p><span className="font-semibold text-foreground">Blocked by:</span> {sharedSpace!.blockedBy.length ? sharedSpace!.blockedBy.join(", ") : "No courts"}</p>
-          </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">Manage linked courts and directional rules from the Court Groups tab.</p>
-        </section>
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <span className="rounded-full border border-primary/30 bg-background px-2 py-1 text-[11px] font-semibold text-primary">Shared space</span>
+          <HoverCard openDelay={150} closeDelay={100}>
+            <HoverCardTrigger asChild>
+              <button
+                type="button"
+                aria-label="Shared space details"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-primary/50 text-[11px] font-bold text-primary hover:bg-primary/10"
+              >
+                ?
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent align="start" className="w-80 text-xs">
+              <p className="font-semibold text-foreground">Shared space details</p>
+              <p className="mt-1 text-muted-foreground">This court belongs to <span className="font-medium text-foreground">{sharedSpace!.groupName}</span> with {sharedSpace!.members.filter((member) => member.id !== court.id).length} linked court{sharedSpace!.members.length === 2 ? "" : "s"}.</p>
+              <div className="mt-3 space-y-2 rounded-lg border border-border bg-secondary/30 p-2.5">
+                <p><span className="font-semibold text-foreground">Blocks:</span> {sharedSpace!.blocks.length ? sharedSpace!.blocks.join(", ") : "No courts"}</p>
+                <p><span className="font-semibold text-foreground">Blocked by:</span> {sharedSpace!.blockedBy.length ? sharedSpace!.blockedBy.join(", ") : "No courts"}</p>
+              </div>
+              <p className="mt-3 text-muted-foreground">Manage linked courts and directional rules from the Court Groups tab.</p>
+            </HoverCardContent>
+          </HoverCard>
+          <span className="text-xs text-muted-foreground">This court shares a physical playing area.</span>
+        </div>
       )}
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
