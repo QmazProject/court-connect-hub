@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { CourtBookingPanel } from "@/components/CourtBookingPanel";
+import { addZonedDays, zonedDateISO, zonedDayBoundsUtc, zonedDayOfWeek } from "@/lib/tz";
 
 const searchSchema = z.object({
   sport: z.string().optional(),
@@ -826,12 +827,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   const selectedSportName = selectedSport ? allSports.find((s) => s.slug === selectedSport)?.name ?? selectedSport : null;
 
   // ---- Real-time availability for a selected date ----
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    const off = d.getTimezoneOffset();
-    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
-  }, []);
+  const todayStr = useMemo(() => zonedDateISO(), []);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
   const bookableCourtIds = useMemo(
@@ -840,10 +836,8 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
   );
 
   const dayBounds = useMemo(() => {
-    const start = new Date(`${selectedDate}T00:00:00`);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    return { startISO: start.toISOString(), endISO: end.toISOString() };
+    const { start, end } = zonedDayBoundsUtc(selectedDate);
+    return { startISO: start.toISOString(), endISO: end.toISOString(), startMs: start.getTime(), endMs: end.getTime() };
   }, [selectedDate]);
 
   const bookingsQ = useQuery({
@@ -903,8 +897,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
 
 
   const weekdayKey = useMemo(() => {
-    const d = new Date(`${selectedDate}T00:00:00`);
-    return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
+    return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][zonedDayOfWeek(selectedDate)];
   }, [selectedDate]);
 
 
@@ -912,7 +905,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
 
   const availability = useMemo(() => {
     const byCourt = new Map<number, { total: number; booked: number; past: number }>();
-    const dayStart = new Date(`${selectedDate}T00:00:00`).getTime();
+    const dayStart = dayBounds.startMs;
     const now = Date.now();
     const isToday = selectedDate === todayStr;
     const isPast = selectedDate < todayStr;
@@ -934,10 +927,15 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       }
       const pastCount = unavailable.size;
       const bookedSet = new Set<number>();
+      const blockingSources = new Set(
+        (sharedQ.data ?? [])
+          .filter((rule) => rule.blocked_court_id === c.id)
+          .map((rule) => rule.court_id),
+      );
       for (const b of bookingsQ.data ?? []) {
-        if (b.court_id !== c.id) continue;
+        if (b.court_id !== c.id && !blockingSources.has(b.court_id)) continue;
         const s = Math.max(new Date(b.start_time).getTime(), dayStart);
-        const e = Math.min(new Date(b.end_time).getTime(), dayStart + 24 * 3600_000);
+        const e = Math.min(new Date(b.end_time).getTime(), dayBounds.endMs);
         if (e <= s) continue;
         const startHr = Math.floor((s - dayStart) / 3600_000);
         const endHr = Math.ceil((e - dayStart) / 3600_000);
@@ -953,7 +951,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       });
     }
     return byCourt;
-  }, [courts, bookingsQ.data, selectedDate, weekdayKey, todayStr, venueHours]);
+  }, [courts, bookingsQ.data, dayBounds.endMs, dayBounds.startMs, selectedDate, sharedQ.data, weekdayKey, todayStr, venueHours]);
 
   const isPastDate = selectedDate < todayStr;
 
@@ -1011,14 +1009,8 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {(() => {
-              const addDays = (base: string, n: number) => {
-                const d = new Date(`${base}T00:00:00`);
-                d.setDate(d.getDate() + n);
-                const off = d.getTimezoneOffset();
-                return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
-              };
-              const today = new Date(`${todayStr}T00:00:00`);
-              const dow = today.getDay();
+              const addDays = addZonedDays;
+              const dow = zonedDayOfWeek(todayStr);
               const daysToSat = dow === 6 ? 0 : (6 - dow + 7) % 7;
               const thisWeekend = addDays(todayStr, daysToSat);
               const daysToNextMon = ((8 - dow) % 7) || 7;

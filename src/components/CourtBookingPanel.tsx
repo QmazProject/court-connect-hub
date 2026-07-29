@@ -12,6 +12,7 @@ import {
   hasVariablePricing, rateBands, peso, type RateRule, type DayKey,
 } from "@/lib/court-pricing";
 import { normalizeHours, effectiveHours, openHoursForDate, describeWindow } from "@/lib/operating-hours";
+import { addZonedDays, zonedDateISO, zonedDayBoundsUtc, zonedDayOfWeek, zonedHour, zonedHourToUtc } from "@/lib/tz";
 
 type Court = {
   id: number;
@@ -57,19 +58,8 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
-function toISODate(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function todayISO() {
-  return toISODate(new Date());
-}
 function shiftISO(iso: string, days: number) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return toISODate(d);
+  return addZonedDays(iso, days);
 }
 function fmtHour(h: number) {
   const period = h < 12 ? "AM" : "PM";
@@ -108,7 +98,7 @@ const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
 
 export function CourtBookingContent({ courtId, onClose, userId }: { courtId: number; onClose?: () => void; userId?: string | null }) {
   const qc = useQueryClient();
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(() => zonedDateISO());
   const [selected, setSelected] = useState<number[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -135,8 +125,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     },
   });
 
-  const dayStart = useMemo(() => new Date(`${date}T00:00:00`), [date]);
-  const dayEnd = useMemo(() => new Date(`${date}T23:59:59`), [date]);
+  const dayBounds = useMemo(() => zonedDayBoundsUtc(date), [date]);
 
   const availQ = useQuery({
     queryKey: ["avail", courtId, date],
@@ -144,11 +133,11 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const rows = await getCourtAvailability({
-        data: { courtId, from: dayStart.toISOString(), to: dayEnd.toISOString() },
+        data: { courtId, from: dayBounds.start.toISOString(), to: dayBounds.end.toISOString() },
       });
       const map = new Map<number, { remaining: number; blockedByOther: boolean }>();
       rows.forEach((row) => {
-        const h = new Date(row.hour_start).getHours();
+        const h = zonedHour(row.hour_start);
         map.set(h, { remaining: row.remaining, blockedByOther: row.blocked_by_other_sport });
       });
       return map;
@@ -182,8 +171,8 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
         .select("start_time, end_time, status, payment_status, created_at")
         .eq("court_id", courtId)
         .eq("user_id", userId)
-        .lt("start_time", dayEnd.toISOString())
-        .gt("end_time", dayStart.toISOString());
+        .lt("start_time", dayBounds.end.toISOString())
+        .gt("end_time", dayBounds.start.toISOString());
       if (error) throw error;
       return (data ?? []) as Array<{
         start_time: string;
@@ -201,7 +190,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
       if (!userData.user) throw new Error("Please sign in to book a court.");
       const sorted = [...hours].sort((a, b) => a - b);
       const rows = sorted.map((hour, idx) => {
-        const start = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`);
+        const start = zonedHourToUtc(date, hour);
         const end = new Date(start.getTime() + 60 * 60 * 1000);
         const applyVoucher = idx === 0 && voucher;
         return {
@@ -265,15 +254,15 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     for (const b of ownBookingsQ.data ?? []) {
       const start = new Date(b.start_time).getTime();
       const end = new Date(b.end_time).getTime();
-      const startHr = Math.floor((start - dayStart.getTime()) / 3600000);
-      const endHr = Math.ceil((end - dayStart.getTime()) / 3600000);
+      const startHr = Math.floor((start - dayBounds.start.getTime()) / 3600000);
+      const endHr = Math.ceil((end - dayBounds.start.getTime()) / 3600000);
       const isHold = b.status === "pending" && b.payment_status !== "paid";
       for (let h = startHr; h < endHr; h++) {
         map.set(h, { kind: isHold ? "hold" : "booking" });
       }
     }
     return map;
-  }, [ownBookingsQ.data, dayStart]);
+  }, [ownBookingsQ.data, dayBounds.start]);
 
   if (courtQ.isLoading) {
     return <div className="p-6"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></div>;
@@ -293,7 +282,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const rateOf = (hour: number) => rateForHour(baseRate, rules, date, hour);
   const subtotal = priceForHours(baseRate, rules, date, selected);
   const breakdown = priceBreakdown(baseRate, rules, date, selected);
-  const dow = DAY_KEYS[new Date(`${date}T00:00:00`).getDay()];
+  const dow = DAY_KEYS[zonedDayOfWeek(date)];
   const dateOverride = court.blocked_dates?.[date];
   const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
   const venueHours = normalizeHours((court.venues as unknown as { operating_hours?: unknown } | null)?.operating_hours);
@@ -309,7 +298,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const isBlockedBySport = (hour: number) => slotInfo(hour).blockedByOther;
   const isBlocked = (hour: number) => blocked.has(hour);
   const isPast = (hour: number) => {
-    const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
+    const slotStart = zonedHourToUtc(date, hour).getTime();
     return slotStart < Date.now();
   };
 
@@ -501,7 +490,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                 >← Prev</button>
                 <button
                   type="button"
-                  onClick={() => { setDate(todayISO()); setSelected([]); setErr(null); }}
+                  onClick={() => { setDate(zonedDateISO()); setSelected([]); setErr(null); }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
                 >Today</button>
                 <button
@@ -524,7 +513,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                 ? "This court is closed on this date. Pick another day."
                 : `Open ${describeWindow(
                     effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours)[
-                      (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[new Date(`${date}T00:00:00`).getDay()]
+                      (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[zonedDayOfWeek(date)]
                     ],
                   )} · tap a time slot to select or deselect it; consecutive slots are automatically combined into a single time range.`}
             </p>

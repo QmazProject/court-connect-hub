@@ -21,4 +21,13 @@ REVOKE EXECUTE ON FUNCTION public.get_venue_day_bookings(bigint, timestamptz, ti
 GRANT EXECUTE ON FUNCTION public.get_venue_day_bookings(bigint, timestamptz, timestamptz) TO anon, authenticated, service_role;
 
 ALTER TABLE public.bookings REPLICA IDENTITY FULL;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;
+
+-- The table may already have been added through the Supabase dashboard or a
+-- prior manual deployment. Keep this migration safe to retry in either case.
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END;
+$$;

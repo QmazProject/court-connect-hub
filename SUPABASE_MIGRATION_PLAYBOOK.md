@@ -91,6 +91,45 @@ Meaning:
 - A database function is already present.
 - Usually repair history instead of rerunning the migration.
 
+### `relation "..." is already member of publication "supabase_realtime"`
+
+Example:
+
+```text
+ERROR: relation "bookings" is already member of publication "supabase_realtime" (SQLSTATE 42710)
+```
+
+Meaning:
+- The table was already added to Supabase Realtime, often through the dashboard
+  or a manual deployment.
+- This is not necessarily a migration-history mismatch, so do not immediately
+  mark the migration as applied; later statements in that migration may still
+  need to run.
+
+Fix the pending migration to make publication membership idempotent:
+
+```sql
+ALTER TABLE public.bookings REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END;
+$$;
+```
+
+Then rerun:
+
+```bash
+supabase db push
+```
+
+Use this pattern only while the migration is still pending remotely. Do not
+edit migrations that have already been successfully applied to the remote
+database.
+
 ## Practical Rule
 
 - If the remote schema already contains the object, use `supabase migration repair --status applied`.
@@ -100,4 +139,3 @@ Meaning:
 ## Current Project Note
 
 For this repo, the migration history issue was resolved by repairing the missing history rows until `supabase migration list` showed local and remote aligned.
-
