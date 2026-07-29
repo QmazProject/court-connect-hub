@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { normalizeHours, effectiveHours, openHoursForDate, describeWeek } from "@/lib/operating-hours";
 import { normalizeRules, hasVariablePricing, minRate, maxRate, peso } from "@/lib/court-pricing";
+import { getVenueDayBookings } from "@/lib/availability.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass, CalendarDays } from "lucide-react";
