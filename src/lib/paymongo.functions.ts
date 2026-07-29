@@ -23,7 +23,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
 
     const { data: court, error: courtErr } = await supabase
       .from("courts")
-      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours)")
+      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours, timezone)")
       .eq("id", data.courtId)
       .maybeSingle();
     if (courtErr || !court) throw new Error("Court not found");
