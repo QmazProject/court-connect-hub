@@ -43,12 +43,17 @@ function PaymentReturn() {
     if (!bookingId) return;
     didCancel.current = true;
     (async () => {
-      const { data } = await supabase
+      const { data: primary } = await supabase
         .from("transactions")
-        .select("booking_id")
-        .eq("reference_number", ref);
-      const ids = Array.from(new Set([bookingId, ...((data ?? []).map((r) => r.booking_id as number))]));
-      // Fallback: look up siblings by primary booking's court + range if no tx rows found yet.
+        .select("provider_ref")
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const { data: sessionRows } = primary?.provider_ref
+        ? await supabase.from("transactions").select("booking_id").eq("provider_ref", primary.provider_ref)
+        : { data: [] as { booking_id: number }[] };
+      const ids = Array.from(new Set([bookingId, ...((sessionRows ?? []).map((r) => r.booking_id))]));
       try {
         await cancelFn({ data: { bookingIds: ids } });
       } catch (e) {

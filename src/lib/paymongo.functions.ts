@@ -130,7 +130,6 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       method: data.method,
       provider: "paymongo",
       provider_ref: session.data.id,
-      reference_number: reference,
       status: "pending",
       mode,
     }));
@@ -245,7 +244,6 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
       method: data.method,
       provider: "paymongo",
       provider_ref: session.data.id,
-      reference_number: reference,
       status: "pending",
       mode,
     }));
@@ -290,13 +288,12 @@ export const getCheckoutStatus = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ reference: z.string().min(1) }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
+    const bookingId = Number(data.reference.split("_")[1]);
     const query = supabase
       .from("transactions")
-      .select("id, status, amount, method, booking_id, provider_ref, reference_number, paid_at");
-    // Return URLs use the merchant reference. Keep the provider-session branch
-    // for existing links generated before reference_number was persisted.
-    const { data: tx } = await (data.reference.startsWith("bk_")
-      ? query.eq("reference_number", data.reference)
+      .select("id, status, amount, method, booking_id, provider_ref, paid_at");
+    const { data: tx } = await (Number.isInteger(bookingId) && bookingId > 0
+      ? query.eq("booking_id", bookingId)
       : query.eq("provider_ref", data.reference))
       .limit(1);
     if (tx && tx.length > 0) {
