@@ -46,7 +46,7 @@ function PaymentReturn() {
       const { data } = await supabase
         .from("transactions")
         .select("booking_id")
-        .eq("provider_ref", ref);
+        .eq("reference_number", ref);
       const ids = Array.from(new Set([bookingId, ...((data ?? []).map((r) => r.booking_id as number))]));
       // Fallback: look up siblings by primary booking's court + range if no tx rows found yet.
       try {
