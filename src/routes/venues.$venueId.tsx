@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { normalizeHours, effectiveHours, openHoursForDate, describeWeek } from "@/lib/operating-hours";
 import { normalizeRules, hasVariablePricing, minRate, maxRate, peso } from "@/lib/court-pricing";
+import { getVenueDayBookings } from "@/lib/availability.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, X, MapPin, Info, Phone, Clock, Sparkles, UtensilsCrossed, Wrench, Wallet, RotateCcw, ClipboardList, Navigation, Compass, CalendarDays } from "lucide-react";
@@ -851,13 +852,10 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      // RPC (security definer) so slots taken by OTHER players are visible too.
-      const { data, error } = await supabase.rpc("get_venue_day_bookings", {
-        _venue_id: venue!.id,
-        _from: dayBounds.startISO,
-        _to: dayBounds.endISO,
+      // Server fn (service role) so slots taken by OTHER players are visible too.
+      const data = await getVenueDayBookings({
+        data: { venueId: venue!.id, from: dayBounds.startISO, to: dayBounds.endISO },
       });
-      if (error) throw error;
       const allowed = new Set(bookableCourtIds);
       return ((data ?? []) as { court_id: number; start_time: string; end_time: string }[]).filter((b) =>
         allowed.has(b.court_id),
