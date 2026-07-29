@@ -142,14 +142,11 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_court_availability", {
-        _court_id: courtId,
-        _from: dayStart.toISOString(),
-        _to: dayEnd.toISOString(),
+      const rows = await getCourtAvailability({
+        data: { courtId, from: dayStart.toISOString(), to: dayEnd.toISOString() },
       });
-      if (error) throw error;
       const map = new Map<number, { remaining: number; blockedByOther: boolean }>();
-      (data ?? []).forEach((row: { hour_start: string; remaining: number; blocked_by_other_sport: boolean }) => {
+      rows.forEach((row) => {
         const h = new Date(row.hour_start).getHours();
         map.set(h, { remaining: row.remaining, blockedByOther: row.blocked_by_other_sport });
       });
