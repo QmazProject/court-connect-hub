@@ -4472,6 +4472,7 @@ type TxRow = {
   mode: string;
   reference_number: string | null;
   provider_ref: string | null;
+  raw: { payment_id?: string } | null;
   paid_at: string | null;
   refunded_at: string | null;
   created_at: string;
@@ -4582,16 +4583,17 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
                 <th className="px-4 py-3">Amount</th>
                 <th className="px-4 py-3">Method</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Reference</th>
+                <th className="px-4 py-3">Merchant ref</th>
+                <th className="px-4 py-3">PayMongo payment ID</th>
                 <th className="px-4 py-3">Booking</th>
                 <th className="px-4 py-3">Venue</th>
               </tr>
             </thead>
             <tbody>
               {txQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>Loading…</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={8}>Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>No transactions yet. Once players start paying online, they'll show up here.</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={8}>No transactions yet. Once players start paying online, they'll show up here.</td></tr>
               ) : rows.map((r) => (
                 <tr key={r.id} className="border-t border-border">
                   <td className="px-4 py-3 whitespace-nowrap">{fmtDate(r.paid_at ?? r.created_at)}</td>
@@ -4602,6 +4604,7 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
                     <code className="text-xs font-semibold">{r.reference_number ?? r.provider_ref ?? "—"}</code>
                     {r.provider_ref && r.reference_number && <div className="mt-0.5 text-[10px] text-muted-foreground" title={r.provider_ref}>PayMongo: {r.provider_ref}</div>}
                   </td>
+                  <td className="px-4 py-3"><code className="text-xs font-semibold">{r.raw?.payment_id ?? "—"}</code></td>
                   <td className="px-4 py-3 text-muted-foreground">#{r.booking_id}</td>
                   <td className="px-4 py-3 text-muted-foreground">{venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}</td>
                 </tr>
@@ -4700,6 +4703,7 @@ type BookingTransactionReference = {
   booking_id: number;
   reference_number: string | null;
   provider_ref: string | null;
+  raw: { payment_id?: string } | null;
   status: string;
   created_at: string;
 };
@@ -4749,7 +4753,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("booking_id, reference_number, provider_ref, status, created_at")
+        .select("booking_id, reference_number, provider_ref, raw, status, created_at")
         .in("booking_id", bookingIds)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -4853,15 +4857,16 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Reference</th>
+                <th className="px-4 py-3">Merchant ref</th>
+                <th className="px-4 py-3">PayMongo payment ID</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {bookingsQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>Loading…</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={8}>Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>No bookings match these filters yet.</td></tr>
+                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={8}>No bookings match these filters yet.</td></tr>
               ) : sessions.map((s) => {
                 const r = s.first;
                 const p = nameMap.get(r.user_id);
@@ -4888,6 +4893,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                       <code className="text-xs font-semibold">{transaction?.reference_number ?? transaction?.provider_ref ?? "—"}</code>
                       {transaction?.provider_ref && transaction.reference_number && <div className="mt-0.5 text-[10px] text-muted-foreground" title={transaction.provider_ref}>PayMongo: {transaction.provider_ref}</div>}
                     </td>
+                    <td className="px-4 py-3"><code className="text-xs font-semibold">{transaction?.raw?.payment_id ?? "—"}</code></td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5 whitespace-nowrap">
                         {venueId && (
