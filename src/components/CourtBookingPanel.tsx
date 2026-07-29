@@ -139,6 +139,8 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
 
   const availQ = useQuery({
     queryKey: ["avail", courtId, date],
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_court_availability", {
         _court_id: courtId,
@@ -155,6 +157,22 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     },
     enabled: !!courtQ.data,
   });
+
+  // Live refresh when any booking changes (staff/own rows arrive via realtime;
+  // the interval above covers rows RLS hides from this viewer).
+  useEffect(() => {
+    const channel = supabase
+      .channel(`avail-${courtId}-${date}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
+        qc.invalidateQueries({ queryKey: ["avail", courtId, date] });
+        qc.invalidateQueries({ queryKey: ["venue-day-bookings"] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [courtId, date, qc]);
+
 
   const ownBookingsQ = useQuery({
     queryKey: ["court-own-bookings", courtId, date, userId],

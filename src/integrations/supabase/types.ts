@@ -898,6 +898,14 @@ export type Database = {
           start_time: string
         }[]
       }
+      get_venue_day_bookings: {
+        Args: { _from: string; _to: string; _venue_id: number }
+        Returns: {
+          court_id: number
+          end_time: string
+          start_time: string
+        }[]
+      }
       is_conversation_participant: {
         Args: { _conversation_id: string; _uid: string }
         Returns: boolean

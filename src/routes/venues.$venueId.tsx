@@ -847,19 +847,24 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
 
   const bookingsQ = useQuery({
     queryKey: ["venue-day-bookings", venue?.id, selectedDate, bookableCourtIds.join(",")],
-    enabled: bookableCourtIds.length > 0,
+    enabled: bookableCourtIds.length > 0 && !!venue?.id,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("court_id, start_time, end_time, status")
-        .in("court_id", bookableCourtIds)
-        .eq("status", "confirmed")
-        .lt("start_time", dayBounds.endISO)
-        .gt("end_time", dayBounds.startISO);
+      // RPC (security definer) so slots taken by OTHER players are visible too.
+      const { data, error } = await supabase.rpc("get_venue_day_bookings", {
+        _venue_id: venue!.id,
+        _from: dayBounds.startISO,
+        _to: dayBounds.endISO,
+      });
       if (error) throw error;
-      return (data ?? []) as { court_id: number; start_time: string; end_time: string }[];
+      const allowed = new Set(bookableCourtIds);
+      return ((data ?? []) as { court_id: number; start_time: string; end_time: string }[]).filter((b) =>
+        allowed.has(b.court_id),
+      );
     },
   });
+
 
   // Courts that share a physical space with another court (block rules)
   const sharedQ = useQuery({
