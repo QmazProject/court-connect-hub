@@ -260,6 +260,21 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     }
   }
 
+  const ownSlotInfo = useMemo(() => {
+    const map = new Map<number, { kind: "hold" | "booking" }>();
+    for (const b of ownBookingsQ.data ?? []) {
+      const start = new Date(b.start_time).getTime();
+      const end = new Date(b.end_time).getTime();
+      const startHr = Math.floor((start - dayStart.getTime()) / 3600000);
+      const endHr = Math.ceil((end - dayStart.getTime()) / 3600000);
+      const isHold = b.status === "pending" && b.payment_status !== "paid";
+      for (let h = startHr; h < endHr; h++) {
+        map.set(h, { kind: isHold ? "hold" : "booking" });
+      }
+    }
+    return map;
+  }, [ownBookingsQ.data, dayStart]);
+
   if (courtQ.isLoading) {
     return <div className="p-6"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></div>;
   }
@@ -297,20 +312,8 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     const slotStart = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00`).getTime();
     return slotStart < Date.now();
   };
-  const ownSlotInfo = useMemo(() => {
-    const map = new Map<number, { kind: "hold" | "booking" }>();
-    for (const b of ownBookingsQ.data ?? []) {
-      const start = new Date(b.start_time).getTime();
-      const end = new Date(b.end_time).getTime();
-      const startHr = Math.floor((start - dayStart.getTime()) / 3600000);
-      const endHr = Math.ceil((end - dayStart.getTime()) / 3600000);
-      const isHold = b.status === "pending" && b.payment_status !== "paid";
-      for (let h = startHr; h < endHr; h++) {
-        map.set(h, { kind: isHold ? "hold" : "booking" });
-      }
-    }
-    return map;
-  }, [ownBookingsQ.data, dayStart]);
+
+
 
   return (
     <div className="flex h-full flex-col">
