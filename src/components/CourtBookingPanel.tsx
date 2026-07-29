@@ -125,6 +125,19 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     },
   });
 
+  const sharedSpaceQ = useQuery({
+    queryKey: ["court-shared-space", courtId, courtQ.data?.physical_court_id],
+    enabled: !!courtQ.data?.physical_court_id,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("courts")
+        .select("id", { count: "exact", head: true })
+        .eq("physical_court_id", courtQ.data!.physical_court_id);
+      if (error) throw error;
+      return (count ?? 0) >= 2;
+    },
+  });
+
   const dayBounds = useMemo(() => zonedDayBoundsUtc(date), [date]);
 
   const availQ = useQuery({
@@ -384,6 +397,13 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
             />
           </dl>
         </section>
+
+        {sharedSpaceQ.data && (
+          <section className="mb-5 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+            <div className="text-sm font-semibold text-foreground">Shared playing space</div>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">This court shares a playing area with other court layouts. Some time slots may be unavailable when a linked court is booked.</p>
+          </section>
+        )}
 
         <section className="mb-5">
           <div className="mb-2 flex items-center justify-between">

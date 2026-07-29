@@ -1866,8 +1866,33 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [err, setErr] = useState<string | null>(null);
 
   const sportsQ = useSportsQuery(true);
+  const sharedSpaceQ = useQuery({
+    queryKey: ["edit-court-shared-space", court.id, court.physical_court_id],
+    enabled: !!court.physical_court_id,
+    queryFn: async () => {
+      const [groupRes, membersRes, rulesRes] = await Promise.all([
+        supabase.from("physical_courts").select("id, name").eq("id", court.physical_court_id).maybeSingle(),
+        supabase.from("courts").select("id, name, sports(name)").eq("physical_court_id", court.physical_court_id).order("id"),
+        supabase.from("court_block_rules").select("court_id, blocked_court_id")
+          .or(`court_id.eq.${court.id},blocked_court_id.eq.${court.id}`),
+      ]);
+      if (groupRes.error) throw groupRes.error;
+      if (membersRes.error) throw membersRes.error;
+      if (rulesRes.error) throw rulesRes.error;
+      const members = (membersRes.data ?? []) as Array<{ id: number; name: string; sports: { name: string } | null }>;
+      const names = new Map(members.map((member) => [member.id, member.name]));
+      return {
+        groupName: groupRes.data?.name ?? "Shared space",
+        members,
+        blocks: (rulesRes.data ?? []).filter((rule) => rule.court_id === court.id).map((rule) => names.get(rule.blocked_court_id) ?? `Court #${rule.blocked_court_id}`),
+        blockedBy: (rulesRes.data ?? []).filter((rule) => rule.blocked_court_id === court.id).map((rule) => names.get(rule.court_id) ?? `Court #${rule.court_id}`),
+      };
+    },
+  });
   const selectedSport = sportsQ.data?.find((s) => String(s.id) === sportId);
   const fallbackEmoji = venueEmoji || sportEmoji(selectedSport?.slug ?? court.sports?.slug) || "🎾";
+  const sharedSpace = sharedSpaceQ.data;
+  const isSharedSpace = (sharedSpace?.members.length ?? 0) >= 2;
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -1926,6 +1951,22 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
         </label>
         <CourtStatusField value={isActive} onChange={setIsActive} />
       </div>
+      {isSharedSpace && (
+        <section className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-semibold text-primary">Shared space</div>
+              <p className="mt-0.5 text-xs text-muted-foreground">This court belongs to <span className="font-medium text-foreground">{sharedSpace!.groupName}</span> with {sharedSpace!.members.filter((member) => member.id !== court.id).length} linked court{sharedSpace!.members.length === 2 ? "" : "s"}.</p>
+            </div>
+            <span className="rounded-full border border-primary/30 bg-background px-2 py-1 text-[11px] font-semibold text-primary">Court group</span>
+          </div>
+          <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+            <p><span className="font-semibold text-foreground">Blocks:</span> {sharedSpace!.blocks.length ? sharedSpace!.blocks.join(", ") : "No courts"}</p>
+            <p><span className="font-semibold text-foreground">Blocked by:</span> {sharedSpace!.blockedBy.length ? sharedSpace!.blockedBy.join(", ") : "No courts"}</p>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Manage linked courts and directional rules from the Court Groups tab.</p>
+        </section>
+      )}
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
       <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
