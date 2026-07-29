@@ -23,11 +23,11 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
 
     const { data: court, error: courtErr } = await supabase
       .from("courts")
-      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours)")
+      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours, timezone)")
       .eq("id", data.courtId)
       .maybeSingle();
     if (courtErr || !court) throw new Error("Court not found");
-    const venue = (court as unknown as { venues: { name: string; payment_mode: string; refund_cutoff_hours: number } | null }).venues;
+    const venue = (court as unknown as { venues: { name: string; payment_mode: string; refund_cutoff_hours: number; timezone: string | null } | null }).venues;
     if (!venue) throw new Error("Venue not found");
     if (venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
 
@@ -63,8 +63,12 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
 
     // Insert bookings as pending + unpaid. Attach voucher/discount to first row.
+    // Hours are venue-local: the server runs in UTC, so resolve each hour
+    // against the venue timezone before storing the instant.
+    const { zonedHourToUtc, DEFAULT_TIMEZONE } = await import("./tz");
+    const tz = venue.timezone || DEFAULT_TIMEZONE;
     const rows = data.hours.map((h, idx) => {
-      const start = new Date(`${data.date}T${String(h).padStart(2, "0")}:00:00`);
+      const start = zonedHourToUtc(data.date, h, tz);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
       return {
         court_id: data.courtId,
