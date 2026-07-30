@@ -4,11 +4,10 @@ ALTER TABLE public.venues
   ADD COLUMN IF NOT EXISTS downpayment_type text NOT NULL DEFAULT 'percent',
   ADD COLUMN IF NOT EXISTS downpayment_value numeric(12,2) NOT NULL DEFAULT 50;
 
+ALTER TABLE public.venues DROP CONSTRAINT IF EXISTS venues_payment_mode_check;
 UPDATE public.venues
 SET payment_mode = 'downpayment', downpayment_type = 'percent', downpayment_value = 50
 WHERE payment_mode = 'downpayment_50';
-
-ALTER TABLE public.venues DROP CONSTRAINT IF EXISTS venues_payment_mode_check;
 ALTER TABLE public.venues
   ADD CONSTRAINT venues_payment_mode_check
   CHECK (payment_mode IN ('none', 'full', 'downpayment'));
