@@ -9,32 +9,43 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
-import { Route as PaymentReturnRouteImport } from './routes/payment.return'
-import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
+import { Route as PaymentReturnRouteImport } from './routes/payment.return'
+import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
 import { Route as ApiPublicPaymongoWebhookRouteImport } from './routes/api/public/paymongo.webhook'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VenuesVenueIdRoute = VenuesVenueIdRouteImport.update({
-  id: '/venues/$venueId',
-  path: '/venues/$venueId',
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const CourtsCourtIdRoute = CourtsCourtIdRouteImport.update({
+  id: '/courts/$courtId',
+  path: '/courts/$courtId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaymentReturnRoute = PaymentReturnRouteImport.update({
@@ -42,15 +53,10 @@ const PaymentReturnRoute = PaymentReturnRouteImport.update({
   path: '/payment/return',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CourtsCourtIdRoute = CourtsCourtIdRouteImport.update({
-  id: '/courts/$courtId',
-  path: '/courts/$courtId',
+const VenuesVenueIdRoute = VenuesVenueIdRouteImport.update({
+  id: '/venues/$venueId',
+  path: '/venues/$venueId',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const ApiPublicPaymongoWebhookRoute =
   ApiPublicPaymongoWebhookRouteImport.update({
@@ -62,6 +68,7 @@ const ApiPublicPaymongoWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/explore': typeof ExploreRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/payment/return': typeof PaymentReturnRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/explore': typeof ExploreRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/payment/return': typeof PaymentReturnRoute
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/explore': typeof ExploreRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/payment/return': typeof PaymentReturnRoute
@@ -93,6 +102,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/explore'
     | '/dashboard'
     | '/courts/$courtId'
     | '/payment/return'
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/explore'
     | '/dashboard'
     | '/courts/$courtId'
     | '/payment/return'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/explore'
     | '/_authenticated/dashboard'
     | '/courts/$courtId'
     | '/payment/return'
@@ -123,6 +135,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ExploreRoute: typeof ExploreRoute
   CourtsCourtIdRoute: typeof CourtsCourtIdRoute
   PaymentReturnRoute: typeof PaymentReturnRoute
   VenuesVenueIdRoute: typeof VenuesVenueIdRoute
@@ -131,11 +144,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -145,18 +158,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/venues/$venueId': {
-      id: '/venues/$venueId'
-      path: '/venues/$venueId'
-      fullPath: '/venues/$venueId'
-      preLoaderRoute: typeof VenuesVenueIdRouteImport
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/courts/$courtId': {
+      id: '/courts/$courtId'
+      path: '/courts/$courtId'
+      fullPath: '/courts/$courtId'
+      preLoaderRoute: typeof CourtsCourtIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payment/return': {
@@ -166,19 +193,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaymentReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/courts/$courtId': {
-      id: '/courts/$courtId'
-      path: '/courts/$courtId'
-      fullPath: '/courts/$courtId'
-      preLoaderRoute: typeof CourtsCourtIdRouteImport
+    '/venues/$venueId': {
+      id: '/venues/$venueId'
+      path: '/venues/$venueId'
+      fullPath: '/venues/$venueId'
+      preLoaderRoute: typeof VenuesVenueIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/paymongo/webhook': {
       id: '/api/public/paymongo/webhook'
@@ -205,6 +225,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ExploreRoute: ExploreRoute,
   CourtsCourtIdRoute: CourtsCourtIdRoute,
   PaymentReturnRoute: PaymentReturnRoute,
   VenuesVenueIdRoute: VenuesVenueIdRoute,
@@ -213,3 +234,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

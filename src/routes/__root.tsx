@@ -213,7 +213,7 @@ function Header() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideHeader = pathname.startsWith("/dashboard");
+  const hideHeader = pathname.startsWith("/dashboard") || pathname === "/";
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex h-[100dvh] flex-col">
