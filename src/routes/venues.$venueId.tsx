@@ -426,7 +426,7 @@ function VenueDetail() {
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
               >
-                <span className="rounded-full bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-rose-500 px-5 py-2.5 font-display text-[13px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+                <span className="rounded-full bg-gradient-to-r from-[#0b3d35] via-[#12806d] to-[#b8f05a] px-5 py-2.5 font-display text-[13px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
                   View venue images
                 </span>
               </span>
@@ -996,7 +996,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       )}
 
       {/* Date picker for real-time availability */}
-      <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <div className="mt-6 rounded-2xl border border-[#dce8e2] bg-gradient-to-r from-white via-white to-[#eaf5d8] p-4 shadow-[0_12px_30px_rgba(16,37,33,0.07)] sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-primary/10 p-2 text-primary">
@@ -1130,7 +1130,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                               aria-hidden
                               className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
                             >
-                              <span className="rounded-full bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-rose-500 px-4 py-2 font-display text-[12px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+                              <span className="rounded-full bg-gradient-to-r from-[#0b3d35] via-[#12806d] to-[#b8f05a] px-4 py-2 font-display text-[12px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
                                 Click to view court images
                               </span>
                             </span>
@@ -1227,7 +1227,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                             return (
                               <>
                                 {varies && <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">from</span>}
-                                <span className="text-3xl font-extrabold text-black [text-shadow:0_0_10px_rgba(59,130,246,0.85),0_0_20px_rgba(59,130,246,0.55)]">₱{lo.toFixed(0)}</span>
+                <span className="text-3xl font-extrabold text-[#0b3d35] [text-shadow:0_0_14px_rgba(184,240,90,0.7)]">₱{lo.toFixed(0)}</span>
                                 <span className="text-sm text-muted-foreground"> / hour</span>
                                 {varies && (
                                   <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1459,7 +1459,7 @@ function SportItem({ active, emoji, label, offered = true, onClick, index = 0 }:
           aria-hidden
           className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-all duration-300 ${
             active
-              ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(9,230,210,0.35)]"
+              ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(18,128,109,0.35)]"
               : offered
                 ? "bg-transparent group-hover:scale-110 group-hover:bg-primary/10"
                 : "opacity-70 grayscale group-hover:grayscale-0"

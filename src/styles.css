@@ -37,27 +37,27 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.98 0.01 200);
-  --foreground: oklch(0.18 0.03 210);
+  --background: #f6f8f7;
+  --foreground: #102521;
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.03 210);
+  --card-foreground: #102521;
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.03 210);
-  --primary: #09e6d2;
-  --primary-foreground: oklch(0.18 0.04 210);
-  --secondary: oklch(0.95 0.03 200);
-  --secondary-foreground: oklch(0.22 0.05 210);
-  --muted: oklch(0.96 0.01 200);
-  --muted-foreground: oklch(0.5 0.03 210);
-  --accent: #09e6d2;
-  --accent-foreground: oklch(0.18 0.04 210);
+  --popover-foreground: #102521;
+  --primary: #12806d;
+  --primary-foreground: #ffffff;
+  --secondary: #e9f2e5;
+  --secondary-foreground: #102521;
+  --muted: #eff5ed;
+  --muted-foreground: #5e746e;
+  --accent: #b8f05a;
+  --accent-foreground: #102521;
   --destructive: oklch(0.6 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.02 200);
-  --input: oklch(0.92 0.02 200);
-  --ring: #09e6d2;
-  --court: oklch(0.72 0.14 190);
-  --court-line: oklch(0.99 0.01 200);
+  --border: #dce8e2;
+  --input: #dce8e2;
+  --ring: #12806d;
+  --court: #126152;
+  --court-line: #f6f8f7;
 }
 
 @layer base {
@@ -89,8 +89,8 @@
   to { --edge-angle: 360deg; }
 }
 @keyframes edge-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(9, 230, 210, 0.55); }
-  50% { box-shadow: 0 0 0 4px rgba(9, 230, 210, 0.05); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(18, 128, 109, 0.45); }
+  50% { box-shadow: 0 0 0 4px rgba(18, 128, 109, 0.06); }
 }
 @utility edge-glow {
   position: relative;
@@ -103,7 +103,7 @@
   inset: -1.5px;
   border-radius: inherit;
   padding: 1.5px;
-  background: conic-gradient(from var(--edge-angle), transparent 0deg, #09e6d2 70deg, #22d3ee 140deg, transparent 220deg, transparent 360deg);
+  background: conic-gradient(from var(--edge-angle), transparent 0deg, #12806d 70deg, #b8f05a 140deg, transparent 220deg, transparent 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask-composite: exclude;
@@ -138,3 +138,12 @@
   animation: sport-fade-in-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+@keyframes landing-header-reveal {
+  from { clip-path: inset(0 0 100% 0); opacity: 0; transform: translateY(-18px); }
+  to { clip-path: inset(0 0 0 0); opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-header-conceal {
+  from { clip-path: inset(0 0 0 0); opacity: 1; transform: translateY(0); }
+  to { clip-path: inset(0 0 100% 0); opacity: 0; transform: translateY(-18px); }
+}

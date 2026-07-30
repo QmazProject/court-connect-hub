@@ -327,8 +327,9 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   return (
     <div className="flex h-full flex-col">
       {onClose && (
-        <div className="sticky top-0 z-10 flex justify-end border-b border-border bg-card/95 px-3 py-2 backdrop-blur">
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-muted-foreground hover:bg-muted">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#b8f05a]/25 bg-[#0b3d35]/95 px-4 py-2.5 text-white backdrop-blur">
+          <span className="font-display text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#b8f05a]">Reserve your court</span>
+          <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -345,9 +346,9 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           </section>
         )}
 
-        <section className="mb-5 overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="border-b border-border bg-gradient-to-r from-indigo-600/10 via-fuchsia-500/10 to-rose-500/10 px-4 py-2">
-            <h2 className="text-[11px] font-extrabold uppercase italic tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-rose-500">
+        <section className="mb-5 overflow-hidden rounded-2xl border border-[#dce8e2] bg-card shadow-[0_10px_28px_rgba(16,37,33,0.06)]">
+          <div className="border-b border-[#dce8e2] bg-gradient-to-r from-[#0b3d35] via-[#126152] to-[#12806d] px-4 py-2">
+            <h2 className="text-[11px] font-extrabold uppercase italic tracking-[0.3em] text-[#d9ff9b]">
               Court profile
             </h2>
           </div>
@@ -505,7 +506,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
         )}
 
         {!court.coming_soon && (
-          <section className="rounded-2xl border border-border bg-card p-4">
+          <section className="rounded-2xl border border-[#dce8e2] bg-gradient-to-br from-white via-white to-[#eaf5d8]/70 p-4 shadow-[0_10px_28px_rgba(16,37,33,0.06)]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold">Pick a Time Slots</h2>
               <div className="flex flex-wrap items-center gap-1.5 text-sm">
@@ -740,7 +741,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                       setCheckoutOpen(true);
                     }
                   }}
-                  className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                  className="flex-1 rounded-full bg-[#0b3d35] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#126152] disabled:opacity-50"
                 >
                   {bookMut.isPending
                     ? "Booking…"
@@ -875,12 +876,12 @@ export function CourtBookingPanel({
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center border-r border-border bg-gradient-to-b from-indigo-600 via-fuchsia-600 to-rose-500 shadow-[inset_-6px_0_12px_-8px_rgba(0,0,0,0.35)]"
+          className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center border-r border-[#b8f05a]/30 bg-gradient-to-b from-[#09231f] via-[#0b3d35] to-[#12806d] shadow-[inset_-6px_0_12px_-8px_rgba(0,0,0,0.35)]"
         >
           <span
             className="whitespace-nowrap font-display text-[17px] font-extrabold uppercase italic tracking-[0.4em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] [writing-mode:vertical-rl] [transform:rotate(180deg)]"
           >
-            Court Profile
+            Book a Court
           </span>
         </div>
         <CourtBookingContent courtId={renderedId} userId={userId} onClose={() => onOpenChange(false)} />
@@ -921,16 +922,17 @@ function CheckoutDrawer({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 sm:items-center">
-      <div className="w-full max-w-md rounded-t-2xl border border-border bg-card p-6 shadow-xl sm:rounded-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-t-2xl border border-[#b8f05a]/35 bg-card p-6 shadow-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between">
           <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-primary">CourtHub checkout</p>
             <h2 className="text-lg font-bold">Choose payment method</h2>
             <p className="mt-1 text-xs text-muted-foreground">{venueName} · {courtName}</p>
           </div>
           <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-secondary" aria-label="Close">✕</button>
         </div>
 
-        <div className="mt-4 rounded-xl bg-secondary/50 p-3 text-sm">
+        <div className="mt-4 rounded-xl border border-[#dce8e2] bg-[#eaf5d8]/55 p-3 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span>{hours.length}</span></div>
           {breakdown.length > 1 && breakdown.map((b) => (
             <div key={b.rate} className="mt-1 flex justify-between text-xs text-muted-foreground">
