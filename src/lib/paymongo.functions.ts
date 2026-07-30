@@ -25,11 +25,11 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
 
     const { data: court, error: courtErr } = await supabase
       .from("courts")
-      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, refund_cutoff_hours, timezone)")
+      .select("id, name, hourly_rate, rate_rules, capacity, venue_id, venues(name, payment_mode, downpayment_type, downpayment_value, refund_cutoff_hours, timezone)")
       .eq("id", data.courtId)
       .maybeSingle();
     if (courtErr || !court) throw new Error("Court not found");
-    const venue = (court as unknown as { venues: { name: string; payment_mode: string; refund_cutoff_hours: number; timezone: string | null } | null }).venues;
+    const venue = (court as unknown as { venues: { name: string; payment_mode: string; downpayment_type: string; downpayment_value: number; refund_cutoff_hours: number; timezone: string | null } | null }).venues;
     if (!venue) throw new Error("Venue not found");
     if (venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
 
@@ -59,8 +59,11 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     }
 
     const discountedTotal = Math.max(0, fullAmount - discountAmount);
-    const collectAmount =
-      venue.payment_mode === "downpayment_50" ? Math.round(discountedTotal * 50) / 100 : discountedTotal;
+    const collectAmount = venue.payment_mode === "downpayment"
+      ? venue.downpayment_type === "fixed"
+        ? Math.min(discountedTotal, Number(venue.downpayment_value))
+        : Math.round(discountedTotal * Number(venue.downpayment_value) * 100) / 10_000
+      : discountedTotal;
     const centavos = Math.round(collectAmount * 100);
     if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
 
@@ -130,6 +133,7 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
       method: data.method,
       provider: "paymongo",
       provider_ref: session.data.id,
+      raw: { payment_kind: venue.payment_mode === "downpayment" ? "downpayment" : "full" },
       status: "pending",
       mode,
     }));
@@ -165,7 +169,7 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
 
     const { data: bookings, error: bErr } = await supabase
       .from("bookings")
-      .select("id, court_id, user_id, start_time, end_time, status, payment_status, created_at, unit_price, courts(name, hourly_rate, venue_id, venues(name, payment_mode))")
+      .select("id, court_id, user_id, start_time, end_time, status, payment_status, created_at, unit_price, courts(name, hourly_rate, venue_id, venues(name, payment_mode, downpayment_type, downpayment_value))")
       .in("id", data.bookingIds);
     if (bErr || !bookings || bookings.length === 0) throw new Error("Bookings not found");
     if (bookings.length !== data.bookingIds.length) throw new Error("Some bookings could not be loaded");
@@ -181,7 +185,7 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
 
     const first = bookings[0] as unknown as {
       court_id: number;
-      courts: { name: string; hourly_rate: number; venue_id: number; venues: { name: string; payment_mode: string } };
+      courts: { name: string; hourly_rate: number; venue_id: number; venues: { name: string; payment_mode: string; downpayment_type: string; downpayment_value: number } };
     };
     const venue = first.courts.venues;
     if (!venue || venue.payment_mode === "none") throw new Error("This venue is not accepting online payments");
@@ -191,8 +195,11 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
       (sum, b) => sum + Number((b as unknown as { unit_price: number | null }).unit_price ?? first.courts.hourly_rate),
       0,
     );
-    const collectAmount =
-      venue.payment_mode === "downpayment_50" ? Math.round(fullAmount * 50) / 100 : fullAmount;
+    const collectAmount = venue.payment_mode === "downpayment"
+      ? venue.downpayment_type === "fixed"
+        ? Math.min(fullAmount, Number(venue.downpayment_value))
+        : Math.round(fullAmount * Number(venue.downpayment_value) * 100) / 10_000
+      : fullAmount;
     const centavos = Math.round(collectAmount * 100);
     if (centavos < 2000) throw new Error("Minimum online payment is ₱20.00");
 
@@ -244,6 +251,7 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
       method: data.method,
       provider: "paymongo",
       provider_ref: session.data.id,
+      raw: { payment_kind: venue.payment_mode === "downpayment" ? "downpayment" : "full" },
       status: "pending",
       mode,
     }));
@@ -259,6 +267,28 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
   });
 
 const CancelInput = z.object({ bookingIds: z.array(z.number().int().positive()).min(1).max(24) });
+
+const VenueSettlementInput = z.object({
+  bookingIds: z.array(z.number().int().positive()).min(1).max(24),
+  amount: z.number().positive(),
+  method: z.string().trim().min(1).max(40),
+  note: z.string().trim().max(280).optional(),
+});
+
+export const recordVenueSettlement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => VenueSettlementInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const callRpc = context.supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: number | null; error: { message: string } | null }>;
+    const { data: recorded, error } = await callRpc("record_venue_settlement", {
+      _booking_ids: data.bookingIds,
+      _amount: data.amount,
+      _method: data.method,
+      _note: data.note ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return { recorded: Number(recorded ?? 0) };
+  });
 
 // Cancel unpaid pending bookings (used when player abandons or cancels checkout).
 export const cancelPendingBookings = createServerFn({ method: "POST" })

@@ -684,6 +684,8 @@ export type Database = {
           contact_phone: string | null
           created_at: string | null
           description: string | null
+          downpayment_type: string
+          downpayment_value: number
           facility_services: string[]
           fees: Json
           fees_notes: string | null
@@ -710,6 +712,8 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           description?: string | null
+          downpayment_type?: string
+          downpayment_value?: number
           facility_services?: string[]
           fees?: Json
           fees_notes?: string | null
@@ -736,6 +740,8 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           description?: string | null
+          downpayment_type?: string
+          downpayment_value?: number
           facility_services?: string[]
           fees?: Json
           fees_notes?: string | null

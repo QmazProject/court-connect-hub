@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
-import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
+import { retryBookingPayment, cancelPendingBookings, recordVenueSettlement } from "@/lib/paymongo.functions";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRange } from "@/lib/booking-groups";
 
 import { CourtBlockRulesEditor, allPairsEnabled, ruleKey, type RuleCourt } from "@/components/CourtBlockRulesEditor";
@@ -2454,16 +2454,16 @@ function SettingsSection({
     queryKey: ["venue-payment-settings"],
     enabled: role === "tenant",
     queryFn: async () => {
-      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
+      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, downpayment_type, downpayment_value, refund_cutoff_hours");
       if (error) throw error;
-      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
+      return data as { id: number; name: string; payment_mode: string; downpayment_type: "percent" | "fixed"; downpayment_value: number; refund_cutoff_hours: number }[];
     },
   });
 
-  const savePaymentSettings = async (venueId: number, mode: string, cutoff: number) => {
+  const savePaymentSettings = async (venueId: number, mode: string, downpaymentType: "percent" | "fixed", downpaymentValue: number, cutoff: number) => {
     const { error } = await supabase
       .from("venues")
-      .update({ payment_mode: mode, refund_cutoff_hours: cutoff })
+      .update({ payment_mode: mode, downpayment_type: downpaymentType, downpayment_value: downpaymentValue, refund_cutoff_hours: cutoff })
       .eq("id", venueId);
     if (error) alert(error.message);
     else qc.invalidateQueries({ queryKey: ["venue-payment-settings"] });
@@ -2537,9 +2537,9 @@ function SettingsSection({
         <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold">Payments</h3>
+              <h3 className="text-base font-semibold">Payment configuration</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Choose how players pay online per venue. Set to <b>Full payment</b> or <b>50% downpayment</b> to enable the GCash / Maya / GrabPay / QR Ph checkout for that venue's courts. Refund cutoff blocks player-initiated refunds inside the window before the booking.
+                Settle at venue keeps payment offline. Choose <b>Full payment</b> or a configurable <b>downpayment</b> to enable GCash, Maya, GrabPay and QR Ph. Downpayments can be a percentage of the booked total or a fixed peso amount. Refund cutoff blocks player-initiated refunds inside the window before the booking.
               </p>
             </div>
             <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold">PayMongo · Test mode</span>
@@ -4493,15 +4493,6 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
     },
   });
 
-  const settingsQ = useQuery({
-    queryKey: ["venue-payment-settings"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
-      if (error) throw error;
-      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
-    },
-  });
-
   const rows = txQ.data ?? [];
   const paid = rows.filter((r) => r.status === "paid");
   const now = Date.now();
@@ -4512,20 +4503,12 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
   const uniqueCustomers = new Set(paid.map((r) => r.user_id)).size;
   const totalBookings = new Set(paid.map((r) => r.booking_id)).size;
 
-  const savePaymentSettings = async (venueId: number, mode: string, cutoff: number) => {
-    const { error } = await supabase
-      .from("venues")
-      .update({ payment_mode: mode, refund_cutoff_hours: cutoff })
-      .eq("id", venueId);
-    if (error) alert(error.message);
-    else qc.invalidateQueries({ queryKey: ["venue-payment-settings"] });
-  };
-
   const currency = (n: number) => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = (iso: string) => new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
+      partially_paid: "bg-amber-500/15 text-amber-700",
       pending: "bg-amber-500/15 text-amber-700",
       failed: "bg-destructive/15 text-destructive",
       refunded: "bg-muted text-muted-foreground",
@@ -4607,21 +4590,6 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
         </div>
       </div>
 
-      {/* Per-venue payment settings */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold">Payment settings per venue</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Choose how players pay online. Refund cutoff blocks player-initiated refunds inside the window before the booking.</p>
-          </div>
-        </div>
-        <div className="mt-4 space-y-3">
-          {(settingsQ.data ?? []).map((v) => (
-            <VenuePaymentRow key={v.id} venue={v} onSave={savePaymentSettings} />
-          ))}
-          {(settingsQ.data?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">Create a venue first to configure payment settings.</p>}
-        </div>
-      </div>
     </div>
   );
 }
@@ -4638,37 +4606,43 @@ function KpiTile({ label, value }: { label: string; value: string }) {
 function VenuePaymentRow({
   venue, onSave,
 }: {
-  venue: { id: number; name: string; payment_mode: string; refund_cutoff_hours: number };
-  onSave: (id: number, mode: string, cutoff: number) => Promise<void>;
+  venue: { id: number; name: string; payment_mode: string; downpayment_type: "percent" | "fixed"; downpayment_value: number; refund_cutoff_hours: number };
+  onSave: (id: number, mode: string, downpaymentType: "percent" | "fixed", downpaymentValue: number, cutoff: number) => Promise<void>;
 }) {
   const [mode, setMode] = useState(venue.payment_mode);
+  const [downpaymentType, setDownpaymentType] = useState<"percent" | "fixed">(venue.downpayment_type ?? "percent");
+  const [downpaymentValue, setDownpaymentValue] = useState(venue.downpayment_value ?? 50);
   const [cutoff, setCutoff] = useState(venue.refund_cutoff_hours);
   const [saving, setSaving] = useState(false);
-  const dirty = mode !== venue.payment_mode || cutoff !== venue.refund_cutoff_hours;
+  const dirty = mode !== venue.payment_mode || downpaymentType !== venue.downpayment_type || downpaymentValue !== venue.downpayment_value || cutoff !== venue.refund_cutoff_hours;
 
   return (
-    <div className="grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+    <div className="grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end">
       <div>
         <p className="text-sm font-semibold">{venue.name}</p>
         <p className="text-[11px] text-muted-foreground">
-          Current: <span className="font-medium capitalize">{venue.payment_mode.replace("_", " ")}</span> · Refund cutoff {venue.refund_cutoff_hours}h
+          Current: <span className="font-medium capitalize">{venue.payment_mode === "none" ? "settle at venue" : venue.payment_mode}</span> · Refund cutoff {venue.refund_cutoff_hours}h
         </p>
       </div>
       <label className="block">
         <span className="text-[11px] font-medium text-muted-foreground">Payment mode</span>
         <select value={mode} onChange={(e) => setMode(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm">
-          <option value="none">No online payment</option>
+          <option value="none">Settle at venue</option>
           <option value="full">Full payment</option>
-          <option value="downpayment_50">50% downpayment</option>
+          <option value="downpayment">Downpayment</option>
         </select>
       </label>
+      {mode === "downpayment" && <>
+        <label className="block"><span className="text-[11px] font-medium text-muted-foreground">Downpayment type</span><select value={downpaymentType} onChange={(e) => setDownpaymentType(e.target.value as "percent" | "fixed")} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm"><option value="percent">Percent of total</option><option value="fixed">Fixed amount</option></select></label>
+        <label className="block"><span className="text-[11px] font-medium text-muted-foreground">{downpaymentType === "percent" ? "Percent" : "Amount (PHP)"}</span><input type="number" min={downpaymentType === "percent" ? 1 : 20} max={downpaymentType === "percent" ? 100 : undefined} value={downpaymentValue} onChange={(e) => setDownpaymentValue(Number(e.target.value))} className="mt-1 w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-sm" /></label>
+      </>}
       <label className="block">
         <span className="text-[11px] font-medium text-muted-foreground">Refund cutoff (hrs)</span>
         <input type="number" min={0} value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} className="mt-1 w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-sm" />
       </label>
       <button
         disabled={!dirty || saving}
-        onClick={async () => { setSaving(true); await onSave(venue.id, mode, cutoff); setSaving(false); }}
+        onClick={async () => { setSaving(true); await onSave(venue.id, mode, downpaymentType, downpaymentValue, cutoff); setSaving(false); }}
         className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
       >
         {saving ? "Saving…" : "Save"}
@@ -4689,6 +4663,9 @@ type BookingRow = {
   payment_status: string;
   refund_status?: string | null;
   created_at: string;
+  unit_price: number | null;
+  discount_amount: number | null;
+  transactions: { amount: number; status: string }[] | null;
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
 
@@ -4696,10 +4673,12 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">("upcoming");
-  const [payFilter, setPayFilter] = useState<"all" | "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
+  const [payFilter, setPayFilter] = useState<"all" | "paid" | "partially_paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
+  const [settlementTarget, setSettlementTarget] = useState<{ ids: number[]; label: string; balance: number } | null>(null);
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const settleFn = useServerFn(recordVenueSettlement);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -4713,7 +4692,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
     queryFn: async () => {
       let q = supabase
         .from("bookings")
-        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, created_at, courts(name, venue_id, venues(name))")
+        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, created_at, unit_price, discount_amount, transactions(amount, status), courts(name, venue_id, venues(name))")
         .order("start_time", { ascending: false })
         .limit(500);
       if (payFilter !== "all") q = q.eq("payment_status", payFilter);
@@ -4753,13 +4732,14 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const payBadge = (s: string, refundStatus?: string | null) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
+      partially_paid: "bg-amber-500/15 text-amber-700",
       pending: "bg-amber-500/15 text-amber-700",
       unpaid: "bg-amber-500/15 text-amber-700",
       failed: "bg-destructive/10 text-destructive",
       cancelled: "bg-muted text-muted-foreground",
       refunded: "bg-muted text-muted-foreground",
     };
-    const label = refundStatus === "pending" ? "Awaiting refund" : s === "pending" ? "Payment pending" : s;
+    const label = refundStatus === "pending" ? "Awaiting refund" : s === "partially_paid" ? "Balance due at venue" : s === "pending" ? "Payment pending" : s;
     return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const stBadge = (s: string) => {
@@ -4803,6 +4783,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
         <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
           <option value="all">Any payment</option>
           <option value="paid">Paid</option>
+          <option value="partially_paid">Balance due at venue</option>
           <option value="pending">Payment pending</option>
           <option value="unpaid">Unpaid (legacy)</option>
           <option value="failed">Failed</option>
@@ -4836,6 +4817,11 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                 const cancelled = r.status === "cancelled";
                 const venueId = r.courts?.venue_id;
                 const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
+                const balance = s.items.reduce((total, item) => {
+                  const expected = Number(item.unit_price ?? 0) - Number(item.discount_amount ?? 0);
+                  const paid = (item.transactions ?? []).reduce((sum, transaction) => transaction.status === "paid" ? sum + Number(transaction.amount) : sum, 0);
+                  return total + Math.max(0, expected - paid);
+                }, 0);
                 return (
                   <tr key={s.key} className="border-t border-border">
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -4859,6 +4845,9 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                           >
                             Message
                           </button>
+                        )}
+                        {r.status === "confirmed" && s.items.some((item) => item.payment_status === "partially_paid") && (
+                          <button onClick={() => setSettlementTarget({ ids: s.ids, label, balance })} className="rounded-lg border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/10">Settle ₱{balance.toFixed(2)}</button>
                         )}
                         {!cancelled && r.status !== "expired" && (
                           <button
@@ -4890,6 +4879,8 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
         />
       )}
 
+      {settlementTarget && <VenueSettlementDialog target={settlementTarget} onClose={() => setSettlementTarget(null)} onDone={() => { qc.invalidateQueries({ queryKey: ["tenant-bookings"] }); qc.invalidateQueries({ queryKey: ["tenant-transactions"] }); }} settleFn={settleFn} />}
+
       {chat && (
         <BookingChat
           bookingId={chat.bookingId}
@@ -4901,6 +4892,49 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
           onClose={() => setChat(null)}
         />
       )}
+    </div>
+  );
+}
+
+function VenueSettlementDialog({
+  target, onClose, onDone, settleFn,
+}: {
+  target: { ids: number[]; label: string; balance: number };
+  onClose: () => void;
+  onDone: () => void;
+  settleFn: (input: { data: { bookingIds: number[]; amount: number; method: string; note?: string } }) => Promise<unknown>;
+}) {
+  const [amount, setAmount] = useState(() => target.balance.toFixed(2));
+  const [method, setMethod] = useState("cash");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) { setError("Enter a valid amount."); return; }
+    setBusy(true); setError(null);
+    try {
+      await settleFn({ data: { bookingIds: target.ids, amount: value, method, note: note || undefined } });
+      onDone(); onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not record the settlement.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <form onSubmit={submit} onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <h3 className="text-lg font-semibold">Record venue settlement</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{target.label}</p>
+        <p className="mt-3 rounded-lg bg-amber-500/10 p-3 text-xs text-amber-800">Remaining balance: <b>₱{target.balance.toFixed(2)}</b>. Record only the amount actually collected; the system rejects an amount above the verified outstanding balance.</p>
+        <label className="mt-4 block text-sm font-medium">Amount collected (PHP)<input autoFocus type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" required /></label>
+        <label className="mt-3 block text-sm font-medium">Method<select value={method} onChange={(event) => setMethod(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2"><option value="cash">Cash</option><option value="card">Card</option><option value="gcash">GCash at venue</option><option value="maya">Maya at venue</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></label>
+        <label className="mt-3 block text-sm font-medium">Note (optional)<input maxLength={280} value={note} onChange={(event) => setNote(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" placeholder="Receipt number or staff note" /></label>
+        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm font-semibold">Cancel</button><button disabled={busy} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Recording..." : "Record settlement"}</button></div>
+      </form>
     </div>
   );
 }
@@ -5473,7 +5507,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
       cancelled: "bg-muted text-muted-foreground",
       refunded: "bg-muted text-muted-foreground",
     };
-    const label = refundStatus === "pending" ? "Awaiting refund" : s === "pending" ? "Payment pending" : s;
+    const label = refundStatus === "pending" ? "Awaiting refund" : s === "partially_paid" ? "Balance due at venue" : s === "pending" ? "Payment pending" : s;
     return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const stBadge = (s: string) => {
