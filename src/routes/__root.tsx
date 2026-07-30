@@ -213,11 +213,24 @@ function Header() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideHeader = pathname.startsWith("/dashboard") || pathname === "/";
+  const hideHeader =
+    pathname.startsWith("/dashboard") ||
+    pathname === "/" ||
+    pathname === "/explore" ||
+    pathname.startsWith("/venues/");
+  const showBookingBackButton = pathname === "/explore" || pathname.startsWith("/venues/");
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex h-[100dvh] flex-col">
         {!hideHeader && <Header />}
+        {showBookingBackButton && (
+          <Link
+            to="/"
+            className="fixed left-4 top-4 z-[1100] inline-flex items-center rounded-full border border-border bg-background/90 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition hover:bg-secondary"
+          >
+            ← Back to home
+          </Link>
+        )}
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <Outlet />
         </main>

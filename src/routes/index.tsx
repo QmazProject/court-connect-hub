@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { normalizeRules, minRate, hasVariablePricing } from "@/lib/court-pricing";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   Search,
   SlidersHorizontal,
@@ -911,6 +911,17 @@ function LandingPage() {
   const [headerHovering, setHeaderHovering] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [activeHeaderMenu, setActiveHeaderMenu] = useState<HeaderMegaMenu | null>(null);
+  const [signInOpen, setSignInOpen] = useState(false);
+  const [signInEmail, setSignInEmail] = useState("");
+  const [signInPassword, setSignInPassword] = useState("");
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [signInBusy, setSignInBusy] = useState(false);
+  const [authSheetStep, setAuthSheetStep] = useState<"signin" | "role" | "signup" | "confirmation">(
+    "signin",
+  );
+  const [signupRole, setSignupRole] = useState<"player" | "tenant" | null>(null);
+  const [signupName, setSignupName] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
 
   const featuredQ = useQuery({
     queryKey: ["landing-featured-venues"],
@@ -988,6 +999,72 @@ function LandingPage() {
     setMenuOpen(false);
     navigate({ to: "/explore", search: {} });
   };
+
+  const openSignIn = () => {
+    setMenuOpen(false);
+    setSignInError(null);
+    setAuthSheetStep("signin");
+    setSignInOpen(true);
+  };
+
+  const closeSignIn = () => {
+    if (!signInBusy) setSignInOpen(false);
+  };
+
+  const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSignInBusy(true);
+    setSignInError(null);
+    try {
+      if (authSheetStep === "signup") {
+        if (!signupRole) throw new Error("Please choose an account type.");
+        if (signInPassword.length < 8)
+          throw new Error("Use a password with at least 8 characters.");
+        const { data, error } = await supabase.auth.signUp({
+          email: signInEmail,
+          password: signInPassword,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { full_name: signupName, phone: signupPhone, role: signupRole },
+          },
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setAuthSheetStep("confirmation");
+          return;
+        }
+        setSignInOpen(false);
+        navigate({ to: signupRole === "tenant" ? "/dashboard" : "/", replace: true });
+        return;
+      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email: signInEmail,
+        password: signInPassword,
+      });
+      if (error) throw error;
+      const { data } = await supabase.auth.getUser();
+      const { data: profile } = data.user
+        ? await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle()
+        : { data: null };
+      setSignInOpen(false);
+      navigate({ to: profile?.role === "tenant" ? "/dashboard" : "/", replace: true });
+    } catch (error) {
+      setSignInError(
+        error instanceof Error ? error.message : "Unable to sign in. Please try again.",
+      );
+    } finally {
+      setSignInBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!signInOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeSignIn();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [signInOpen, signInBusy]);
 
   const scrollToTop = () => {
     const scroller = document.querySelector("main") as HTMLElement | null;
@@ -1111,12 +1188,13 @@ function LandingPage() {
               })}
             </nav>
             <div className="flex items-center gap-2">
-              <a
-                href="/auth"
+              <button
+                type="button"
+                onClick={openSignIn}
                 className="hidden rounded-full px-3 py-2 text-sm font-semibold text-white/85 hover:text-white sm:inline-flex"
               >
                 Sign in
-              </a>
+              </button>
               <Link
                 to="/explore"
                 search={{}}
@@ -1209,15 +1287,228 @@ function LandingPage() {
                 {name}
               </button>
             ))}
-            <a
-              href="/auth"
+            <button
+              type="button"
+              onClick={openSignIn}
               className="rounded-xl px-3 py-3 text-sm font-semibold hover:bg-[#eaf5d8]"
             >
               Sign in
-            </a>
+            </button>
           </nav>
         )}
       </header>
+
+      {signInOpen && (
+        <div
+          className="fixed inset-0 z-[1300] flex justify-end bg-[#061a17]/60 backdrop-blur-sm motion-safe:animate-[landing-overlay-in_.2s_ease-out_both]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sign-in-title"
+          onMouseDown={closeSignIn}
+        >
+          <aside
+            className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-[#f6f8f7] shadow-2xl motion-safe:animate-[landing-drawer-in_.38s_cubic-bezier(0.22,1,0.36,1)_both]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="relative overflow-hidden bg-[#09231f] px-6 pb-10 pt-6 text-white sm:px-8">
+              <div className="absolute -right-14 -top-20 h-52 w-52 rounded-full bg-[#b8f05a]/20 blur-3xl" />
+              <div className="relative flex items-center justify-between">
+                <span className="font-display text-lg font-bold">CourtHub</span>
+                <button
+                  type="button"
+                  onClick={closeSignIn}
+                  aria-label="Close sign in"
+                  className="rounded-full border border-white/20 p-2 text-white/80 transition hover:bg-white/10 hover:text-white"
+                >
+                  <CloseIcon className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="relative mt-12 text-xs font-bold uppercase tracking-[.2em] text-[#b8f05a]">
+                {authSheetStep === "signin" ? "Welcome back" : "Join CourtHub"}
+              </p>
+              <h2
+                id="sign-in-title"
+                className="relative mt-2 font-display text-4xl font-bold tracking-tight"
+              >
+                {authSheetStep === "signin"
+                  ? "Ready to play?"
+                  : authSheetStep === "confirmation"
+                    ? "Check your email"
+                    : "Let’s get you playing."}
+              </h2>
+              <p className="relative mt-3 max-w-sm text-sm leading-relaxed text-white/70">
+                {authSheetStep === "signin"
+                  ? "Sign in to manage bookings and get back on the court."
+                  : authSheetStep === "confirmation"
+                    ? "We sent a confirmation link to finish setting up your account."
+                    : "Create your account in a few quick steps."}
+              </p>
+            </div>
+
+            {authSheetStep === "role" && (
+              <div className="flex flex-1 flex-col px-6 py-8 sm:px-8">
+                <p className="text-sm leading-relaxed text-[#5e746e]">How will you use CourtHub?</p>
+                <div className="mt-6 space-y-3">
+                  {[
+                    ["player", "🎾", "I’m a player", "Browse and book courts near you."],
+                    ["tenant", "🏟️", "I manage a venue", "List courts, rates, and availability."],
+                  ].map(([role, icon, title, copy]) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setSignupRole(role as "player" | "tenant")}
+                      className={`w-full rounded-2xl border-2 p-4 text-left transition ${signupRole === role ? "border-[#12806d] bg-[#eaf5d8]" : "border-[#d8e4df] bg-white hover:border-[#12806d]/40"}`}
+                    >
+                      <span className="text-2xl">{icon}</span>
+                      <span className="mt-3 block font-display text-lg font-bold text-[#102521]">
+                        {title}
+                      </span>
+                      <span className="mt-1 block text-sm text-[#5e746e]">{copy}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  disabled={!signupRole}
+                  onClick={() => setAuthSheetStep("signup")}
+                  className="mt-6 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Continue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthSheetStep("signin")}
+                  className="mt-5 text-sm font-bold text-[#12806d] hover:underline"
+                >
+                  Already have an account? Sign in
+                </button>
+              </div>
+            )}
+
+            {authSheetStep === "confirmation" && (
+              <div className="flex flex-1 flex-col px-6 py-8 text-center sm:px-8">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#eaf5d8] text-2xl">
+                  📧
+                </div>
+                <p className="mt-6 text-sm leading-relaxed text-[#5e746e]">
+                  Check <strong className="text-[#102521]">{signInEmail}</strong> and follow the
+                  confirmation link to activate your account.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAuthSheetStep("signin")}
+                  className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#126152]"
+                >
+                  Back to sign in
+                </button>
+              </div>
+            )}
+
+            <form
+              onSubmit={submitAuth}
+              className={`flex flex-1 flex-col px-6 py-8 sm:px-8 ${authSheetStep === "signin" || authSheetStep === "signup" ? "" : "hidden"}`}
+            >
+              {authSheetStep === "signup" && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-[#102521] capitalize">
+                      {signupRole === "tenant" ? "Venue manager account" : "Player account"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAuthSheetStep("role")}
+                      className="text-xs font-bold text-[#12806d] hover:underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <label className="mt-5 text-sm font-bold text-[#102521]">
+                    Full name
+                    <input
+                      type="text"
+                      autoComplete="name"
+                      value={signupName}
+                      onChange={(event) => setSignupName(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                      placeholder="Your name"
+                      required
+                    />
+                  </label>
+                  <label className="mt-5 text-sm font-bold text-[#102521]">
+                    Phone <span className="font-normal text-[#5e746e]">(optional)</span>
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      value={signupPhone}
+                      onChange={(event) => setSignupPhone(event.target.value)}
+                      className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                      placeholder="Your phone number"
+                    />
+                  </label>
+                </>
+              )}
+              <label className="text-sm font-bold text-[#102521]">
+                Email
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={signInEmail}
+                  onChange={(event) => setSignInEmail(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                  placeholder="you@example.com"
+                  required
+                />
+              </label>
+              <label className="mt-5 text-sm font-bold text-[#102521]">
+                Password
+                <input
+                  type="password"
+                  autoComplete={authSheetStep === "signup" ? "new-password" : "current-password"}
+                  value={signInPassword}
+                  onChange={(event) => setSignInPassword(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                  placeholder={
+                    authSheetStep === "signup" ? "At least 8 characters" : "Your password"
+                  }
+                  required
+                  minLength={authSheetStep === "signup" ? 8 : 6}
+                />
+              </label>
+              {signInError && (
+                <p className="mt-5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                  {signInError}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={signInBusy}
+                className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152] disabled:cursor-wait disabled:opacity-60"
+              >
+                {signInBusy
+                  ? authSheetStep === "signup"
+                    ? "Creating account…"
+                    : "Signing in…"
+                  : authSheetStep === "signup"
+                    ? "Create account"
+                    : "Sign in"}
+              </button>
+              <p className="mt-6 text-center text-sm text-[#5e746e]">
+                {authSheetStep === "signup" ? "Already have an account?" : "New to CourtHub?"}{" "}
+                <button
+                  type="button"
+                  onClick={() => setAuthSheetStep(authSheetStep === "signup" ? "signin" : "role")}
+                  className="font-bold text-[#12806d] hover:underline"
+                >
+                  {authSheetStep === "signup" ? "Sign in" : "Create an account"}
+                </button>
+              </p>
+              <p className="mt-auto pt-8 text-center text-xs leading-relaxed text-[#5e746e]">
+                Your next game is closer than you think.
+              </p>
+            </form>
+          </aside>
+        </div>
+      )}
 
       <section
         id="home"
