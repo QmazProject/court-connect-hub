@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import { z } from "zod";
 
 const rangeSchema = z.object({
@@ -22,17 +24,24 @@ export type VenueDayBookingRow = {
   end_time: string;
 };
 
+function publicAvailabilityClient() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error("Supabase public configuration is unavailable.");
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /**
  * Public availability read. The underlying SECURITY DEFINER RPCs are no longer
- * callable by anon/authenticated roles; only the trusted server may run them.
- * Returned data is anonymous (no player identity, no payment info).
+ * callable by anon/authenticated roles. Returned data is anonymous (no player
+ * identity or payment information), so it must not require a service-role key.
  */
 export const getCourtAvailability = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => courtSchema.parse(data))
   .handler(async ({ data }): Promise<CourtAvailabilityRow[]> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.rpc("expire_pending_payment_holds");
-    const { data: rows, error } = await supabaseAdmin.rpc("get_court_availability", {
+    const { data: rows, error } = await publicAvailabilityClient().rpc("get_court_availability", {
       _court_id: data.courtId,
       _from: data.from,
       _to: data.to,
@@ -44,9 +53,7 @@ export const getCourtAvailability = createServerFn({ method: "GET" })
 export const getVenueDayBookings = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => venueSchema.parse(data))
   .handler(async ({ data }): Promise<VenueDayBookingRow[]> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.rpc("expire_pending_payment_holds");
-    const { data: rows, error } = await supabaseAdmin.rpc("get_venue_day_bookings", {
+    const { data: rows, error } = await publicAvailabilityClient().rpc("get_venue_day_bookings", {
       _venue_id: data.venueId,
       _from: data.from,
       _to: data.to,

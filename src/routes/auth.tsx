@@ -32,7 +32,10 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/", replace: true });
+      // Both account types have a workspace at /dashboard.  Keeping this
+      // redirect role-neutral also avoids sending an already signed-in tenant
+      // back to the public landing page.
+      if (data.user) navigate({ to: "/dashboard", replace: true });
     });
   }, [navigate]);
 
@@ -75,11 +78,9 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      const { data: u } = await supabase.auth.getUser();
-      if (u.user) {
-        const { data: p } = await supabase.from("profiles").select("role").eq("id", u.user.id).maybeSingle();
-        navigate({ to: p?.role === "tenant" ? "/dashboard" : "/", replace: true });
-      }
+      // /dashboard selects the tenant or player workspace from the account
+      // profile. It is the single, reliable post-auth destination for both.
+      navigate({ to: "/dashboard", replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Authentication failed");
     } finally {

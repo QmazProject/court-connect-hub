@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { startBookingCheckout } from "@/lib/paymongo.functions";
-import { getCourtAvailability } from "@/lib/availability.functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
@@ -147,9 +146,21 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const rows = await getCourtAvailability({
-        data: { courtId, from: dayBounds.start.toISOString(), to: dayBounds.end.toISOString() },
+      // This RPC returns only anonymous slot availability. Calling it through
+      // the browser client keeps the booking screen usable when no server-only
+      // service key is configured.
+      const { data, error } = await supabase.rpc("get_court_availability", {
+        _court_id: courtId,
+        _from: dayBounds.start.toISOString(),
+        _to: dayBounds.end.toISOString(),
       });
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        hour_start: string;
+        remaining: number;
+        blocked_by_other_sport: boolean;
+        held_for_payment: boolean;
+      }>;
       const map = new Map<number, { remaining: number; blockedByOther: boolean; heldForPayment: boolean }>();
       rows.forEach((row) => {
         const h = zonedHour(row.hour_start);

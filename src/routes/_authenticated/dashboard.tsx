@@ -161,7 +161,9 @@ const DAYS: { key: string; label: string }[] = [
 
 
 function Dashboard() {
-  const { user } = Route.useRouteContext() as { user: { id: string; email?: string } };
+  const { user } = Route.useRouteContext() as {
+    user: { id: string; email?: string; user_metadata?: { role?: unknown; full_name?: unknown } };
+  };
   const qc = useQueryClient();
   const [section, setSection] = useState<SectionKey>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -199,8 +201,15 @@ function Dashboard() {
       </TenantShell>
     );
   }
-  if (profileQ.data?.role !== "tenant") {
-    return <PlayerDashboard userId={user.id} fullName={profileQ.data?.full_name ?? ""} email={user.email ?? ""} />;
+  // The profile trigger normally creates this row as part of sign-up. Use the
+  // signed-in user's metadata for the first render as well, so a newly created
+  // tenant is never shown the player workspace while that row is propagating.
+  const metadataRole = user.user_metadata?.role === "tenant" ? "tenant" : "player";
+  const role = profileQ.data?.role === "tenant" ? "tenant" : metadataRole;
+  const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
+
+  if (role !== "tenant") {
+    return <PlayerDashboard userId={user.id} fullName={profileQ.data?.full_name ?? metadataName} email={user.email ?? ""} />;
   }
 
   const venues = venuesQ.data ?? [];
@@ -337,7 +346,7 @@ function TenantShell({
               section={section}
               setSection={(s) => { setSection(s); setMobileOpen(false); }}
               collapsed={false}
-              setCollapsed={() => {}}
+              setCollapsed={() => { }}
               onClose={() => setMobileOpen(false)}
             />
           </aside>
@@ -1077,7 +1086,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
         <div className="sm:col-span-2">
           <OperatingHoursEditor hours={openHours} onChange={setOpenHours} hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere." />
-            <Textarea label="Operating hours note (optional)" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="Extra note shown to players, e.g. Holiday hours may vary" />
+          <Textarea label="Operating hours note (optional)" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="Extra note shown to players, e.g. Holiday hours may vary" />
         </div>
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
@@ -2732,7 +2741,7 @@ function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: st
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) setSelected(sanitize(JSON.parse(raw) as string[]));
-    } catch {}
+    } catch { }
     // 2) authoritative load from Supabase (per-user, follows sign-in)
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -2747,14 +2756,14 @@ function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: st
       if (Array.isArray(cols) && cols.length) {
         const merged = sanitize(cols);
         setSelected(merged);
-        try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch {}
+        try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { }
       }
     })();
   }, []);
   const save = (next: string[]) => {
     const clean = sanitize(next);
     setSelected(clean);
-    try { localStorage.setItem(storageKey, JSON.stringify(clean)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(clean)); } catch { }
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
@@ -3008,7 +3017,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
   const [courtsFor, setCourtsFor] = useState<Venue | null>(null);
   const [colCfgOpen, setColCfgOpen] = useState(false);
   const { selected: visibleCols, save: saveCols } = useVenueColumns();
-  
+
   const venueIds = venues.map((v) => v.id);
   const courtsCountQ = useQuery({
     queryKey: ["venues-court-counts", venueIds],
@@ -3868,7 +3877,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
           <option value="all">All venues</option>
           {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
         </select>
-        
+
       </div>
       {courtsQ.isLoading ? (
         <div className="p-6"><div className="h-24 animate-pulse rounded-lg bg-muted" /></div>
@@ -5065,14 +5074,14 @@ type CalBooking = {
 };
 
 const SPORT_COLORS: Record<string, { bg: string; dot: string; text: string; border: string }> = {
-  tennis:      { bg: "bg-emerald-100", dot: "bg-emerald-500", text: "text-emerald-900", border: "border-emerald-200" },
-  basketball:  { bg: "bg-amber-100",   dot: "bg-amber-500",   text: "text-amber-900",   border: "border-amber-200" },
-  badminton:   { bg: "bg-sky-100",     dot: "bg-sky-500",     text: "text-sky-900",     border: "border-sky-200" },
-  volleyball:  { bg: "bg-violet-100",  dot: "bg-violet-500",  text: "text-violet-900",  border: "border-violet-200" },
-  pickleball:  { bg: "bg-pink-100",    dot: "bg-pink-500",    text: "text-pink-900",    border: "border-pink-200" },
-  football:    { bg: "bg-lime-100",    dot: "bg-lime-500",    text: "text-lime-900",    border: "border-lime-200" },
-  squash:      { bg: "bg-rose-100",    dot: "bg-rose-500",    text: "text-rose-900",    border: "border-rose-200" },
-  default:     { bg: "bg-slate-100",   dot: "bg-slate-500",   text: "text-slate-900",   border: "border-slate-200" },
+  tennis: { bg: "bg-emerald-100", dot: "bg-emerald-500", text: "text-emerald-900", border: "border-emerald-200" },
+  basketball: { bg: "bg-amber-100", dot: "bg-amber-500", text: "text-amber-900", border: "border-amber-200" },
+  badminton: { bg: "bg-sky-100", dot: "bg-sky-500", text: "text-sky-900", border: "border-sky-200" },
+  volleyball: { bg: "bg-violet-100", dot: "bg-violet-500", text: "text-violet-900", border: "border-violet-200" },
+  pickleball: { bg: "bg-pink-100", dot: "bg-pink-500", text: "text-pink-900", border: "border-pink-200" },
+  football: { bg: "bg-lime-100", dot: "bg-lime-500", text: "text-lime-900", border: "border-lime-200" },
+  squash: { bg: "bg-rose-100", dot: "bg-rose-500", text: "text-rose-900", border: "border-rose-200" },
+  default: { bg: "bg-slate-100", dot: "bg-slate-500", text: "text-slate-900", border: "border-slate-200" },
 };
 function sportStyle(slug?: string | null) {
   if (!slug) return SPORT_COLORS.default;
@@ -5198,7 +5207,7 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
           <div className="flex items-center gap-1">
             <button onClick={() => nudgeDay(-1)} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary" aria-label="Previous day">‹</button>
             <button
-              onClick={() => { const t = new Date(); t.setHours(0,0,0,0); setDay(t); }}
+              onClick={() => { const t = new Date(); t.setHours(0, 0, 0, 0); setDay(t); }}
               className={`rounded-full px-4 py-1.5 text-xs font-semibold ${isToday ? "bg-primary text-primary-foreground" : "border border-border bg-card hover:bg-secondary"}`}
             >
               Today
@@ -5425,7 +5434,7 @@ type PlayerBooking = {
   } | null;
 };
 
-function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName: string; email: string }) {
+export function PlayerDashboard({ userId, fullName, email, embedded = false }: { userId: string; fullName: string; email: string; embedded?: boolean }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"upcoming" | "past" | "cancelled">("upcoming");
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; title: string; subtitle: string } | null>(null);
@@ -5570,8 +5579,10 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
   };
 
 
+  const Container = embedded ? "div" : "main";
+
   return (
-    <main className="mx-auto min-h-[100dvh] max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+    <Container className={`mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 ${embedded ? "min-h-full" : "min-h-[100dvh]"}`}>
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -5581,7 +5592,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell userId={userId} />
-          <Link to="/" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+          <Link to="/explore" search={{}} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
         </div>
 
       </div>
@@ -5647,7 +5658,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
               {tab === "upcoming" ? "Book a court to see it here." : tab === "past" ? "Your past games will show here." : "No cancelled bookings."}
             </p>
             {tab === "upcoming" && (
-              <Link to="/" className="mt-3 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Browse courts</Link>
+              <Link to="/explore" search={{}} className="mt-3 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Browse courts</Link>
             )}
           </div>
         ) : (
@@ -5837,7 +5848,7 @@ function PlayerDashboard({ userId, fullName, email }: { userId: string; fullName
           </div>
         </div>
       )}
-    </main>
+    </Container>
   );
 }
 

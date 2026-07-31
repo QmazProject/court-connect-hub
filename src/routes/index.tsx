@@ -39,6 +39,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { VenueMap, type MapVenue } from "@/components/VenueMap";
 import { MapPicker } from "@/components/MapPicker";
+import { PlayerDashboard } from "@/routes/_authenticated/dashboard";
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (v: number) => (v * Math.PI) / 180;
@@ -922,6 +923,43 @@ function LandingPage() {
   const [signupRole, setSignupRole] = useState<"player" | "tenant" | null>(null);
   const [signupName, setSignupName] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
+  const [player, setPlayer] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [bookingPromptOpen, setBookingPromptOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const hydrateAccount = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (mounted) setPlayer(null);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
+      const role = profile?.role === "tenant" || metadata.role === "tenant" ? "tenant" : "player";
+      if (role === "tenant") {
+        navigate({ to: "/dashboard", replace: true });
+        return;
+      }
+      if (mounted) {
+        setPlayer({
+          id: user.id,
+          email: user.email ?? "",
+          name: profile?.full_name || (typeof metadata.full_name === "string" ? metadata.full_name : "") || user.email?.split("@")[0] || "Player",
+        });
+      }
+    };
+    void hydrateAccount();
+    const { data: subscription } = supabase.auth.onAuthStateChange(() => { void hydrateAccount(); });
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const featuredQ = useQuery({
     queryKey: ["landing-featured-venues"],
@@ -1000,6 +1038,22 @@ function LandingPage() {
     navigate({ to: "/explore", search: {} });
   };
 
+  const startBooking = () => {
+    if (player) {
+      openExplorer();
+      return;
+    }
+    setBookingPromptOpen(true);
+  };
+
+  const startVenueBooking = (venueId: string) => {
+    if (player) {
+      navigate({ to: "/venues/$venueId", params: { venueId }, search: {} });
+      return;
+    }
+    setBookingPromptOpen(true);
+  };
+
   const openSignIn = () => {
     setMenuOpen(false);
     setSignInError(null);
@@ -1034,7 +1088,11 @@ function LandingPage() {
           return;
         }
         setSignInOpen(false);
-        navigate({ to: signupRole === "tenant" ? "/dashboard" : "/", replace: true });
+        if (signupRole === "tenant") {
+          navigate({ to: "/dashboard", replace: true });
+        } else if (data.user) {
+          setPlayer({ id: data.user.id, email: data.user.email ?? signInEmail, name: signupName || data.user.email?.split("@")[0] || "Player" });
+        }
         return;
       }
       const { error } = await supabase.auth.signInWithPassword({
@@ -1042,12 +1100,21 @@ function LandingPage() {
         password: signInPassword,
       });
       if (error) throw error;
-      const { data } = await supabase.auth.getUser();
-      const { data: profile } = data.user
-        ? await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle()
-        : { data: null };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sign-in succeeded, but no active session was found. Please try again.");
+      const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).maybeSingle();
+      const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
+      const isTenant = profile?.role === "tenant" || metadata.role === "tenant";
       setSignInOpen(false);
-      navigate({ to: profile?.role === "tenant" ? "/dashboard" : "/", replace: true });
+      if (isTenant) {
+        navigate({ to: "/dashboard", replace: true });
+      } else {
+        setPlayer({
+          id: user.id,
+          email: user.email ?? signInEmail,
+          name: profile?.full_name || (typeof metadata.full_name === "string" ? metadata.full_name : "") || user.email?.split("@")[0] || "Player",
+        });
+      }
     } catch (error) {
       setSignInError(
         error instanceof Error ? error.message : "Unable to sign in. Please try again.",
@@ -1188,20 +1255,31 @@ function LandingPage() {
               })}
             </nav>
             <div className="flex items-center gap-2">
+              {player ? (
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/dashboard" })}
+                  className="hidden max-w-40 truncate rounded-full px-3 py-2 text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white sm:inline-flex"
+                  title={player.name}
+                >
+                  {player.name}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openSignIn}
+                  className="hidden rounded-full px-3 py-2 text-sm font-semibold text-white/85 hover:text-white sm:inline-flex"
+                >
+                  Sign in
+                </button>
+              )}
               <button
                 type="button"
-                onClick={openSignIn}
-                className="hidden rounded-full px-3 py-2 text-sm font-semibold text-white/85 hover:text-white sm:inline-flex"
-              >
-                Sign in
-              </button>
-              <Link
-                to="/explore"
-                search={{}}
+                onClick={startBooking}
                 className="inline-flex items-center gap-1 rounded-full bg-[#b8f05a] px-3.5 py-2 text-sm font-bold text-[#102521] transition hover:bg-[#d3ff87]"
               >
                 Book now <ChevronRight className="h-4 w-4" />
-              </Link>
+              </button>
               <button
                 onClick={() => setMenuOpen((open) => !open)}
                 className="rounded-full p-2 hover:bg-white/10 lg:hidden"
@@ -1289,10 +1367,10 @@ function LandingPage() {
             ))}
             <button
               type="button"
-              onClick={openSignIn}
-              className="rounded-xl px-3 py-3 text-sm font-semibold hover:bg-[#eaf5d8]"
+              onClick={() => player ? navigate({ to: "/dashboard" }) : openSignIn()}
+              className="truncate rounded-xl px-3 py-3 text-sm font-semibold hover:bg-[#eaf5d8]"
             >
-              Sign in
+              {player?.name ?? "Sign in"}
             </button>
           </nav>
         )}
@@ -1510,6 +1588,52 @@ function LandingPage() {
         </div>
       )}
 
+
+
+      {bookingPromptOpen && (
+        <div
+          className="fixed inset-0 z-[1300] grid place-items-center bg-[#061a17]/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-sign-in-title"
+          onMouseDown={() => setBookingPromptOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white p-6 text-[#102521] shadow-2xl sm:p-8"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.18em] text-[#12806d]">Player booking</p>
+                <h2 id="booking-sign-in-title" className="mt-2 font-display text-2xl font-bold">Sign in to book a court</h2>
+              </div>
+              <button type="button" onClick={() => setBookingPromptOpen(false)} aria-label="Close" className="rounded-full p-2 hover:bg-[#eff5ed]">
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-[#5e746e]">
+              Already have a player account? Sign in to book. New to CourtHub? Create an account and choose the <b className="text-[#102521]">Player</b> option.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => { setBookingPromptOpen(false); openSignIn(); }}
+                className="rounded-full bg-[#0b3d35] px-4 py-3 text-sm font-bold text-white hover:bg-[#126152]"
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => { setBookingPromptOpen(false); setAuthSheetStep("role"); setSignInOpen(true); }}
+                className="rounded-full border border-[#0b3d35] px-4 py-3 text-sm font-bold text-[#0b3d35] hover:bg-[#eff5ed]"
+              >
+                Create account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section
         id="home"
         data-nav="Home"
@@ -1540,13 +1664,13 @@ function LandingPage() {
               more across the Philippines with real-time availability and secure online booking.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                to="/explore"
-                search={{}}
+              <button
+                type="button"
+                onClick={startBooking}
                 className="inline-flex items-center gap-2 rounded-full bg-[#b8f05a] px-6 py-3.5 font-bold text-[#102521] transition hover:-translate-y-0.5 hover:bg-[#d3ff87]"
               >
                 Book a court <ChevronRight className="h-4 w-4" />
-              </Link>
+              </button>
               <button
                 onClick={openExplorer}
                 className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 py-3.5 font-bold backdrop-blur transition hover:bg-white/20"
@@ -1689,15 +1813,13 @@ function LandingPage() {
                           "View availability"
                         )}
                       </span>
-                      <Link
-                        to="/venues/$venueId"
-                        params={{ venueId: String(venue.id) }}
-                        search={{}}
-                        onClick={(event) => event.stopPropagation()}
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); startVenueBooking(String(venue.id)); }}
                         className="rounded-full bg-[#0b3d35] px-3 py-2 text-xs font-bold text-white hover:bg-[#126152]"
                       >
                         Book now
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </article>
@@ -2157,13 +2279,13 @@ function LandingPage() {
           Reserve your next court in minutes with CourtHub.
         </p>
         <div className="mt-7 flex justify-center gap-3">
-          <Link
-            to="/explore"
-            search={{}}
+          <button
+            type="button"
+            onClick={startBooking}
             className="rounded-full bg-[#b8f05a] px-5 py-3 font-bold text-[#102521]"
           >
             Book now
-          </Link>
+          </button>
           <Link
             to="/explore"
             search={{}}
