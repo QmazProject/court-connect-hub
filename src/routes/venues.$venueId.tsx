@@ -251,7 +251,7 @@ function VenueDetail() {
     <ul className="mt-1 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       {items.map((v) => (
         <li key={v} className="flex items-start gap-2 text-sm text-foreground">
-          <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
             <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
               <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
             </svg>
@@ -391,7 +391,7 @@ function VenueDetail() {
           <ul className="space-y-1.5 text-sm text-foreground">
             {rulesList.map((r, i) => (
               <li key={i} className="flex items-start gap-2">
-                <span className="mt-0.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
                     <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
                   </svg>
@@ -410,7 +410,7 @@ function VenueDetail() {
     <main className="pb-8 sm:pb-12">
       <section className="relative">
         {/* Image carousel */}
-        <div className="relative h-[320px] w-full overflow-hidden bg-muted sm:h-[440px] lg:h-[520px]">
+        <div className="relative h-80 w-full overflow-hidden bg-muted sm:h-110 lg:h-130">
           {currentImg ? (
             <button
               type="button"
@@ -423,9 +423,9 @@ function VenueDetail() {
               <img src={currentImg} alt={venue?.name ?? "Venue"} className="h-full w-full object-cover" />
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
+                className="pointer-events-none absolute inset-0 z-5 flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
               >
-                <span className="rounded-full bg-gradient-to-r from-[#0b3d35] via-[#12806d] to-[#b8f05a] px-5 py-2.5 font-display text-[13px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+                <span className="rounded-full bg-linear-to-r from-[#0b3d35] via-[#12806d] to-[#b8f05a] px-5 py-2.5 font-display text-[13px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
                   View venue images
                 </span>
               </span>
@@ -435,7 +435,7 @@ function VenueDetail() {
           )}
 
           {/* Gradient scrim for readability */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-linear-to-t from-black/70 via-black/30 to-transparent" />
 
           {hasImages && images.length > 1 && (
             <>
@@ -460,13 +460,7 @@ function VenueDetail() {
             </>
           )}
 
-          {/* Back button overlaid */}
-          <button
-            onClick={() => navigate({ to: "/", search: sport ? { sport } : {} })}
-            className="absolute left-3 top-3 z-10 rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow backdrop-blur hover:bg-background sm:left-5 sm:top-5 sm:text-sm"
-          >
-            ← Back
-          </button>
+
 
           {/* Bottom overlay panel — compact glass */}
           {venue && (
@@ -481,7 +475,7 @@ function VenueDetail() {
                     <div className="min-w-0">
                       <h1 className="truncate text-sm font-semibold text-white drop-shadow sm:text-base">{venue.name}</h1>
                       <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-white/75 sm:text-xs">
-                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        <MapPin className="h-3 w-3 shrink-0" />
                         <span className="truncate">{venue.address}</span>
                       </p>
                     </div>
@@ -511,7 +505,7 @@ function VenueDetail() {
                   {visibleChips.length > 0 && (
                     <div
                       ref={chipsRef}
-                      className="mt-2 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                      className="mt-2 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden"
                     >
                       {visibleChips.map((c) => (
                         <button
@@ -520,7 +514,7 @@ function VenueDetail() {
                           onClick={() => setOpenChip(c.key)}
                           className="group flex shrink-0 snap-start items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1.5 text-left text-white transition hover:border-primary/60 hover:bg-white/20"
                         >
-                          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/30 text-primary-foreground [&>svg]:h-3 [&>svg]:w-3">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/30 text-primary-foreground [&>svg]:h-3 [&>svg]:w-3">
                             {c.icon}
                           </span>
                           <span className="text-[11px] font-medium tracking-wide">{c.label}</span>
@@ -562,9 +556,9 @@ function VenueDetail() {
             className="w-full max-w-lg overflow-hidden rounded-t-3xl bg-background shadow-2xl sm:rounded-2xl"
           >
             <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-white/50 sm:hidden" />
-            <div className="flex items-start justify-between gap-3 bg-gradient-to-br from-primary/25 via-primary/10 to-accent/20 px-5 py-4 sm:px-6 sm:py-5">
+            <div className="flex items-start justify-between gap-3 bg-linear-to-br from-primary/25 via-primary/10 to-accent/20 px-5 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md ring-2 ring-white/50 [&>svg]:h-5 [&>svg]:w-5">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md ring-2 ring-white/50 [&>svg]:h-5 [&>svg]:w-5">
                   {activeChip.icon}
                 </span>
                 <div>
@@ -965,7 +959,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       <div className="text-center">
         <h2 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
           Explore Our Courts at{" "}
-          <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             {venue?.name ?? "this venue"}
           </span>
         </h2>
@@ -999,7 +993,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       )}
 
       {/* Date picker for real-time availability */}
-      <div className="mt-6 rounded-2xl border border-[#dce8e2] bg-gradient-to-r from-white via-white to-[#eaf5d8] p-4 shadow-[0_12px_30px_rgba(16,37,33,0.07)] sm:p-5">
+      <div className="mt-6 rounded-2xl border border-[#dce8e2] bg-linear-to-r from-white via-white to-[#eaf5d8] p-4 shadow-[0_12px_30px_rgba(16,37,33,0.07)] sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-primary/10 p-2 text-primary">
@@ -1133,7 +1127,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                               aria-hidden
                               className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100"
                             >
-                              <span className="rounded-full bg-gradient-to-r from-[#0b3d35] via-[#12806d] to-[#b8f05a] px-4 py-2 font-display text-[12px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
+                              <span className="rounded-full bg-linear-to-r from-[#0b3d35] via-[#12806d] to-[#b8f05a] px-4 py-2 font-display text-[12px] font-extrabold uppercase italic tracking-[0.3em] text-white shadow-lg drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]">
                                 Click to view court images
                               </span>
                             </span>
@@ -1283,14 +1277,14 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
       {/* Location primer modal */}
       {locationModalOpen && (
         <div
-          className="fixed inset-0 z-[900] flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-900 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
           onClick={skipLocation}
         >
           <div
             className="w-full max-w-md overflow-hidden rounded-2xl bg-card shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-6 pt-6 pb-4">
+            <div className="relative bg-linear-to-br from-primary/15 via-primary/5 to-transparent px-6 pt-6 pb-4">
               <button
                 type="button"
                 onClick={skipLocation}
@@ -1361,7 +1355,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
 
       {courtImageView && (
         <div
-          className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/95 p-4"
+          className="fixed inset-0 z-1400 flex items-center justify-center bg-black/95 p-4"
           onClick={() => setCourtImageView(null)}
         >
           <div className="absolute left-4 top-4 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
@@ -1561,7 +1555,7 @@ function EmptySport({
               params={{ venueId: String(v.id) }}
               className="group flex gap-3 rounded-xl border border-border bg-background p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md"
             >
-              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
                 {v.images[0] ? (
                   <img src={v.images[0]} alt={v.name} className="h-full w-full object-cover" />
                 ) : (
@@ -1571,7 +1565,7 @@ function EmptySport({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary">{v.name}</p>
                 <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3 flex-shrink-0" />
+                  <MapPin className="h-3 w-3 shrink-0" />
                   <span className="truncate">{v.address}</span>
                 </p>
                 <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
