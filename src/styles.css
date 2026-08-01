@@ -60,6 +60,28 @@
   --court-line: #f6f8f7;
 }
 
+.dark {
+  --background: transparent;
+  --foreground: #ffffff;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: #ffffff;
+  --popover: #09231f;
+  --popover-foreground: #ffffff;
+  --primary: #b8f05a;
+  --primary-foreground: #102521;
+  --secondary: rgba(255, 255, 255, 0.1);
+  --secondary-foreground: #ffffff;
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: rgba(255, 255, 255, 0.65);
+  --accent: rgba(255, 255, 255, 0.1);
+  --accent-foreground: #ffffff;
+  --destructive: oklch(0.6 0.22 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: rgba(255, 255, 255, 0.15);
+  --input: rgba(255, 255, 255, 0.15);
+  --ring: #b8f05a;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

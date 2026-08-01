@@ -27,9 +27,9 @@ import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
 
 const chLogo = { url: "/CHicon.png" };
 import {
-  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
+  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog, Home,
   Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, Clock, AlertTriangle, History as HistoryIcon,
-  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent,
+  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent, LogOut
 } from "lucide-react";
 
 type SectionKey =
@@ -66,8 +66,6 @@ const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "UTC", label: "UTC" },
 ];
 
-// Rough country bounding boxes → suggested timezone. Philippines is the
-// primary market so we restrict pins to it by default (see PH_BOUNDS below).
 const TZ_BOUNDS: { tz: string; country: string; minLat: number; maxLat: number; minLng: number; maxLng: number }[] = [
   { tz: "Asia/Manila", country: "Philippines", minLat: 4.5, maxLat: 21.5, minLng: 116, maxLng: 127 },
   { tz: "Asia/Singapore", country: "Singapore", minLat: 1.15, maxLat: 1.5, minLng: 103.6, maxLng: 104.05 },
@@ -149,8 +147,6 @@ function CourtStatusField({ value, onChange }: { value: boolean; onChange: (v: b
         </span>
       </span>
     </div>
-
-
   );
 }
 
@@ -158,6 +154,175 @@ const DAYS: { key: string; label: string }[] = [
   { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
   { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
 ];
+
+export type PlayerSectionKey = "home" | "explore" | "bookings";
+
+export const PLAYER_NAV = [
+  { key: "home", label: "Home", icon: Home, to: "/" },
+  { key: "explore", label: "Explore", icon: MapPin, to: "/explore" },
+  { key: "bookings", label: "My Bookings", icon: BookOpen, to: "/dashboard" },
+] as const;
+
+export function PlayerShell({
+  children, section, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, onSignOut
+}: {
+  children: React.ReactNode;
+  section: PlayerSectionKey;
+  mobileOpen: boolean;
+  setMobileOpen: (v: boolean) => void;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  userId?: string;
+  onSignOut?: () => void;
+}) {
+  const current = PLAYER_NAV.find((n) => n.key === section);
+  return (
+    <div className="flex h-dvh w-full">
+      {/* Desktop sidebar */}
+      <aside
+        className={
+          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-dvh md:flex-col transition-[width] duration-200 " +
+          (collapsed ? "md:w-16" : "md:w-62.5")
+        }
+      >
+        <PlayerSidebarBody
+          section={section}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          onSignOut={onSignOut}
+        />
+      </aside>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-1200 md:hidden">
+          <button aria-label="Close menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/40" />
+          <aside className="absolute inset-y-0 left-0 flex w-62.5 flex-col border-r border-border bg-card shadow-xl">
+            <PlayerSidebarBody
+              section={section}
+              collapsed={false}
+              setCollapsed={() => { }}
+              onClose={() => setMobileOpen(false)}
+              onSignOut={onSignOut}
+            />
+          </aside>
+        </div>
+      )}
+
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Mobile top bar */}
+        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
+          <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
+            <Menu className="h-4 w-4" /> Menu
+          </button>
+          <span className="text-sm font-semibold">{current?.label ?? "Workspace"}</span>
+          <NotificationBell userId={userId} />
+        </div>
+        
+        {/* Desktop top bar ONLY if not explore */}
+        {section !== "explore" && (
+           <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
+             <NotificationBell userId={userId} />
+           </div>
+        )}
+
+        {/* Content */}
+        {section === "explore" ? (
+          <div className="h-full w-full flex-1 min-h-0 motion-safe:animate-[landing-header-reveal_.3s_ease-out_both]">
+            {children}
+          </div>
+        ) : (
+          <div className="nice-scroll mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8 motion-safe:animate-[landing-header-reveal_.3s_ease-out_both]">
+            {children}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function PlayerSidebarBody({
+  section, collapsed, setCollapsed, onClose, onSignOut
+}: {
+  section: PlayerSectionKey;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  onClose?: () => void;
+  onSignOut?: () => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <img src={chLogo.url} alt="CourtHub" className="h-7 w-7 shrink-0 rounded-full object-contain" />
+          {!collapsed && <span className="truncate font-display text-sm font-bold tracking-tight">CourtHub</span>}
+        </div>
+        {onClose ? (
+          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 hover:bg-secondary">
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden rounded-md p-1 text-muted-foreground hover:bg-secondary md:inline-flex"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <nav className="flex-1 overflow-y-auto p-2">
+        <ul className="space-y-1">
+          {PLAYER_NAV.map(({ key, label, icon: Icon, to }) => {
+            const active = section === key;
+            return (
+              <li key={key}>
+                <Link
+                  to={to}
+                  search={{}}
+                  onClick={onClose}
+                  title={collapsed ? label : undefined}
+                  className={
+                    "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
+                    (active
+                      ? "bg-primary/15 text-primary"
+                      : "text-foreground/80 hover:bg-secondary hover:text-foreground")
+                  }
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      <div className="mt-auto border-t border-border p-2">
+        <button
+          onClick={onSignOut}
+          title={collapsed ? "Sign out" : undefined}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span className="truncate">Sign out</span>}
+        </button>
+      </div>
+      {!collapsed && (
+        <div className="border-t border-border px-3 py-3.5">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#12806d] shadow-[0_0_8px_hsl(var(--primary))]" />
+            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Player
+            </span>
+          </div>
+          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">
+            Workspace
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 
 function Dashboard() {
@@ -321,11 +486,11 @@ function TenantShell({
 
   const current = NAV.find((n) => n.key === section);
   return (
-    <div className="flex h-[100dvh] w-full">
+    <div className="flex h-dvh w-full">
       {/* Desktop sidebar */}
       <aside
         className={
-          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-[100dvh] md:flex-col transition-[width] duration-200 " +
+          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-dvh md:flex-col transition-[width] duration-200 " +
           (collapsed ? "md:w-16" : "md:w-60")
         }
       >
@@ -339,7 +504,7 @@ function TenantShell({
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-[1200] md:hidden">
+        <div className="fixed inset-0 z-1200 md:hidden">
           <button aria-label="Close menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/40" />
           <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-card shadow-xl">
             <SidebarBody
@@ -556,7 +721,7 @@ function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClos
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
   }, [open, onClose]);
   return (
-    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
       <div
         onClick={onClose}
         className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
@@ -594,7 +759,7 @@ function CreateGroupDrawer({ open, onClose, venues, onCreated }: { open: boolean
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
   }, [open, onClose]);
   return (
-    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
       <div
         onClick={onClose}
         className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
@@ -1691,7 +1856,7 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
 
   if (!open && !alwaysOpen) {
     return (
-      <button onClick={() => setOpen(true)} className="grid min-h-[128px] place-items-center rounded-xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
+      <button onClick={() => setOpen(true)} className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
         + Add court
       </button>
     );
@@ -1792,7 +1957,7 @@ function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; o
   }, [open, onClose, venues]);
   const selectedVenue = venues.find((v) => v.id === venueId) ?? null;
   return (
-    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
       <div
         onClick={onClose}
         className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
@@ -2625,14 +2790,14 @@ function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
         <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
-          Venues <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{venues.length}</span>
+          Venues <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{venues.length}</span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>
-          Courts <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{courtsTotal}</span>
+          Courts <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{courtsTotal}</span>
         </TabBtn>
 
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
-          Court Groups <span className="ml-1.5 inline-flex min-w-[22px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{groupsTotal}</span>
+          Court Groups <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{groupsTotal}</span>
           <span className="group relative ml-1 inline-flex">
             <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">?</span>
             <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-3 text-left text-xs font-normal normal-case text-popover-foreground shadow-lg group-hover:block">
@@ -3056,15 +3221,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "status": return <th key={id} className="px-3 py-2.5 w-28 text-center">Status</th>;
       case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
       case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
-      case "amenities": return <th key={id} className="px-3 py-2.5 w-[200px]">Amenities</th>;
-      case "food_beverages": return <th key={id} className="px-3 py-2.5 w-[200px]">Food & Beverages</th>;
-      case "facility_services": return <th key={id} className="px-3 py-2.5 w-[200px]">Facility Services</th>;
+      case "amenities": return <th key={id} className="px-3 py-2.5 w-50">Amenities</th>;
+      case "food_beverages": return <th key={id} className="px-3 py-2.5 w-50">Food & Beverages</th>;
+      case "facility_services": return <th key={id} className="px-3 py-2.5 w-50">Facility Services</th>;
       case "fees": return <th key={id} className="px-3 py-2.5 w-24 text-center">Fees</th>;
       case "contact_phone": return <th key={id} className="px-3 py-2.5 w-36">Inquiry Phone</th>;
       case "contact_email": return <th key={id} className="px-3 py-2.5 w-48">Inquiry Email</th>;
-      case "operating_hours": return <th key={id} className="px-3 py-2.5 w-[200px]">Operating Hours</th>;
-      case "cancellation": return <th key={id} className="px-3 py-2.5 w-[200px]">Cancellation</th>;
-      case "rules": return <th key={id} className="px-3 py-2.5 w-[200px]">Rules</th>;
+      case "operating_hours": return <th key={id} className="px-3 py-2.5 w-50">Operating Hours</th>;
+      case "cancellation": return <th key={id} className="px-3 py-2.5 w-50">Cancellation</th>;
+      case "rules": return <th key={id} className="px-3 py-2.5 w-50">Rules</th>;
       default: return null;
     }
   };
@@ -3079,17 +3244,17 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
             <div className="flex items-center gap-2 whitespace-nowrap">
               <span className="font-semibold whitespace-nowrap">{v.name}</span>
               {idx === 0 && venues.length > 1 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />Newest</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />Newest</span>
               )}
             </div>
             <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
           </td>
         );
       case "location":
-        return <td key={id} className="px-3 py-3 text-muted-foreground min-w-[180px]">{v.address}</td>;
+        return <td key={id} className="px-3 py-3 text-muted-foreground min-w-45">{v.address}</td>;
       case "description":
         return (
-          <td key={id} className="px-3 py-3 text-muted-foreground w-[240px] min-w-[240px] max-w-[240px]">
+          <td key={id} className="px-3 py-3 text-muted-foreground w-60 min-w-60 max-w-60">
             {v.description ? (
               v.description.length > 40 ? (
                 <HoverCard openDelay={80} closeDelay={200}>
@@ -3140,7 +3305,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           <td key={id} className="px-3 py-3 text-center">
             <button type="button" onClick={() => setCourtsFor(v)} title={has ? `View ${n} court${n === 1 ? "" : "s"} under this venue` : "No courts yet"} aria-label={`View courts under ${v.name}`} className={"relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition " + (has ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/20" : "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary")}>
               <Layers className="h-4 w-4" />
-              {has && (<span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">{n}</span>)}
+              {has && (<span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">{n}</span>)}
             </button>
           </td>
         );
@@ -3182,7 +3347,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         if (!arr.length) return <td key={id} className="px-3 py-3 text-muted-foreground"><span className="italic opacity-60">—</span></td>;
         const text = arr.join(", ");
         return (
-          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+          <td key={id} className="px-3 py-3 text-muted-foreground w-50 min-w-50 max-w-50">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
                 <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
@@ -3222,9 +3387,9 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "operating_hours":
       case "rules": {
         const text = id === "operating_hours" ? v.operating_hours_text : v.rules;
-        if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
+        if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-50"><span className="italic opacity-60">—</span></td>;
         return (
-          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+          <td key={id} className="px-3 py-3 text-muted-foreground w-50 min-w-50 max-w-50">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
                 <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
@@ -3237,10 +3402,10 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "cancellation": {
         const hrs = (v as any).refund_cutoff_hours as number | null | undefined;
         const notes = v.cancellation_notes;
-        if (hrs == null && !notes) return <td key={id} className="px-3 py-3 text-muted-foreground w-[200px]"><span className="italic opacity-60">—</span></td>;
+        if (hrs == null && !notes) return <td key={id} className="px-3 py-3 text-muted-foreground w-50"><span className="italic opacity-60">—</span></td>;
         const summary = hrs != null ? `Cancel up to ${hrs}h before` : "See notes";
         return (
-          <td key={id} className="px-3 py-3 text-muted-foreground w-[200px] min-w-[200px] max-w-[200px]">
+          <td key={id} className="px-3 py-3 text-muted-foreground w-50 min-w-50 max-w-50">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
                 <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
@@ -3259,7 +3424,7 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
 
   return (
     <>
-      <table className="w-full min-w-[980px] text-sm">
+      <table className="w-full min-w-245 text-sm">
         <thead className="sticky top-0 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
           <tr>
             {!visibleCols.includes("emoji") && (
@@ -3383,7 +3548,7 @@ function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: (
     new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
@@ -3403,7 +3568,7 @@ function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: (
             <ol className="relative space-y-4 border-l border-border pl-5">
               {data.map((e) => (
                 <li key={e.id} className="relative">
-                  <span className={`absolute -left-[26px] top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
+                  <span className={`absolute -left-6.5 top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
                       {e.action === "created" ? "Created" : "Last modified"}
@@ -3478,7 +3643,7 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
         <Trash2 className="h-3.5 w-3.5" />
       </button>
       {confirming && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!del.isPending) { setConfirming(false); setErr(null); } }}>
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!del.isPending) { setConfirming(false); setErr(null); } }}>
           <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold">Delete "{venue.name}"?</h3>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -3547,7 +3712,7 @@ function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => 
 
   if (!open || !venue) return null;
   return (
-    <div className="fixed inset-0 z-[1300] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-1300 flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-black/60" />
       <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl bg-background shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
@@ -3605,7 +3770,7 @@ function EditVenueDrawer({ venue, onClose }: { venue: Venue | null; onClose: () 
   });
 
   return (
-    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
       <div onClick={onClose} className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")} />
       <aside
         className={
@@ -3691,8 +3856,8 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
         <Trash2 className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="fixed inset-0 z-[1300] flex items-center justify-center whitespace-normal bg-black/50 p-4 text-left" onClick={() => { if (!del.isPending) setOpen(false); }}>
-          <div className="w-full max-w-md whitespace-normal break-words rounded-2xl border border-border bg-background p-5 text-left shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-1300 flex items-center justify-center whitespace-normal bg-black/50 p-4 text-left" onClick={() => { if (!del.isPending) setOpen(false); }}>
+          <div className="w-full max-w-md whitespace-normal wrap-break-word rounded-2xl border border-border bg-background p-5 text-left shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-bold">Delete "{court.name}"?</h3>
             {usageQ.isLoading ? (
               <p className="mt-2 text-sm text-muted-foreground">Checking bookings…</p>
@@ -3800,7 +3965,7 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
       case "description": return (
         <td key={id} className="px-3 py-3">
           {c.description?.trim() ? (
-            <p title={c.description} className="line-clamp-2 max-w-[260px] whitespace-normal break-words text-[12px] leading-snug text-muted-foreground">{c.description}</p>
+            <p title={c.description} className="line-clamp-2 max-w-65 whitespace-normal wrap-break-word text-[12px] leading-snug text-muted-foreground">{c.description}</p>
           ) : <span className="text-muted-foreground">—</span>}
         </td>
       );
@@ -3884,8 +4049,8 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
       ) : rows.length === 0 ? (
         <div className="p-8 text-center text-sm text-muted-foreground">No courts yet. Use <strong>Add court</strong> to create one.</div>
       ) : (
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="sticky top-[41px] z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
+        <table className="w-full min-w-225 text-sm">
+          <thead className="sticky top-10.25 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
             <tr>
               {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2.5">{cfgButton}</th>}
               {visibleCols.map((id) => renderHeader(id))}
@@ -3957,7 +4122,7 @@ function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name:
     new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
   return (
-    <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-1300 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
@@ -3977,7 +4142,7 @@ function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name:
             <ol className="relative space-y-4 border-l border-border pl-5">
               {data.map((e) => (
                 <li key={e.id} className="relative">
-                  <span className={`absolute -left-[26px] top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
+                  <span className={`absolute -left-6.5 top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
                       {e.action === "created" ? "Created" : "Last modified"}
@@ -4015,7 +4180,7 @@ function CourtDrawer({ title, open, onClose, children }: { title: string; open: 
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
   }, [open, onClose]);
   return (
-    <div className={"fixed inset-0 z-[1200] " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
       <div onClick={onClose} className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")} />
       <aside
         className={
@@ -4177,7 +4342,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
             No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts that share one physical space.
           </div>
         ) : (
-          <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
+          <table className="w-full min-w-180 border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2">{cfgButton}</th>}
@@ -4264,7 +4429,7 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
         <Trash2 className="h-4 w-4" />
       </button>
       {confirm && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-4" onClick={() => !mut.isPending && setConfirm(false)}>
+        <div className="fixed inset-0 z-70 grid place-items-center bg-black/50 p-4" onClick={() => !mut.isPending && setConfirm(false)}>
           <div className="w-full max-w-md rounded-2xl border border-destructive/40 bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive">
@@ -4412,7 +4577,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   const eligible = eligibleQ.data ?? [];
 
   return (
-    <div className="fixed inset-0 z-[70] flex" onClick={onClose}>
+    <div className="fixed inset-0 z-70 flex" onClick={onClose}>
       <div className="flex-1 bg-black/50" />
       <div className="h-full w-full max-w-lg overflow-y-auto bg-background shadow-2xl nice-scroll" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-5 py-4">
@@ -4933,7 +5098,7 @@ function VenueSettlementDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <form onSubmit={submit} onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
         <h3 className="text-lg font-semibold">Record venue settlement</h3>
         <p className="mt-1 text-xs text-muted-foreground">{target.label}</p>
@@ -5436,6 +5601,8 @@ type PlayerBooking = {
 
 export function PlayerDashboard({ userId, fullName, email, embedded = false }: { userId: string; fullName: string; email: string; embedded?: boolean }) {
   const qc = useQueryClient();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<"upcoming" | "past" | "cancelled">("upcoming");
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; title: string; subtitle: string } | null>(null);
 
@@ -5579,25 +5746,30 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
   };
 
 
-  const Container = embedded ? "div" : "main";
-
   return (
-    <Container className={`mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 ${embedded ? "min-h-full" : "min-h-[100dvh]"}`}>
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Player workspace</p>
-          <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Hi, {fullName || email.split("@")[0]} 👋</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Track your court bookings, upcoming games and payment history.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <NotificationBell userId={userId} />
-          <Link to="/explore" search={{}} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+    <PlayerShell
+      section="bookings"
+      mobileOpen={mobileOpen}
+      setMobileOpen={setMobileOpen}
+      collapsed={collapsed}
+      setCollapsed={setCollapsed}
+      userId={userId}
+      onSignOut={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
+    >
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Player workspace</p>
+            <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Hi, {fullName || email.split("@")[0]} 👋</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Track your court bookings, upcoming games and payment history.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/explore" search={{}} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
+          </div>
         </div>
 
-      </div>
-
-      {/* KPI tiles */}
+        {/* KPI tiles */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <PlayerKpi label="Upcoming" value={String(upcoming.filter((r) => r.payment_status === "paid").length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
         <PlayerKpi label="Awaiting payment" value={String(upcoming.filter((r) => r.payment_status !== "paid").length)} hint="Reserved only after payment" />
@@ -5616,7 +5788,7 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
 
       {/* Next up highlight */}
       {nextUp && tab === "upcoming" && (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4 sm:p-5">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-primary/30 bg-linear-to-br from-primary/10 to-transparent p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/15 text-2xl">{nextUp.courts?.map_emoji ?? "🎾"}</div>
@@ -5762,16 +5934,6 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
         )}
       </div>
 
-      {/* Sign out row */}
-      <div className="mt-10 flex justify-center">
-        <button
-          onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
-          className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-muted-foreground hover:border-destructive hover:text-destructive"
-        >
-          Sign out
-        </button>
-      </div>
-
       {chat && (
         <BookingChat
           bookingId={chat.bookingId}
@@ -5848,7 +6010,8 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
           </div>
         </div>
       )}
-    </Container>
+      </div>
+    </PlayerShell>
   );
 }
 

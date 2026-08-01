@@ -31,7 +31,7 @@ function PaymentReturn() {
   const [pollCount, setPollCount] = useState(0);
   const [reservationState, setReservationState] = useState<"active" | "expired" | "cancelled">("active");
   const [refundPending, setRefundPending] = useState(false);
-  const [slot, setSlot] = useState<{ date: string; range: string; court: string | null; venue: string | null } | null>(null);
+  const [slot, setSlot] = useState<{ date: string; range: string; court: string | null; venue: string | null; venueImage: string | null; venueId: number | null } | null>(null);
 
   const cancelFn = useServerFn(cancelPendingBookings);
   const didCancel = useRef(false);
@@ -95,19 +95,21 @@ function PaymentReturn() {
 
       const { data: bks } = await supabase
         .from("bookings")
-        .select("id, court_id, start_time, end_time, status, payment_status, refund_status, courts(name, venues(name))")
+        .select("id, court_id, start_time, end_time, status, payment_status, refund_status, courts(name, venues(id, name, images))")
         .in("id", ids);
       if (!cancelled && bks && bks.length > 0) {
         if (bks.some((booking) => booking.status === "expired")) setReservationState("expired");
         else if (bks.some((booking) => booking.status === "cancelled")) setReservationState("cancelled");
         setRefundPending(bks.some((booking) => booking.refund_status === "pending"));
-        const grouped = groupBookingSessions(bks as unknown as (HourlyBooking & { courts: { name: string; venues: { name: string } | null } | null })[]);
+        const grouped = groupBookingSessions(bks as unknown as (HourlyBooking & { courts: { name: string; venues: { id: number; name: string; images: string[] } | null } | null })[]);
         const s = grouped[0];
         setSlot({
           date: formatDateLabel(s.start_time),
           range: formatSessionLabel(s.start_time, s.end_time),
           court: s.first.courts?.name ?? null,
           venue: s.first.courts?.venues?.name ?? null,
+          venueImage: s.first.courts?.venues?.images?.[0] ?? null,
+          venueId: s.first.courts?.venues?.id ?? null,
         });
       }
 
@@ -128,75 +130,103 @@ function PaymentReturn() {
   const timedOut = pollCount > stopAt && txStatus === "pending";
 
   return (
-    <main className="mx-auto flex min-h-[70vh] max-w-lg items-center justify-center px-6 py-12">
-      <div className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
+    <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden p-4 sm:p-6">
+      {/* Background Venue Image */}
+      {slot?.venueImage ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000"
+          style={{ backgroundImage: `url(${slot.venueImage})` }}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-[#061a17]" />
+      )}
+      {/* Heavy Blur Overlay */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" />
+
+      {/* Modal Card */}
+      <main className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-[#09231f]/95 p-8 text-center text-white shadow-2xl animate-in fade-in zoom-in duration-300">
         {status === "cancel" ? (
           <>
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-2xl">✕</div>
-            <h1 className="mt-4 text-2xl font-bold">Payment cancelled</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Your reservation was not placed. You can try again anytime from your dashboard.</p>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-3xl">✕</div>
+            <h1 className="mt-5 text-2xl font-bold">Payment cancelled</h1>
+            <p className="mt-2 text-sm text-white/60">Your reservation was not placed. You can try again anytime from your dashboard.</p>
           </>
         ) : reservationState === "expired" || reservationState === "cancelled" ? (
           <>
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-2xl">⌛</div>
-            <h1 className="mt-4 text-2xl font-bold">Your reservation has expired</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              The selected time may already have been booked by another player. {refundPending ? "Your payment was received after the hold ended and is awaiting refund." : "Create a new booking to reserve another available slot."}
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-3xl">⌛</div>
+            <h1 className="mt-5 text-2xl font-bold">Reservation expired</h1>
+            <p className="mt-2 text-sm text-white/60">
+              {refundPending ? "Your payment was received after the hold ended and is awaiting refund." : "Create a new booking to reserve another available slot."}
             </p>
           </>
         ) : txStatus === "paid" ? (
           <>
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-2xl text-primary">✓</div>
-            <h1 className="mt-4 text-2xl font-bold">Payment received</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {amount != null ? <>We received <span className="font-semibold text-foreground">₱{amount.toFixed(2)}</span>. </> : null}
-              Your booking is now confirmed.
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#b8f05a]/20 text-3xl text-[#b8f05a]">✓</div>
+            <h1 className="mt-5 font-display text-2xl font-bold text-[#b8f05a]">Payment received</h1>
+            <p className="mt-2 text-sm text-white/70">
+              {amount != null ? <>We received <span className="font-semibold text-white">₱{amount.toFixed(2)}</span>. </> : null}
+              Your booking is confirmed!
             </p>
           </>
         ) : txStatus === "failed" ? (
           <>
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-2xl text-destructive">!</div>
-            <h1 className="mt-4 text-2xl font-bold">Payment failed</h1>
-            <p className="mt-2 text-sm text-muted-foreground">The provider reported a failure. You can retry from your dashboard.</p>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 text-3xl text-red-400">!</div>
+            <h1 className="mt-5 text-2xl font-bold text-red-400">Payment failed</h1>
+            <p className="mt-2 text-sm text-white/60">The provider reported a failure. You can retry from your dashboard.</p>
           </>
         ) : timedOut ? (
           <>
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted text-2xl">⏳</div>
-            <h1 className="mt-4 text-2xl font-bold">Still processing…</h1>
-            <p className="mt-2 text-sm text-muted-foreground">This can take a minute. Your booking will appear in your dashboard once confirmed.</p>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-3xl">⏳</div>
+            <h1 className="mt-5 text-2xl font-bold">Still processing…</h1>
+            <p className="mt-2 text-sm text-white/60">This can take a minute. Your booking will appear in your dashboard once confirmed.</p>
           </>
         ) : (
           <>
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <h1 className="mt-4 text-2xl font-bold">Confirming payment…</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Hang tight, we're syncing with PayMongo.</p>
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-[#b8f05a]" />
+            <h1 className="mt-6 font-display text-xl font-bold tracking-tight">Confirming payment…</h1>
+            <p className="mt-2 text-sm text-white/50">Hang tight, we're syncing securely.</p>
           </>
         )}
 
         {slot && status !== "cancel" && (
-          <div className="mt-5 rounded-xl border border-border bg-secondary/40 p-4 text-left">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Your session</p>
-            {(slot.venue || slot.court) && (
-              <p className="mt-1 text-sm font-semibold">
-                {slot.venue ?? "Venue"}{slot.court ? <span className="text-muted-foreground"> · {slot.court}</span> : null}
-              </p>
-            )}
-            <p className="mt-1 text-sm">{slot.date}</p>
-            <p className="text-sm font-medium text-primary">{slot.range}</p>
+          <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left">
+            <div className="border-b border-white/10 bg-white/5 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Your Session</p>
+            </div>
+            <div className="px-4 py-4">
+              {(slot.venue || slot.court) && (
+                <p className="text-base font-semibold text-white">
+                  {slot.venue ?? "Venue"}{slot.court ? <span className="text-white/50"> · {slot.court}</span> : null}
+                </p>
+              )}
+              <div className="mt-3 flex flex-col gap-1 text-sm text-white/70">
+                <p className="flex items-center gap-2">
+                  <span className="text-white/40">📅</span> {slot.date}
+                </p>
+                <p className="flex items-center gap-2">
+                  <span className="text-white/40">⏱️</span> {slot.range}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-
-
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link to="/dashboard" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
-            My bookings
+        <div className="mt-8 flex flex-col gap-3">
+          <Link
+            to="/dashboard"
+            className="w-full rounded-xl bg-[#b8f05a] px-4 py-3.5 text-center text-sm font-bold text-[#102521] shadow-lg shadow-[#b8f05a]/20 transition hover:bg-[#d3ff87]"
+          >
+            Go to My Bookings
           </Link>
-          <Link to="/" className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary hover:text-primary">
-            Back to venues
+          <Link
+            to={slot?.venueId ? "/venues/$venueId" : "/"}
+            params={slot?.venueId ? { venueId: String(slot.venueId) } : {}}
+            className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 text-center text-sm font-bold text-white transition hover:bg-white/10"
+          >
+            Back to Venue
           </Link>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

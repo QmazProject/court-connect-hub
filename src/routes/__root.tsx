@@ -157,16 +157,16 @@ function Header() {
   return (
     <header
       className={
-        "sticky top-0 z-[1100] border-b bg-background/85 backdrop-blur transition-[height,background,border-color,box-shadow] duration-300 " +
+        "sticky top-0 z-1100 border-b bg-background/85 backdrop-blur transition-[height,background,border-color,box-shadow] duration-300 " +
         (scrolled
-          ? "h-12 border-border shadow-sm supports-[backdrop-filter]:bg-background/70"
+          ? "h-12 border-border shadow-sm supports-backdrop-filter:bg-background/70"
           : "h-16 border-border/60")
       }
 
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.85)] transition-[width,opacity] duration-100 ease-out"
+        className="pointer-events-none absolute inset-x-0 top-0 h-0.75 bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.85)] transition-[width,opacity] duration-100 ease-out"
         style={{ width: `${progress}%`, opacity: progress > 0 ? 1 : 0 }}
 
       />
@@ -188,7 +188,7 @@ function Header() {
 
                 {session.role === "tenant" ? "Dashboard" : "My bookings"}
               </Link>
-              {session.name && <span className="hidden max-w-[160px] truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
+              {session.name && <span className="hidden max-w-40 truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
               <button onClick={signOut} className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary">
                 Sign out
               </button>
@@ -212,25 +212,41 @@ function Header() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const hideHeader =
     pathname.startsWith("/dashboard") ||
     pathname === "/" ||
     pathname === "/explore" ||
-    pathname.startsWith("/venues/");
+    pathname.startsWith("/venues/") ||
+    pathname.startsWith("/payment/return");
   const isVenuePage = pathname.startsWith("/venues/");
-  const showBookingBackButton = pathname === "/explore" || isVenuePage;
+  const showFloatingNav = isVenuePage;
+  
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      router.history.back();
+    } else {
+      router.navigate({ to: isVenuePage ? "/explore" : "/" });
+    }
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex h-[100dvh] flex-col">
+      <div className="flex h-dvh flex-col">
         {!hideHeader && <Header />}
-        {showBookingBackButton && (
-          <Link
-            to={isVenuePage ? "/explore" : "/"}
-            className="fixed left-4 top-4 z-[1100] inline-flex items-center rounded-full border border-border bg-background/90 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition hover:bg-secondary"
-          >
-            ← Back
-          </Link>
+        {showFloatingNav && (
+          <div className="fixed left-4 top-4 z-1100 flex items-center gap-2">
+            {isVenuePage && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="inline-flex items-center rounded-full border border-border bg-background/90 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition hover:bg-secondary"
+              >
+                ← Back
+              </button>
+            )}
+          </div>
         )}
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <Outlet />

@@ -35,11 +35,13 @@ import {
   Accessibility,
   Wifi,
   X as CloseIcon,
+  User,
+  LogOut,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { VenueMap, type MapVenue } from "@/components/VenueMap";
 import { MapPicker } from "@/components/MapPicker";
-import { PlayerDashboard } from "@/routes/_authenticated/dashboard";
+import { PlayerShell } from "@/routes/_authenticated/dashboard";
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRad = (v: number) => (v * Math.PI) / 180;
@@ -89,6 +91,32 @@ function HomeRoute() {
 export function VenueExplorer({ sport }: { sport?: string }) {
   const navigate = useNavigate({ from: "/" });
 
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const { data: player } = useQuery({
+    queryKey: ["auth-player-session"],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return null;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
+      const role = profile?.role === "tenant" || metadata.role === "tenant" ? "tenant" : "player";
+      return {
+        id: user.id,
+        email: user.email ?? "",
+        name: profile?.full_name || (typeof metadata.full_name === "string" ? metadata.full_name : "") || user.email?.split("@")[0] || "Player",
+        role,
+      };
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
   const { data: sports } = useQuery({
     queryKey: ["sports"],
     queryFn: async () => {
@@ -116,21 +144,6 @@ export function VenueExplorer({ sport }: { sport?: string }) {
   // Selection + mobile sheet
   const [activeVenueId, setActiveVenueId] = useState<number | null>(null);
   const [sheetExpanded, setSheetExpanded] = useState(false);
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
-  const heroChipsRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = heroChipsRef.current;
-    if (!el) return;
-    const scroller = document.querySelector("main") as HTMLElement | null;
-    const io = new IntersectionObserver(([entry]) => setHeaderCollapsed(!entry.isIntersecting), {
-      root: scroller ?? null,
-      threshold: 0,
-      rootMargin: "0px 0px -8px 0px",
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
 
   // Debounce inputs
   const [dQuery, setDQuery] = useState(venueQuery);
@@ -167,7 +180,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
         : "courts(id, name, hourly_rate, rate_rules, map_emoji, sports(slug, name))";
       let q = supabase
         .from("venues")
-        .select(`id, name, address, latitude, longitude, map_emoji, ${courtsSelect}`)
+        .select(`id, name, address, latitude, longitude, map_emoji, images, ${courtsSelect}`)
         .eq("is_active", true)
         .order("name")
         .limit(100);
@@ -186,6 +199,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
         latitude: number | null;
         longitude: number | null;
         map_emoji: string | null;
+        images: string[] | null;
         courts: {
           id: number;
           name: string;
@@ -230,6 +244,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
           courtCount: v.courts?.length ?? 0,
           minRate: rates.length ? Math.min(...rates) : null,
           mapEmoji: v.map_emoji ?? null,
+          image: v.images?.[0] ?? null,
           courts: (v.courts ?? []).map((c) => ({
             id: c.id,
             name: c.name,
@@ -331,29 +346,28 @@ export function VenueExplorer({ sport }: { sport?: string }) {
     el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [activeVenueId]);
 
-  return (
-    <div className="flex h-full min-h-[640px] flex-col">
-      {/* HERO */}
-      <section className="border-b border-border bg-gradient-to-b from-primary/10 via-background to-background">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" /> Dedicated Court Facility
+  const exploreContent = (
+    <div className="flex h-full min-h-160 flex-col">
+      {/* TOP TOOLBAR */}
+      <div className="sticky top-0 z-900 border-b border-border bg-card/80 backdrop-blur supports-backdrop-filter:bg-card/70">
+        <div className="flex w-full flex-col gap-3 px-4 py-3 sm:px-6">
+          {/* Title + tagline */}
+          <div>
+            <h1 className="font-display text-lg font-bold tracking-tight sm:text-xl">
+              What are you playing today?
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
+              Explore the map, filter by sport or price, and lock in your slot.
+            </p>
           </div>
-          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-            What are you playing today?
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Pick a sport to see courts available near you — explore the map, filter by price, and
-            lock in your slot in seconds.
-          </p>
 
           {/* Sport chips */}
-          <div ref={heroChipsRef} className="mt-5 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={() => setFilterSport("")}
               className={
-                "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition sm:text-sm " +
+                "rounded-full border px-3 py-1 text-xs font-semibold transition " +
                 (!filterSport
                   ? "border-primary bg-primary text-primary-foreground shadow-sm"
                   : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
@@ -363,21 +377,14 @@ export function VenueExplorer({ sport }: { sport?: string }) {
             </button>
             {(sports ?? []).map((s) => {
               const emoji =
-                s.slug === "pickleball"
-                  ? "🥎"
-                  : s.slug === "tennis"
-                    ? "🎾"
-                    : s.slug === "basketball"
-                      ? "🏀"
-                      : s.slug === "table-tennis"
-                        ? "🏓"
-                        : s.slug === "badminton"
-                          ? "🏸"
-                          : s.slug === "volleyball"
-                            ? "🏐"
-                            : s.slug === "football" || s.slug === "soccer"
-                              ? "⚽"
-                              : "🏟️";
+                s.slug === "pickleball" ? "🥎"
+                : s.slug === "tennis" ? "🎾"
+                : s.slug === "basketball" ? "🏀"
+                : s.slug === "table-tennis" ? "🏓"
+                : s.slug === "badminton" ? "🏸"
+                : s.slug === "volleyball" ? "🏐"
+                : s.slug === "football" || s.slug === "soccer" ? "⚽"
+                : "🏟️";
               const active = filterSport === s.slug;
               return (
                 <button
@@ -385,7 +392,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
                   type="button"
                   onClick={() => setFilterSport(active ? "" : s.slug)}
                   className={
-                    "flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition sm:text-sm " +
+                    "flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition " +
                     (active
                       ? "border-primary bg-primary text-primary-foreground shadow-sm"
                       : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
@@ -396,12 +403,8 @@ export function VenueExplorer({ sport }: { sport?: string }) {
               );
             })}
           </div>
-        </div>
-      </section>
 
-      {/* TOP TOOLBAR */}
-      <div className="sticky top-0 z-[900] border-b border-border bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/70">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-3 sm:px-6">
+          {/* Search + action buttons */}
           <div className="flex items-center gap-2">
             <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-background px-3 py-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
               <Search className="h-4 w-4 shrink-0 text-primary" aria-hidden />
@@ -470,57 +473,6 @@ export function VenueExplorer({ sport }: { sport?: string }) {
               <span className="hidden sm:inline">Pin manually</span>
             </button>
           </div>
-
-          {headerCollapsed && (
-            <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 sm:-mx-6 sm:px-6 nice-scroll">
-              <button
-                type="button"
-                onClick={() => setFilterSport("")}
-                className={
-                  "shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition " +
-                  (!filterSport
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
-                }
-              >
-                All sports
-              </button>
-              {(sports ?? []).map((s) => {
-                const emoji =
-                  s.slug === "pickleball"
-                    ? "🥎"
-                    : s.slug === "tennis"
-                      ? "🎾"
-                      : s.slug === "basketball"
-                        ? "🏀"
-                        : s.slug === "table-tennis"
-                          ? "🏓"
-                          : s.slug === "badminton"
-                            ? "🏸"
-                            : s.slug === "volleyball"
-                              ? "🏐"
-                              : s.slug === "football" || s.slug === "soccer"
-                                ? "⚽"
-                                : "🏟️";
-                const active = filterSport === s.slug;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setFilterSport(active ? "" : s.slug)}
-                    className={
-                      "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition " +
-                      (active
-                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                        : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary")
-                    }
-                  >
-                    <span aria-hidden>{emoji}</span> {s.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
 
           {filterOpen && (
             <div className="grid gap-2 rounded-2xl border border-border bg-background p-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -622,7 +574,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
                       step={1}
                       value={radiusKm}
                       onChange={(e) => setRadiusKm(Number(e.target.value))}
-                      className="h-1.5 flex-1 min-w-[140px] cursor-pointer accent-primary"
+                      className="h-1.5 flex-1 min-w-35 cursor-pointer accent-primary"
                       aria-label="Search radius in kilometers"
                     />
                     <div className="flex items-center gap-1">
@@ -736,9 +688,10 @@ export function VenueExplorer({ sport }: { sport?: string }) {
       </div>
 
       {/* MAP + LIST */}
-      <div className="relative flex min-h-[620px] flex-1 overflow-hidden pb-4 pl-3 sm:pl-6">
-        {/* Map */}
-        <div className="relative flex-1 overflow-hidden rounded-l-2xl border border-border">
+      <div className="relative flex w-full flex-1 min-h-0 flex-col">
+        <div className="relative flex min-h-155 flex-1 overflow-hidden border-border">
+          {/* Map */}
+          <div className="relative flex-1 min-h-0 overflow-hidden">
           <VenueMap
             venues={displayVenues}
             activeVenueId={activeVenueId}
@@ -755,14 +708,14 @@ export function VenueExplorer({ sport }: { sport?: string }) {
           />
 
           {isFetching && (
-            <div className="absolute right-3 top-3 z-[500] rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground shadow-md">
+            <div className="absolute right-3 top-3 z-500 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground shadow-md">
               Updating…
             </div>
           )}
         </div>
 
         {/* Right sidebar (desktop / tablet) */}
-        <aside className="hidden w-[380px] shrink-0 border-l border-border bg-background md:flex md:flex-col">
+        <aside className="hidden w-[30%] shrink-0 min-h-0 border-l border-border bg-background md:flex md:flex-col">
           <VenueList
             venues={displayVenues}
             activeVenueId={activeVenueId}
@@ -773,7 +726,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
         </aside>
 
         {/* Mobile bottom sheet */}
-        <div className={"pointer-events-none absolute inset-x-0 bottom-0 z-[600] md:hidden"}>
+        <div className={"pointer-events-none absolute inset-x-0 bottom-0 z-600 md:hidden"}>
           <div
             className={
               "pointer-events-auto flex flex-col rounded-t-3xl border-t border-border bg-background shadow-2xl transition-[height] duration-300 " +
@@ -809,6 +762,7 @@ export function VenueExplorer({ sport }: { sport?: string }) {
           </div>
         </div>
       </div>
+      </div>
 
       <MapPicker
         open={manualPickerOpen}
@@ -820,6 +774,26 @@ export function VenueExplorer({ sport }: { sport?: string }) {
       />
     </div>
   );
+
+  if (player && player.role !== "tenant") {
+    return (
+      <PlayerShell
+        section="explore"
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        userId={player.id}
+        onSignOut={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
+      >
+        <div className="h-full w-full flex-1 min-h-0 motion-safe:animate-[landing-header-reveal_.3s_ease-out_both]">
+          {exploreContent}
+        </div>
+      </PlayerShell>
+    );
+  }
+
+  return <div className="h-full w-full flex-1 min-h-0 motion-safe:animate-[landing-header-reveal_.3s_ease-out_both]">{exploreContent}</div>;
 }
 
 const landingNav = [
@@ -985,7 +959,7 @@ function LandingPage() {
 
   useEffect(() => {
     const scroller = document.querySelector("main") as HTMLElement | null;
-    let settleTimer: ReturnType<typeof window.setTimeout> | undefined;
+    let settleTimer: number | undefined;
     const update = () => {
       const scrollTop = scroller?.scrollTop ?? window.scrollY;
       setHeaderSolid(scrollTop > 24);
@@ -1193,7 +1167,7 @@ function LandingPage() {
         type="button"
         onClick={scrollToTop}
         aria-label="Back to top"
-        className={`fixed bottom-5 right-5 z-[1100] flex h-12 w-12 items-center justify-center rounded-full border border-[#b8f05a]/70 bg-[#0b3d35] text-[#b8f05a] shadow-lg shadow-[#09231f]/25 transition-all duration-300 hover:-translate-y-1 hover:bg-[#126152] focus:outline-none focus:ring-2 focus:ring-[#b8f05a] focus:ring-offset-2 motion-reduce:transition-none sm:bottom-7 sm:right-7 ${showBackToTop ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-5 scale-90 opacity-0"}`}
+        className={`fixed bottom-5 right-5 z-1100 flex h-12 w-12 items-center justify-center rounded-full border border-[#b8f05a]/70 bg-[#0b3d35] text-[#b8f05a] shadow-lg shadow-[#09231f]/25 transition-all duration-300 hover:-translate-y-1 hover:bg-[#126152] focus:outline-none focus:ring-2 focus:ring-[#b8f05a] focus:ring-offset-2 motion-reduce:transition-none sm:bottom-7 sm:right-7 ${showBackToTop ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-5 scale-90 opacity-0"}`}
       >
         <ChevronUp className="h-6 w-6" strokeWidth={2.5} />
       </button>
@@ -1206,7 +1180,7 @@ function LandingPage() {
           setHeaderHovering(false);
           setActiveHeaderMenu(null);
         }}
-        className={`fixed inset-x-0 top-0 z-[1200] px-3 pt-3 transition-[transform,opacity,clip-path] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform sm:px-6 ${headerHidden ? "pointer-events-none -translate-y-[calc(100%+1rem)] opacity-0 motion-safe:animate-[landing-header-conceal_.85s_cubic-bezier(0.4,0,0.2,1)_both]" : "translate-y-0 opacity-100 motion-safe:animate-[landing-header-reveal_.48s_cubic-bezier(0.22,1,0.36,1)_both]"}`}
+        className={`fixed inset-x-0 top-0 z-1200 px-3 pt-3 transition-[transform,opacity,clip-path] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform sm:px-6 ${headerHidden ? "pointer-events-none -translate-y-[calc(100%+1rem)] opacity-0 motion-safe:animate-[landing-header-conceal_.85s_cubic-bezier(0.4,0,0.2,1)_both]" : "translate-y-0 opacity-100 motion-safe:animate-[landing-header-reveal_.48s_cubic-bezier(0.22,1,0.36,1)_both]"}`}
       >
         <div
           className={`mx-auto max-w-7xl overflow-hidden rounded-2xl text-white transition duration-300 ${headerSolid || activeHeaderMenu ? "border border-white/20 bg-[#09231f]/90 shadow-xl shadow-[#09231f]/20 backdrop-blur-xl" : "border border-transparent bg-transparent"}`}
@@ -1259,10 +1233,11 @@ function LandingPage() {
                 <button
                   type="button"
                   onClick={() => navigate({ to: "/dashboard" })}
-                  className="hidden max-w-40 truncate rounded-full px-3 py-2 text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white sm:inline-flex"
+                  className="hidden rounded-full bg-white/10 p-2 text-white/85 transition hover:bg-white/20 hover:text-white sm:inline-flex"
                   title={player.name}
+                  aria-label="Open player workspace"
                 >
-                  {player.name}
+                  <User className="h-5 w-5" />
                 </button>
               ) : (
                 <button
@@ -1292,7 +1267,7 @@ function LandingPage() {
           </div>
           {activeHeaderMenu && (
             <div className="hidden border-t border-white/15 px-4 pb-4 pt-3 lg:block">
-              <div className="mx-auto w-[52%] min-w-[560px] max-w-[680px] rounded-[1.35rem] bg-gradient-to-br from-white/[0.1] via-white/[0.04] to-[#12806d]/25 p-6">
+              <div className="mx-auto w-[52%] min-w-140 max-w-170 rounded-[1.35rem] bg-linear-to-br from-white/10 via-white/4 to-[#12806d]/25 p-6">
                 <div className="flex items-start justify-between gap-5">
                   <div>
                     <p className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#b8f05a]">
@@ -1378,7 +1353,7 @@ function LandingPage() {
 
       {signInOpen && (
         <div
-          className="fixed inset-0 z-[1300] flex justify-end bg-[#061a17]/60 backdrop-blur-sm motion-safe:animate-[landing-overlay-in_.2s_ease-out_both]"
+          className="fixed inset-0 z-1300 flex justify-end bg-[#061a17]/60 backdrop-blur-sm motion-safe:animate-[landing-overlay-in_.2s_ease-out_both]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="sign-in-title"
@@ -1592,7 +1567,7 @@ function LandingPage() {
 
       {bookingPromptOpen && (
         <div
-          className="fixed inset-0 z-[1300] grid place-items-center bg-[#061a17]/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-1300 grid place-items-center bg-[#061a17]/60 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="booking-sign-in-title"
@@ -1637,7 +1612,7 @@ function LandingPage() {
       <section
         id="home"
         data-nav="Home"
-        className="relative isolate min-h-[700px] overflow-hidden bg-[#09231f] pt-24 text-white sm:min-h-[760px]"
+        className="relative isolate min-h-175 overflow-hidden bg-[#09231f] pt-24 text-white sm:min-h-190"
       >
         {heroImages.map((image, index) => (
           <img
@@ -1649,8 +1624,8 @@ function LandingPage() {
           />
         ))}
         <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(5,25,21,.92)_5%,rgba(5,25,21,.68)_48%,rgba(5,25,21,.24))]" />
-        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#09231f] to-transparent" />
-        <div className="relative mx-auto flex min-h-[620px] max-w-7xl flex-col justify-end px-5 pb-16 sm:min-h-[680px] sm:px-8 sm:pb-24">
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-[#09231f] to-transparent" />
+        <div className="relative mx-auto flex min-h-155 max-w-7xl flex-col justify-end px-5 pb-16 sm:min-h-170 sm:px-8 sm:pb-24">
           <div className="max-w-3xl animate-[sport-fade-in-up_.7s_ease-out_both]">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#b8f05a]/50 bg-[#b8f05a]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.15em] text-[#d9ff9b]">
               <span className="h-2 w-2 rounded-full bg-[#b8f05a]" /> Dedicated court booking
@@ -1775,7 +1750,7 @@ function LandingPage() {
                   tabIndex={0}
                   className="cursor-pointer overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#12806d]"
                 >
-                  <div className="relative aspect-[16/10] overflow-hidden bg-[#0b3d35]">
+                  <div className="relative aspect-16/10 overflow-hidden bg-[#0b3d35]">
                     <img
                       src={venue.images?.[0] || heroImages[venue.id % heroImages.length]}
                       alt=""
@@ -1929,7 +1904,7 @@ function LandingPage() {
             <button
               key={image}
               onClick={() => setLightbox(image)}
-              className={`group relative overflow-hidden rounded-2xl bg-[#0b3d35] ${index === 0 || index === 3 ? "row-span-2 aspect-[4/5]" : "aspect-square"}`}
+              className={`group relative overflow-hidden rounded-2xl bg-[#0b3d35] ${index === 0 || index === 3 ? "row-span-2 aspect-4/5" : "aspect-square"}`}
             >
               <img
                 src={image}
@@ -2091,7 +2066,7 @@ function LandingPage() {
             ].map(([title, copy], index) => (
               <article
                 key={title}
-                className="rounded-2xl border border-white/15 bg-white/[0.06] p-5 backdrop-blur-sm transition hover:border-[#b8f05a]/50 hover:bg-white/10"
+                className="rounded-2xl border border-white/15 bg-white/6 p-5 backdrop-blur-sm transition hover:border-[#b8f05a]/50 hover:bg-white/10"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#b8f05a] text-sm font-black text-[#102521]">
                   ✓
@@ -2329,7 +2304,7 @@ function LandingPage() {
       </footer>
       {lightbox && (
         <div
-          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/85 p-5"
+          className="fixed inset-0 z-1300 flex items-center justify-center bg-black/85 p-5"
           role="dialog"
           aria-modal="true"
           aria-label="Highlight preview"
@@ -2348,6 +2323,8 @@ function LandingPage() {
           />
         </div>
       )}
+
+
     </div>
   );
 }
@@ -2411,10 +2388,10 @@ function VenueList({
   activeVenue,
   listRef,
 }: {
-  venues: (MapVenue & { sports?: string[]; distanceKm?: number | null })[];
+  venues: (MapVenue & { sports?: string[]; distanceKm?: number | null; image?: string | null })[];
   activeVenueId: number | null;
   onSelectVenue: (id: number | null) => void;
-  activeVenue: (MapVenue & { sports?: string[]; distanceKm?: number | null }) | null | undefined;
+  activeVenue: (MapVenue & { sports?: string[]; distanceKm?: number | null; image?: string | null }) | null | undefined;
   listRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const MAX_VISIBLE = 50;
@@ -2434,18 +2411,25 @@ function VenueList({
       <div
         className={
           "overflow-hidden border-b border-border transition-all duration-200 " +
-          (listScrolled ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-24 px-4 py-3 opacity-100")
+          (listScrolled ? "max-h-0 py-0 opacity-0" : "max-h-28 px-4 py-4 opacity-100")
         }
       >
-        <div className="font-display text-sm font-bold tracking-tight">
-          {activeVenue ? activeVenue.name : "Venues on the map"}
+        <div className="flex items-center justify-between">
+          <div className="font-display text-base font-bold tracking-tight text-foreground">
+            {activeVenue ? activeVenue.name : "Venues"}
+          </div>
+          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+            {activeVenue
+              ? `${activeVenue.courtCount} ${activeVenue.courtCount === 1 ? "court" : "courts"}`
+              : `${venues.length}`}
+          </span>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="mt-1 text-[11px] text-muted-foreground">
           {activeVenue
-            ? `${activeVenue.courtCount} ${activeVenue.courtCount === 1 ? "court" : "courts"} at this location`
+            ? "Courts at this venue"
             : hiddenCount > 0
               ? `Showing ${visibleVenues.length} of ${venues.length} · refine to see more`
-              : `${venues.length} ${venues.length === 1 ? "result" : "results"}`}
+              : `${venues.length === 1 ? "venue" : "venues"} found on the map`}
         </div>
       </div>
 
@@ -2459,16 +2443,16 @@ function VenueList({
             >
               <ArrowLeft className="h-3.5 w-3.5" /> Back to all venues
             </button>
-            <div className="rounded-2xl border border-border bg-card p-4">
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                 <span>{activeVenue.address}</span>
               </div>
               <Link
                 to="/venues/$venueId"
                 params={{ venueId: String(activeVenue.id) }}
                 search={{}}
-                className="mt-3 inline-flex items-center rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                className="mt-3 inline-flex items-center rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:opacity-90 transition"
               >
                 Open venue page →
               </Link>
@@ -2485,11 +2469,11 @@ function VenueList({
                 className="group flex items-center justify-between rounded-xl border border-border bg-card p-3 transition hover:border-primary hover:shadow-sm"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-background text-xs font-bold text-primary">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-primary/10 text-xs font-bold text-primary">
                     {i + 1}
                   </span>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold group-hover:text-primary">
+                    <div className="truncate text-sm font-semibold text-foreground group-hover:text-primary">
                       {c.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -2509,7 +2493,7 @@ function VenueList({
             No venues match your search.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {visibleVenues.map((v) => {
               const pinned = v.latitude != null && v.longitude != null;
               const active = v.id === activeVenueId;
@@ -2520,67 +2504,90 @@ function VenueList({
                   type="button"
                   onClick={() => pinned && onSelectVenue(v.id)}
                   className={
-                    "group flex w-full flex-col gap-2 rounded-2xl border p-3 text-left transition " +
+                    "group flex w-full flex-col overflow-hidden rounded-2xl text-left transition-all duration-200 " +
                     (active
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border bg-card hover:border-primary hover:shadow-sm") +
-                    (!pinned ? " opacity-70" : "")
+                      ? "bg-primary/5 ring-2 ring-primary shadow-lg shadow-primary/10"
+                      : "bg-card ring-1 ring-border hover:ring-primary/60 hover:shadow-md") +
+                    (!pinned ? " opacity-50" : "")
                   }
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate font-display text-sm font-bold group-hover:text-primary">
-                        {v.name}
-                      </div>
-                      <div className="mt-0.5 flex items-start gap-1 text-[11px] text-muted-foreground">
-                        <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                        <span className="line-clamp-2">{v.address}</span>
+                  {/* Image section */}
+                  {v.image ? (
+                    <div className="relative h-28 w-full overflow-hidden bg-muted">
+                      <img
+                        src={v.image}
+                        alt={v.name}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent" />
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
+                        <span className="text-primary">{v.courtCount}</span> {v.courtCount === 1 ? "court" : "courts"}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                      {v.courtCount}
-                    </span>
-                  </div>
-
-                  {v.sports && v.sports.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {v.sports.slice(0, 3).map((s) => (
-                        <span
-                          key={s}
-                          className="rounded-full border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                      {v.sports.length > 3 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          +{v.sports.length - 3}
-                        </span>
-                      )}
+                  ) : (
+                    <div className="relative flex h-20 w-full items-center justify-center bg-linear-to-br from-primary/10 to-muted text-3xl">
+                      {v.mapEmoji ?? "🏟️"}
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
+                        <span className="text-primary">{v.courtCount}</span> {v.courtCount === 1 ? "court" : "courts"}
+                      </div>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between border-t border-border/60 pt-2">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      {v.distanceKm != null
-                        ? `${v.distanceKm.toFixed(1)} km away`
-                        : !pinned
-                          ? "No location pinned"
-                          : "Tap to see courts"}
-                    </span>
-                    {v.minRate != null ? (
-                      <span className="text-xs font-bold text-primary">
-                        From ₱{v.minRate.toFixed(0)}/hr
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">No courts</span>
+                  {/* Content section */}
+                  <div className="flex flex-col gap-2 p-3">
+                    {/* Venue name */}
+                    <div className="font-display text-[13px] font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
+                      {v.name}
+                    </div>
+
+                    {/* Address */}
+                    <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                      <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+                      <span className="line-clamp-1">{v.address}</span>
+                    </div>
+
+                    {/* Sports chips */}
+                    {v.sports && v.sports.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {v.sports.slice(0, 3).map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                        {v.sports.length > 3 && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            +{v.sports.length - 3}
+                          </span>
+                        )}
+                      </div>
                     )}
+
+                    {/* Bottom bar: distance + price */}
+                    <div className="flex items-center justify-between border-t border-border/50 pt-2">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        {v.distanceKm != null
+                          ? `${v.distanceKm.toFixed(1)} km away`
+                          : !pinned
+                            ? "No location"
+                            : "View courts →"}
+                      </span>
+                      {v.minRate != null ? (
+                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                          starts at ₱{v.minRate.toFixed(0)}/hr
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">No courts</span>
+                      )}
+                    </div>
                   </div>
                 </button>
               );
             })}
             {hiddenCount > 0 && (
-              <div className="rounded-xl border border-dashed border-border bg-background/60 p-3 text-center text-[11px] text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border bg-card/60 p-3 text-center text-[11px] text-muted-foreground">
                 +{hiddenCount} more {hiddenCount === 1 ? "venue" : "venues"} — use search or filters
                 to narrow down.
               </div>
