@@ -127,6 +127,14 @@ function GoogleGlyph({ className }: { className?: string }) {
    hydration effect below. */
 const GOOGLE_PENDING_ROLE_KEY = "courthub_google_pending_role";
 
+function hasGoogleProvider(user: {
+  app_metadata?: { provider?: string; providers?: string[] } | null;
+}): boolean {
+  const providers =
+    user.app_metadata?.providers ?? (user.app_metadata?.provider ? [user.app_metadata.provider] : []);
+  return providers.includes("google");
+}
+
 /* True only for a Google-provider account whose very first sign-in is happening right now
    (created_at and last_sign_in_at land within a few seconds of each other). That's the
    signature of clicking "Continue with Google" from Sign in with no CourtHub account behind
@@ -138,9 +146,7 @@ function isFreshGoogleAccount(user: {
   created_at: string;
   last_sign_in_at?: string | null;
 }): boolean {
-  const providers =
-    user.app_metadata?.providers ?? (user.app_metadata?.provider ? [user.app_metadata.provider] : []);
-  if (!providers.includes("google")) return false;
+  if (!hasGoogleProvider(user)) return false;
   const createdAt = new Date(user.created_at).getTime();
   const lastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : createdAt;
   return Math.abs(lastSignIn - createdAt) < 10_000;
@@ -1511,9 +1517,9 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   const [signInPassword, setSignInPassword] = useState("");
   const [signInError, setSignInError] = useState<string | null>(null);
   const [signInBusy, setSignInBusy] = useState(false);
-  const [authSheetStep, setAuthSheetStep] = useState<"signin" | "role" | "signup" | "confirmation">(
-    "signin",
-  );
+  const [authSheetStep, setAuthSheetStep] = useState<
+    "signin" | "role" | "signup" | "confirmation" | "forgot" | "forgot-sent"
+  >("signin");
   const [signupRole, setSignupRole] = useState<"player" | "tenant" | null>(null);
   /* Nudges the tap-to-switch role banner the first moment it's on screen, since it otherwise
      reads as a static badge rather than a button. See the effect below for its lifecycle. */
@@ -1551,7 +1557,11 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         return;
       }
       const pendingRole = sessionStorage.getItem(GOOGLE_PENDING_ROLE_KEY);
-      if (pendingRole === "player" || pendingRole === "tenant") {
+      // Only ever applied to a Google-authenticated user — otherwise a Google redirect that
+      // was started and then abandoned (back button, closed tab) leaves this key sitting in
+      // sessionStorage, and it would wrongly get applied to the next unrelated sign-in or
+      // email/password signup that happens to land in this same tab afterward.
+      if ((pendingRole === "player" || pendingRole === "tenant") && hasGoogleProvider(user)) {
         // Deliberate "Continue with Google" from the role step — apply the role picked
         // before the redirect now that there is a user to attach it to.
         sessionStorage.removeItem(GOOGLE_PENDING_ROLE_KEY);
@@ -1965,6 +1975,23 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
       sessionStorage.removeItem(GOOGLE_PENDING_ROLE_KEY);
       setSignInError(error.message);
     }
+  };
+
+  const sendPasswordReset = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSignInError(null);
+    setSignInBusy(true);
+    // /reset-password reads the recovery session Supabase's own redirect establishes — see
+    // that route for the other half of this flow.
+    const { error } = await supabase.auth.resetPasswordForEmail(signInEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setSignInBusy(false);
+    if (error) {
+      setSignInError(error.message);
+      return;
+    }
+    setAuthSheetStep("forgot-sent");
   };
 
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
@@ -2777,7 +2804,11 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               <p
                 className={`relative text-xs font-bold uppercase tracking-[.2em] text-[#b8f05a] ${authSheetStep === "role" ? "mt-6" : "mt-12"}`}
               >
-                {authSheetStep === "signin" ? "Welcome back" : "Join CourtHub"}
+                {authSheetStep === "signin"
+                  ? "Welcome back"
+                  : authSheetStep === "forgot" || authSheetStep === "forgot-sent"
+                    ? "Account security"
+                    : "Join CourtHub"}
               </p>
               <h2
                 id="sign-in-title"
@@ -2785,16 +2816,22 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               >
                 {authSheetStep === "signin"
                   ? "Ready to play?"
-                  : authSheetStep === "confirmation"
+                  : authSheetStep === "confirmation" || authSheetStep === "forgot-sent"
                     ? "Check your email"
-                    : "Let’s get you playing."}
+                    : authSheetStep === "forgot"
+                      ? "Forgot your password?"
+                      : "Let’s get you playing."}
               </h2>
               <p className="relative mt-3 max-w-sm text-sm leading-relaxed text-white/70">
                 {authSheetStep === "signin"
                   ? "Sign in to manage bookings and get back on the court."
                   : authSheetStep === "confirmation"
                     ? "We sent a confirmation link to finish setting up your account."
-                    : "Create your account in a few quick steps."}
+                    : authSheetStep === "forgot"
+                      ? "Enter the email you used to sign up and we’ll send you a link to reset it."
+                      : authSheetStep === "forgot-sent"
+                        ? "We sent a password reset link to your email."
+                        : "Create your account in a few quick steps."}
               </p>
             </div>
 
@@ -2850,24 +2887,6 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                 >
                   Continue
                 </button>
-                <div className="mt-5 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-[#d8e4df]" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#8a9c96]">
-                    or
-                  </span>
-                  <span className="h-px flex-1 bg-[#d8e4df]" />
-                </div>
-                {/* Skips the email/password form entirely — role is already chosen, so
-                    the redirect can go straight to Google. See handleGoogleAuth. */}
-                <button
-                  type="button"
-                  disabled={!signupRole}
-                  onClick={() => handleGoogleAuth(signupRole)}
-                  className="mt-5 flex items-center justify-center gap-2.5 rounded-full border-2 border-[#d8e4df] bg-white px-5 py-3.5 text-sm font-bold text-[#102521] transition hover:border-[#12806d]/40 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <GoogleGlyph className="h-4 w-4" />
-                  Continue with Google
-                </button>
                 <button
                   type="button"
                   onClick={() => setAuthSheetStep("signin")}
@@ -2897,23 +2916,98 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               </div>
             )}
 
+            {authSheetStep === "forgot" && (
+              <form
+                onSubmit={sendPasswordReset}
+                className="flex flex-1 flex-col px-6 py-8 sm:px-8"
+              >
+                <label className="text-sm font-bold text-[#102521]">
+                  Email
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={signInEmail}
+                    onChange={(event) => setSignInEmail(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </label>
+                {signInError && (
+                  <p className="mt-5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    {signInError}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={signInBusy}
+                  className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152] disabled:cursor-wait disabled:opacity-60"
+                >
+                  {signInBusy ? "Sending…" : "Send reset link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignInError(null);
+                    setAuthSheetStep("signin");
+                  }}
+                  className="mt-5 text-sm font-bold text-[#12806d] hover:underline"
+                >
+                  Back to sign in
+                </button>
+              </form>
+            )}
+
+            {authSheetStep === "forgot-sent" && (
+              <div className="flex flex-1 flex-col px-6 py-8 text-center sm:px-8">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#eaf5d8] text-2xl">
+                  📧
+                </div>
+                <p className="mt-6 text-sm leading-relaxed text-[#5e746e]">
+                  If <strong className="text-[#102521]">{signInEmail}</strong> has a CourtHub
+                  account, we sent a link to reset its password. Open it on this device to
+                  choose a new one.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAuthSheetStep("signin")}
+                  className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#126152]"
+                >
+                  Back to sign in
+                </button>
+              </div>
+            )}
+
             <form
               onSubmit={submitAuth}
               className={`flex flex-1 flex-col px-6 py-8 sm:px-8 ${authSheetStep === "signin" || authSheetStep === "signup" ? "" : "hidden"}`}
             >
-              {/* Sign-up's Google entry point lives on the role step instead, one screen
-                  back — it needs a role chosen before the redirect, and this form no longer
-                  asks for one by the time signup is reached. */}
+              {/* Sign-up's Google entry point lives below the Create account button instead,
+                  one screen forward — it needs a role chosen on the role step first, and
+                  this step doesn't know one yet. */}
               {authSheetStep === "signin" && (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => handleGoogleAuth(null)}
-                    className="flex items-center justify-center gap-2.5 rounded-full border-2 border-[#d8e4df] bg-white px-5 py-3.5 text-sm font-bold text-[#102521] transition hover:border-[#12806d]/40"
-                  >
-                    <GoogleGlyph className="h-4 w-4" />
-                    Continue with Google
-                  </button>
+                  <div className="group relative">
+                    <button
+                      type="button"
+                      onClick={() => handleGoogleAuth(null)}
+                      className="flex w-full items-center justify-center gap-2.5 rounded-full border-2 border-[#d8e4df] bg-white px-5 py-3.5 text-sm font-bold text-[#102521] transition hover:border-[#12806d]/40"
+                    >
+                      <GoogleGlyph className="h-4 w-4" />
+                      Continue with Google
+                    </button>
+                    {/* Hover-only, so it never competes with the role-switch guide bubble for
+                        attention — this is a warning to read before tapping, not a nudge
+                        toward tapping. */}
+                    <div
+                      role="tooltip"
+                      className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-64 -translate-x-1/2 scale-95 rounded-lg bg-[#0b3d35] px-3 py-2 text-center text-xs font-semibold leading-snug text-white opacity-0 shadow-lg transition duration-150 group-hover:scale-100 group-hover:opacity-100"
+                    >
+                      Use the same Google account you signed up with — a different one won&rsquo;t
+                      be able to continue.
+                      <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#0b3d35]" />
+                    </div>
+                  </div>
                   <div className="my-5 flex items-center gap-3">
                     <span className="h-px flex-1 bg-[#d8e4df]" />
                     <span className="text-xs font-bold uppercase tracking-wider text-[#8a9c96]">
@@ -3032,21 +3126,38 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                   required
                 />
               </label>
-              <label className="mt-5 text-sm font-bold text-[#102521]">
-                Password
-                <input
-                  type="password"
-                  autoComplete={authSheetStep === "signup" ? "new-password" : "current-password"}
-                  value={signInPassword}
-                  onChange={(event) => setSignInPassword(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
-                  placeholder={
-                    authSheetStep === "signup" ? "At least 8 characters" : "Your password"
-                  }
-                  required
-                  minLength={authSheetStep === "signup" ? 8 : 6}
-                />
-              </label>
+              <div className="mt-5 flex items-center justify-between gap-3">
+                {/* Explicit htmlFor/id rather than the usual wrapping label: "Forgot
+                    password?" needs to sit on the same row as the label text, and a button
+                    nested inside a label is invalid content — see the consent checkbox
+                    below for the same reasoning. */}
+                <label htmlFor="signin-password" className="text-sm font-bold text-[#102521]">
+                  Password
+                </label>
+                {authSheetStep === "signin" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignInError(null);
+                      setAuthSheetStep("forgot");
+                    }}
+                    className="text-xs font-bold text-[#12806d] hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <input
+                id="signin-password"
+                type="password"
+                autoComplete={authSheetStep === "signup" ? "new-password" : "current-password"}
+                value={signInPassword}
+                onChange={(event) => setSignInPassword(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                placeholder={authSheetStep === "signup" ? "At least 8 characters" : "Your password"}
+                required
+                minLength={authSheetStep === "signup" ? 8 : 6}
+              />
               {/* Both documents open in a reader stacked on top of this sheet rather than in a
                   new route, so nothing typed above is lost. Signing up requires the tick —
                   that is when the agreement is entered into. Signing in does not ask again;
@@ -3113,6 +3224,28 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                     ? "Create account"
                     : "Sign in"}
               </button>
+              {/* Google entry point for signup: role is already locked in by the time this
+                  step is reached (the role step's Continue is the only way here), so it just
+                  carries signupRole through the same handoff as the button above. */}
+              {authSheetStep === "signup" && (
+                <>
+                  <div className="my-5 flex items-center gap-3">
+                    <span className="h-px flex-1 bg-[#d8e4df]" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#8a9c96]">
+                      or
+                    </span>
+                    <span className="h-px flex-1 bg-[#d8e4df]" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleGoogleAuth(signupRole)}
+                    className="flex items-center justify-center gap-2.5 rounded-full border-2 border-[#d8e4df] bg-white px-5 py-3.5 text-sm font-bold text-[#102521] transition hover:border-[#12806d]/40"
+                  >
+                    <GoogleGlyph className="h-4 w-4" />
+                    Continue with Google
+                  </button>
+                </>
+              )}
               {/* Sign-in has nothing to agree to — the account agreed when it was created —
                   so the documents sit under the button as a reference rather than above it
                   as a gate. Sign-up keeps its consent box above the button, where it has to
