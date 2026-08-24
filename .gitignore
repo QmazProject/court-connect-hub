@@ -31,3 +31,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+# AI tools / CodeLedger
+.ai/
+codeledger/
+**/codeledger/

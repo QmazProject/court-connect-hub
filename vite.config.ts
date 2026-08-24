@@ -12,4 +12,13 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      // The repo lives on /mnt/c — a Windows drive mounted into WSL2, which does not
+      // deliver inotify events. Without polling the watcher never sees an edit, so the
+      // dev server keeps serving the module it transformed at startup and the browser
+      // shows stale code no matter how many times the page is reloaded.
+      watch: { usePolling: true, interval: 400 },
+    },
+  },
 });

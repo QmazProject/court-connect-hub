@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MapInfoButton } from "./MapInfoButton";
+import { MapPegman } from "./MapPegman";
 
 export type MapVenue = {
   id: number;
@@ -9,6 +10,9 @@ export type MapVenue = {
   longitude: number | null;
   courtCount: number;
   minRate: number | null;
+  /** Dearest ₱/hr across this venue's courts once time-based rules apply. Null
+   *  when unknown; equal to `minRate` when nothing varies. */
+  maxRate?: number | null;
   mapEmoji: string | null;
   courts: { id: number; name: string; hourly_rate: number; mapEmoji: string | null }[];
 };
@@ -22,6 +26,12 @@ type Props = {
   nearby: { lat: number; lng: number } | null;
   radiusKm?: number | null;
   radiusHasMatches?: boolean;
+  /**
+   * Kept pointed at the map's current centre so callers can bias place search
+   * toward whatever the user is looking at. A ref, not a callback, so panning
+   * never re-renders the parent.
+   */
+  centerRef?: React.MutableRefObject<{ lat: number; lng: number } | null>;
 };
 
 // Spread court markers evenly around a venue on a small circle.
@@ -45,7 +55,7 @@ function divIcon(L: any, html: string, size = 44, className = "") {
   });
 }
 
-export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, onOpenCourt, nearby, radiusKm, radiusHasMatches }: Props) {
+export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, onOpenCourt, nearby, radiusKm, radiusHasMatches, centerRef }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
@@ -54,6 +64,12 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
   const streetLayerRef = useRef<any>(null);
   const satelliteLayerRef = useRef<any>(null);
   const readyRef = useRef(false);
+  /* readyRef alone was not enough. Leaflet is imported dynamically, so the map becomes ready
+     asynchronously — and if the venues query resolved first, the pin effect below ran, saw
+     readyRef.current === false, and returned. A ref does not re-render, so nothing ever ran
+     it again and the map stayed empty while the list showed a full set of venues. Mirroring
+     readiness into state gives those effects something to depend on. */
+  const [mapReady, setMapReady] = useState(false);
   const activeRef = useRef<{ id: number | null; lat: number; lng: number } | null>(null);
   const rezoomingRef = useRef(false);
   const userInteractedRef = useRef(false);
@@ -135,10 +151,20 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
       mapRef.current = map;
       layerRef.current = L.layerGroup().addTo(map);
       readyRef.current = true;
+      setMapReady(true);
       setTimeout(() => map.invalidateSize(), 60);
 
       // Deselect on background click
       map.on("click", () => onSelectVenue(null));
+
+      // Publish the viewport centre for proximity-biased place search.
+      const publishCenter = () => {
+        if (!centerRef) return;
+        const c = map.getCenter();
+        centerRef.current = { lat: c.lat, lng: c.lng };
+      };
+      publishCenter();
+      map.on("moveend", publishCenter);
 
       // Track user-initiated map interactions so we don't auto-refit their view.
       map.on("zoomstart", (e: any) => {
@@ -212,7 +238,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         }
       }
     })();
-  }, [nearby, radiusKm, radiusHasMatches, activeVenueId]);
+  }, [mapReady, nearby, radiusKm, radiusHasMatches, activeVenueId]);
 
   // Render pins whenever venues / active change
   useEffect(() => {
@@ -273,8 +299,15 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           const emoji = v.mapEmoji || "🎾";
           const html = `<div class="ch-pin"><div class="body"><span class="emoji">${emoji}</span></div><div class="count">${v.courtCount}</div><div class="tip"></div></div>`;
           const m = L.marker([v.latitude as number, v.longitude as number], { icon: divIcon(L, html) }).addTo(layer);
+          // A range, not a "from" price: a court priced ₱20 at dawn and ₱43 in
+          // the evening should say so on the pin, same as its sidebar tile.
+          const rateText = v.minRate == null
+            ? ""
+            : v.maxRate != null && v.maxRate > v.minRate
+              ? `₱${v.minRate.toFixed(0)}–${v.maxRate.toFixed(0)}/hr`
+              : `₱${v.minRate.toFixed(0)}/hr`;
           const rateLine = v.minRate != null
-            ? `<div class="ch-tip-rate">From ₱${v.minRate.toFixed(0)}/hr · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`
+            ? `<div class="ch-tip-rate">${rateText} · ${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`
             : `<div class="ch-tip-rate ch-tip-muted">${v.courtCount} ${v.courtCount === 1 ? "court" : "courts"}</div>`;
           const tipHtml = `<div class="ch-tip"><span class="ch-tip-name">${v.name}</span><span class="ch-tip-sep"></span><span class="ch-tip-addr">${v.address}</span><span class="ch-tip-sep"></span>${rateLine}</div>`;
           m.bindTooltip(tipHtml, {
@@ -301,7 +334,7 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
         }
       }
     })();
-  }, [venues, activeVenueId, onSelectVenue, onOpenCourt, nearby]);
+  }, [mapReady, venues, activeVenueId, onSelectVenue, onOpenCourt, nearby]);
 
   // Double-click a venue pin (via list) opens venue page
   useEffect(() => {
@@ -338,6 +371,32 @@ export function VenueMap({ venues, activeVenueId, onSelectVenue, onOpenVenue, on
           🛰️ Satellite
         </button>
       </div>
+      <MapPegman
+        containerRef={elRef}
+        onDragStateChange={(active) => {
+          // Freeze the map while the pegman is being dragged, so the drag does
+          // not pan the map underneath it. Pinch-zoom is only suspended for the
+          // duration of the drag and restored immediately after.
+          const map = mapRef.current;
+          if (!map) return;
+          if (active) {
+            map.dragging?.disable();
+            map.touchZoom?.disable();
+          } else {
+            map.dragging?.enable();
+            map.touchZoom?.enable();
+          }
+        }}
+        pointToLatLng={(clientX, clientY) => {
+          const map = mapRef.current;
+          const el = elRef.current;
+          if (!map || !el) return null;
+          const r = el.getBoundingClientRect();
+          // Leaflet expects a point relative to the map container, not the page.
+          const pt = map.containerPointToLatLng([clientX - r.left, clientY - r.top]);
+          return { lat: pt.lat, lng: pt.lng };
+        }}
+      />
       <MapInfoButton getCenter={() => {
         const c = mapRef.current?.getCenter?.();
         return c ? { lat: c.lat, lng: c.lng } : null;

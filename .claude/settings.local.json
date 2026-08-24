@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/c/Users/edujk/Desktop/court-connect-hub/src/routes/**)",
+      "Bash(grep -oE '^\\\\s*[a-z_]+: \\\\{$|Tables\\\\[|Functions\\\\[' /mnt/c/Users/edujk/Desktop/court-connect-hub/src/integrations/supabase/types.ts)",
+      "Bash(grep -oE '^\\\\s{6}[a-z_]+: \\\\{$' /mnt/c/Users/edujk/Desktop/court-connect-hub/src/integrations/supabase/types.ts)",
+      "Bash(apt list *)",
+      "Bash(apt-cache search *)",
+      "Bash(apt-cache policy *)",
+      "Bash(curl -s \"http://localhost:8080/src/routes/index.tsx\")"
+    ]
+  }
+}

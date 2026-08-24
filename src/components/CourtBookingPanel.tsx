@@ -5,11 +5,13 @@ import { startBookingCheckout } from "@/lib/paymongo.functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
-import { X } from "lucide-react";
+import { X, LogIn, UserPlus } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import {
   normalizeRules, rateForHour, priceForHours, priceBreakdown, minRate, maxRate,
-  hasVariablePricing, rateBands, peso, type RateRule, type DayKey,
+  hasVariablePricing, peso, type RateRule, type DayKey,
 } from "@/lib/court-pricing";
+import { RateCard } from "@/components/RateCard";
 import { normalizeHours, effectiveHours, openHoursForDate, describeWindow } from "@/lib/operating-hours";
 import { addZonedDays, zonedDateISO, zonedDayBoundsUtc, zonedDayOfWeek, zonedHour, zonedHourToUtc } from "@/lib/tz";
 
@@ -101,6 +103,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const qc = useQueryClient();
   const [date, setDate] = useState(() => zonedDateISO());
   const [selected, setSelected] = useState<number[]>([]);
+  /* Signed-out visitors can browse availability freely — the gate is on the booking action,
+     not on looking. Without this their only feedback was the mutation throwing "Please sign
+     in to book a court" after they had already chosen their slots. */
+  const [signInGate, setSignInGate] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [payLoading, setPayLoading] = useState<PmMethod | null>(null);
@@ -308,18 +314,18 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const court = courtQ.data;
   const rules = normalizeRules(court.rate_rules);
   const baseRate = Number(court.hourly_rate);
-  const variablePricing = hasVariablePricing(baseRate, rules);
+  const venueHours = normalizeHours((court.venues as unknown as { operating_hours?: unknown } | null)?.operating_hours);
+  // The court's week. Quoted prices cover bookable hours only, so a rate that
+  // exists only while the court is shut never reaches the header or rate card.
+  const courtHours = effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours);
+  const variablePricing = hasVariablePricing(baseRate, rules, courtHours);
   const rateOf = (hour: number) => rateForHour(baseRate, rules, date, hour);
   const subtotal = priceForHours(baseRate, rules, date, selected);
   const breakdown = priceBreakdown(baseRate, rules, date, selected);
   const dow = DAY_KEYS[zonedDayOfWeek(date)];
   const dateOverride = court.blocked_dates?.[date];
   const blocked = new Set<number>(dateOverride ?? court.blocked_hours?.[dow] ?? []);
-  const venueHours = normalizeHours((court.venues as unknown as { operating_hours?: unknown } | null)?.operating_hours);
-  const openHours = openHoursForDate(
-    effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours),
-    date,
-  );
+  const openHours = openHoursForDate(courtHours, date);
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i).filter((h) => openHours.has(h));
   const closedToday = slots.length === 0;
   const capacity = Math.max(1, court.capacity ?? 1);
@@ -337,6 +343,69 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
 
   return (
     <div className="flex h-full flex-col">
+      {signInGate && (
+        /* z-1400 clears the sheet/drawer this panel is rendered inside (z-1300), otherwise the
+           dialog would open behind the very thing that triggered it. */
+        <div
+          className="fixed inset-0 z-1400 grid place-items-center bg-[#061a17]/70 p-4 backdrop-blur-sm motion-safe:animate-[landing-overlay-in_.2s_ease-out_both]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-gate-title"
+          onMouseDown={() => setSignInGate(false)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-3xl border border-[#b8f05a]/40 bg-white text-[#102521] shadow-2xl shadow-[#09231f]/30 motion-safe:animate-[modal-pop-in_.32s_cubic-bezier(0.22,1,0.36,1)_both]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="relative overflow-hidden bg-[#09231f] px-6 pb-6 pt-5 text-white">
+              <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-[#b8f05a]/20 blur-3xl" />
+              <div className="relative flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[#b8f05a]">
+                    Almost there
+                  </p>
+                  <h2 id="booking-gate-title" className="mt-1.5 font-display text-xl font-bold">
+                    Sign in to reserve this slot
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSignInGate(false)}
+                  aria-label="Close"
+                  className="rounded-full border border-white/20 p-1.5 text-white/80 transition hover:bg-white/10 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 pb-6 pt-5">
+              <p className="text-sm leading-relaxed text-[#5e746e]">
+                Browsing is open to everyone. Booking needs an account so your reservation has
+                somewhere to live and the venue knows who is coming.
+              </p>
+              <div className="mt-5 grid gap-2.5">
+                <Link
+                  to="/landing"
+                  search={{ signin: true }}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b3d35] px-4 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#126152]"
+                >
+                  <LogIn className="h-4 w-4" /> Sign in
+                </Link>
+                <Link
+                  to="/landing"
+                  search={{ signup: true }}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#0b3d35] px-4 py-3 text-sm font-bold text-[#0b3d35] transition hover:-translate-y-0.5 hover:bg-[#eff5ed]"
+                >
+                  <UserPlus className="h-4 w-4" /> Create an account
+                </Link>
+              </div>
+              <p className="mt-4 text-center text-xs text-[#5e746e]">
+                Your selected hours are not held until a booking is confirmed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {onClose && (
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#b8f05a]/25 bg-[#0b3d35]/95 px-4 py-2.5 text-white backdrop-blur">
           <span className="font-display text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#b8f05a]">Reserve your court</span>
@@ -391,8 +460,8 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               value={
                 variablePricing ? (
                   <span className="block">
-                    <span className="font-bold text-primary">from {peso(minRate(baseRate, rules))}</span>{" "}
-                    <span className="text-xs text-muted-foreground">/ hour · up to {peso(maxRate(baseRate, rules))}</span>
+                    <span className="font-bold text-primary">from {peso(minRate(baseRate, rules, courtHours))}</span>{" "}
+                    <span className="text-xs text-muted-foreground">/ hour · up to {peso(maxRate(baseRate, rules, courtHours))}</span>
                     <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rates vary by time &amp; day</span>
                   </span>
                 ) : (
@@ -551,29 +620,12 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               {closedToday
                 ? "This court is closed on this date. Pick another day."
                 : `Open ${describeWindow(
-                    effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours)[
-                      (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[zonedDayOfWeek(date)]
-                    ],
+                    courtHours[(["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[zonedDayOfWeek(date)]],
                   )} · tap a time slot to select or deselect it; consecutive slots are automatically combined into a single time range.`}
             </p>
 
             {variablePricing && (
-              <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">Rate card</div>
-                {([["Weekdays (Mon–Fri)", "wed"], ["Weekends (Sat–Sun)", "sat"]] as [string, DayKey][]).map(([title, day]) => (
-                  <div key={day} className="mt-1.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {rateBands(baseRate, rules, day).map((b) => (
-                        <span key={`${day}-${b.start}`} className="rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium">
-                          {fmtHour(b.start)}–{fmtHour(b.end % 24)} · <b>{peso(b.rate)}</b>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <p className="mt-1.5 text-[10px] text-muted-foreground">Each hour is charged at its own rate; your total adds them up.</p>
-              </div>
+              <RateCard baseRate={baseRate} rules={rules} hours={courtHours} className="mt-3" />
             )}
 
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
@@ -744,6 +796,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                   disabled={selected.length === 0 || bookMut.isPending}
                   onClick={() => {
                     if (selected.length === 0) return;
+                    if (!userId) {
+                      setSignInGate(true);
+                      return;
+                    }
                     const mode = court.venues?.payment_mode ?? "none";
                     if (mode === "none") {
                       bookMut.mutate(selected);

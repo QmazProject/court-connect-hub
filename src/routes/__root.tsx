@@ -9,13 +9,10 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-const chLogo = { url: "/CHicon.png" };
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { NotificationBell } from "@/components/NotificationBell";
-import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
@@ -23,7 +20,7 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <p className="mt-4 text-muted-foreground">This court doesn't exist.</p>
-        <Link to="/" className="mt-6 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+        <Link to="/landing" className="mt-6 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
           Back to CourtHub
         </Link>
       </div>
@@ -64,7 +61,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      // Hand-scaled at each size the tab actually asks for: the badge is detailed
+      // enough that leaving the browser to squeeze 256px into a 16px slot turns it
+      // to mush. Largest last — browsers pick the closest `sizes` match.
+      { rel: "icon", href: "/favicon-16.png", type: "image/png", sizes: "16x16" },
+      { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "256x256" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" },
@@ -85,159 +87,32 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function Header() {
-  const [session, setSession] = useState<{ id?: string; name?: string; role?: string } | null>(null);
-  const [scrolled, setScrolled] = useState(false);
-  const [hidden, setHidden] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const router = useRouter();
-
-
-  useEffect(() => {
-    let mounted = true;
-    async function hydrate(userId: string | undefined, fallbackName: string | undefined) {
-      if (!userId) { if (mounted) setSession(null); return; }
-      const { data } = await supabase.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
-      if (mounted) setSession({ id: userId, name: data?.full_name || fallbackName, role: data?.role });
-    }
-    supabase.auth.getUser().then(({ data }) => hydrate(data.user?.id, (data.user?.user_metadata as { full_name?: string } | undefined)?.full_name));
-    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      hydrate(s?.user?.id, (s?.user?.user_metadata as { full_name?: string } | undefined)?.full_name);
-      router.invalidate();
-    });
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
-  }, [router]);
-
-  useEffect(() => {
-    let ticking = false;
-    let lastY = 0;
-    const update = (target: EventTarget | null) => {
-      let y = 0;
-      let max = 0;
-      if (target instanceof HTMLElement) {
-        y = target.scrollTop;
-        max = target.scrollHeight - target.clientHeight;
-      } else {
-        const main = document.querySelector("main") as HTMLElement | null;
-        if (main && main.scrollHeight > main.clientHeight) {
-          y = main.scrollTop;
-          max = main.scrollHeight - main.clientHeight;
-        } else {
-          y = window.scrollY;
-          max = document.documentElement.scrollHeight - window.innerHeight;
-        }
-      }
-      setScrolled(y > 8);
-      const pct = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
-      setProgress(y < 4 ? 0 : pct);
-      const delta = y - lastY;
-      if (y < 12) setHidden(false);
-      else if (delta > 6) setHidden(true);
-      else if (delta < -6) setHidden(false);
-      lastY = y;
-    };
-    const onScroll = (e: Event) => {
-      if (ticking) return;
-      ticking = true;
-      const t = e.target;
-      requestAnimationFrame(() => { update(t); ticking = false; });
-    };
-    update(null);
-    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
-    return () => window.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
-  }, []);
-
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.navigate({ to: "/", replace: true });
-  }
-
-  return (
-    <header
-      className={
-        "sticky top-0 z-1100 border-b bg-background/85 backdrop-blur transition-[height,background,border-color,box-shadow] duration-300 " +
-        (scrolled
-          ? "h-12 border-border shadow-sm supports-backdrop-filter:bg-background/70"
-          : "h-16 border-border/60")
-      }
-
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-0.75 bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.85)] transition-[width,opacity] duration-100 ease-out"
-        style={{ width: `${progress}%`, opacity: progress > 0 ? 1 : 0 }}
-
-      />
-      <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6">
-
-        <Link to="/" className="flex items-center gap-2 font-display font-bold tracking-tight">
-          <img
-            src={chLogo.url}
-            alt="CourtHub logo"
-            className={"rounded-full object-contain transition-all duration-200 " + (scrolled ? "h-7 w-7" : "h-9 w-9")}
-          />
-          <span className={"transition-all duration-200 " + (scrolled ? "text-base" : "text-xl")}>CourtHub</span>
-        </Link>
-        <nav className="flex items-center gap-2">
-          {session ? (
-            <>
-              <NotificationBell userId={session.id} />
-              <Link to="/dashboard" className="rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary">
-
-                {session.role === "tenant" ? "Dashboard" : "My bookings"}
-              </Link>
-              {session.name && <span className="hidden max-w-40 truncate text-xs font-medium text-foreground sm:inline">{session.name}</span>}
-              <button onClick={signOut} className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-secondary">
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <a href="/contact" className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-secondary">
-                Contact
-              </a>
-              <Link to="/auth" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                Sign in
-              </Link>
-            </>
-          )}
-        </nav>
-      </div>
-    </header>
-  );
-}
-
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideHeader =
-    pathname.startsWith("/dashboard") ||
-    pathname === "/" ||
-    pathname === "/explore" ||
-    pathname.startsWith("/venues/") ||
-    pathname.startsWith("/payment/return");
   const isVenuePage = pathname.startsWith("/venues/");
-  const showFloatingNav = isVenuePage;
+  const isCourtPage = pathname.startsWith("/courts/");
+  /* The legacy header is gone, so these two detail pages have no chrome of their own —
+     without a Back control a visitor who opened one from the map has no way out but the
+     browser button. */
+  const showFloatingNav = isVenuePage || isCourtPage;
   
   const handleBack = () => {
     if (window.history.length > 2) {
       router.history.back();
     } else {
-      router.navigate({ to: isVenuePage ? "/explore" : "/" });
+      router.navigate({ to: isVenuePage || isCourtPage ? "/explore" : "/landing" });
     }
   };
 
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex h-dvh flex-col">
-        {!hideHeader && <Header />}
         {showFloatingNav && (
           <div className="fixed left-4 top-4 z-1100 flex items-center gap-2">
-            {isVenuePage && (
+            {(isVenuePage || isCourtPage) && (
               <button
                 type="button"
                 onClick={handleBack}

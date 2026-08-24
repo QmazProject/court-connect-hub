@@ -2,11 +2,31 @@
 @source "../src";
 @import "tw-animate-css";
 
+@font-face {
+  font-family: "Pencerio";
+  src: url("/fonts/pencerio-hairline.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Variable rather than the single Bold: the venue cards use several weights, and one 41KB
+   variable file is a better trade than three ~20KB statics plus three requests. */
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/fonts/cabinet-grotesk-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", "Inter", sans-serif;
+  --font-script: "Pencerio", "Space Grotesk", cursive;
+  --font-cabinet: "Cabinet Grotesk", "Space Grotesk", sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -198,31 +218,7 @@
   animation: sport-fade-in-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-@keyframes landing-header-reveal {
-  from {
-    clip-path: inset(0 0 100% 0);
-    opacity: 0;
-    transform: translateY(-18px);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-@keyframes landing-header-conceal {
-  from {
-    clip-path: inset(0 0 0 0);
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    clip-path: inset(0 0 100% 0);
-    opacity: 0;
-    transform: translateY(-18px);
-  }
-}
 
 @keyframes landing-overlay-in {
   from {
@@ -239,5 +235,825 @@
   }
   to {
     transform: translateX(0);
+  }
+}
+
+/* Exit counterparts to landing-overlay-in / landing-drawer-in. The drawer stays
+   mounted for the length of these so the panel slides back out to the right
+   instead of vanishing the instant state flips. */
+@keyframes landing-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* The drawer's lit inner edge. It rides on ::after rather than the panel itself so
+   its pulse cannot collide with the slide-in/out animation the panel is running —
+   one element can only have one `animation` declaration win. top/bottom:0 inside the
+   panel's scroll container spans the full scroll height, so the edge stays lit no
+   matter how far the form is scrolled. */
+@keyframes drawer-edge-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 12px 1px rgba(184, 240, 90, 0.5);
+    opacity: 0.85;
+  }
+  50% {
+    box-shadow: 0 0 26px 4px rgba(184, 240, 90, 0.95);
+    opacity: 1;
+  }
+}
+
+.drawer-edge-glow::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 3px;
+  pointer-events: none;
+  background: linear-gradient(180deg, #d3ff87, #b8f05a 45%, #12806d);
+  animation: drawer-edge-pulse 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-edge-glow::after {
+    animation: none;
+    box-shadow: 0 0 14px 1px rgba(184, 240, 90, 0.6);
+  }
+}
+
+/* The drawer's backdrop line, on a loop: writes on over 2.4s, holds 5s, fades over 2s,
+   then writes again — 9.4s a cycle. Per-segment `animation-timing-function` inside the
+   keyframes is what keeps each phase shaped right; one easing across the whole cycle
+   would drag the wipe and snap the fade. The loop seam is invisible because the frame
+   that is fully faded is also the frame that is fully clipped, so 100% -> 0% shows
+   nothing either side of the join. */
+@keyframes handwrite-loop {
+  /* Together with the blank tail from 92% above, this hold gives roughly a second of empty
+     space between one tagline and the next: long enough to read as a deliberate beat, and
+     far more than React needs to commit the new words. The swap is driven by this
+     animation's iteration event, which fires at the loop boundary while the line is
+     invisible on both sides of it, so the words only ever start drawing once they are the
+     right words. */
+  0% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  3% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  /* Pushed out from 25.53% by the length of the hold, so the drawing itself still takes the
+     2.4s it always did rather than being squeezed into the remainder. */
+  28.5% {
+    clip-path: inset(0 -0.4em 0 0);
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  78.72% {
+    clip-path: inset(0 -0.4em 0 0);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+  }
+  /* The fade finishes here rather than at 100%, and the clip is re-armed immediately after
+     while the line is already invisible. That is what stops the previous tagline blinking
+     back for a frame between quotes.
+
+     The cause is not the text swap — it is this loop boundary. The cycle used to end fully
+     revealed at opacity 0 and begin fully clipped at opacity 1, two states that are each
+     invisible but disastrous crossed. opacity animates on the compositor thread and
+     clip-path on the main thread, so at a discontinuity they can land a frame apart, and
+     the one frame that pairs the old cycle's open clip with the new cycle's opacity 1
+     paints the entire outgoing line at once.
+
+     Ending the cycle already clipped removes the crossing: clip-path is now identical
+     either side of the wrap, so whichever thread lags, there is nothing to reveal. The
+     remaining opacity jump is invisible behind a zero-width clip. */
+  92% {
+    clip-path: inset(0 -0.4em 0 0);
+    opacity: 0;
+  }
+  92.01% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  100% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+}
+
+/* Glass glaze for the sign-in backdrop tagline: a specular band that travels across the
+   letters once the handwriting has finished drawing them, the way light slides off glass.
+
+   It is painted by ::after rather than on the text itself, because the band has to be a
+   *highlight over* the lime, not a replacement for it. The pseudo-element restates the same
+   words (from data-text) in transparent ink over a gradient clipped to the glyphs, so the
+   white shows only where the band currently is and the lime beneath shows everywhere else.
+   Sitting inside the <p>, it inherits the clip-path reveal and the fade of handwrite-loop,
+   so it appears and leaves with the line instead of needing its own exit. */
+.tagline-glaze {
+  position: relative;
+}
+
+.tagline-glaze::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  /* Both properties are needed: WebKit honours -webkit-text-fill-color over color, and
+     without it the glyphs paint solid and hide the lime underneath. */
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.55) 46%,
+    rgb(255 255 255 / 0.95) 50%,
+    rgb(255 255 255 / 0.55) 54%,
+    transparent 62%
+  );
+  /* Wider than the element so the band can start and finish fully off the text. */
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* Same duration, delay and count as handwrite-loop, so the two never drift apart. */
+  animation: tagline-glaze 9.4s ease-in-out 0.35s infinite backwards;
+  pointer-events: none;
+}
+
+/* The sweep is deliberately idle until 32% — handwrite-loop is still drawing the letters
+   until 28.5%, and a highlight on half-written text reads as a glitch. It crosses during
+   the hold and is gone well before the fade begins at 78.7%.
+
+   Position runs 100% -> 0% rather than the other way about: with a background wider than
+   its box, 100% pins the image's right edge to the box's right, which parks the band off
+   to the left. Counting down therefore travels left-to-right, following the handwriting. */
+@keyframes tagline-glaze {
+  0%,
+  32% {
+    background-position: 100% 0;
+  }
+  64%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+/* The glaze is pure decoration, and a repeating specular sweep is exactly the sort of
+   motion this query exists to silence. handwrite-loop is already gated by motion-safe: on
+   the element, which leaves the words on screen unanimated; the glaze has to opt out here
+   because it is applied from CSS rather than a Tailwind variant. */
+@media (prefers-reduced-motion: reduce) {
+  .tagline-glaze::after {
+    display: none;
+  }
+}
+
+/* The same glass glaze, for the wordmark. The tagline could clip its highlight to the
+   glyphs with background-clip:text, but an <img> is a replaced element and grows no
+   pseudo-elements at all, so the sweep is drawn by a wrapper's ::after and confined to the
+   logo with mask-image. The mask reads the PNG's alpha, which for this asset is the rounded
+   badge outline — so the light travels across the badge and stops cleanly at its edge
+   instead of sweeping a bare rectangle.
+
+   The source is a custom property so the class works for any transparent logo: set
+   --logo-glaze-src on the wrapper to mask against a different file. */
+.logo-glaze {
+  position: relative;
+  display: inline-flex;
+}
+
+.logo-glaze::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Narrower and more steeply raked than the tagline's band — on a glossy badge a tight
+     diagonal reads as light sliding off glass, where a wide one just looks like a fade. */
+  background-image: linear-gradient(
+    115deg,
+    transparent 42%,
+    rgb(255 255 255 / 0.35) 47%,
+    rgb(255 255 255 / 0.8) 50%,
+    rgb(255 255 255 / 0.35) 53%,
+    transparent 58%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  -webkit-mask-image: var(--logo-glaze-src, url("/courthub-wordmark.png"));
+  mask-image: var(--logo-glaze-src, url("/courthub-wordmark.png"));
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  animation: logo-glaze 7s ease-in-out 1.2s infinite;
+}
+
+/* A periodic glint, not a permanent shimmer: the band crosses in the first 18% (~1.25s of
+   the 7s cycle) and then sits parked off the left edge for the rest, so the logo spends
+   most of its life perfectly still. Same 100% -> 0% direction as the tagline, and for the
+   same reason — with a background wider than its box, counting down travels left-to-right. */
+@keyframes logo-glaze {
+  0% {
+    background-position: 100% 0;
+  }
+  18%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-glaze::after {
+    display: none;
+  }
+}
+
+/* The pickleball rally in the Contact section's payment pane.
+
+   Ball, near paddle and far paddle are three separate animations that must agree about
+   where the ball is, so all three read their duration from --rally on the court and the
+   far player simply runs half a cycle behind the near one. Change the duration in one
+   place and the swings stay on the ball.
+
+   The whole thing is paused rather than unmounted when the pane leaves the viewport —
+   a rally nobody is looking at should not keep waking the compositor. */
+.rally-court {
+  --rally: 5.6s;
+  /* Climb from the paddle line to the apex. Court is h-44 here and h-56 from sm up, and the
+     ball now moves vertically by translate rather than by an animated `top`, so the distance
+     has to be stated in pixels per breakpoint instead of read off as a percentage. */
+  --ball-rise: 65px;
+}
+
+@media (min-width: 640px) {
+  .rally-court {
+    --ball-rise: 82px;
+  }
+}
+
+.rally-court[data-playing="false"] * {
+  animation-play-state: paused !important;
+}
+
+/* Four crossings, and 0% is identical to 100% so the loop has no seam. `left` carries the
+   horizontal travel and `top` the arc; the timing functions are what make it read as a
+   lobbed ball rather than a bouncing dot — decelerating off the paddle, accelerating back
+   down out of the apex. */
+/* The ball is animated in two layers, and it has to be.
+
+   A CSS timing function applies to every property in the segment it governs, so when one
+   animation carried both `left` and `top`, the ease-out that gives the arc its gravity was
+   slowing the horizontal travel as well — and the apex sits at left 50%, directly over the
+   net. The ball crawled to a near-stop exactly there, every crossing.
+
+   Split, each axis gets the curve it actually needs: the outer element carries `left` at a
+   flat linear rate, so horizontal speed never varies and the ball cannot stall anywhere;
+   the inner carries the vertical as a translate, decelerating on the way up and
+   accelerating on the way down, which is what reads as gravity. A third layer spins, kept
+   separate so the spin rate stays even instead of inheriting the arc's easing.
+
+   top 52% is not arbitrary: it is where the players' grips land at both court heights,
+   measured from the figure's viewBox. --ball-rise is the climb from there to the apex. */
+@keyframes rally-ball-x {
+  0% {
+    left: 12%;
+  }
+  25% {
+    left: 88%;
+  }
+  50% {
+    left: 12%;
+  }
+  75% {
+    left: 88%;
+  }
+  100% {
+    left: 12%;
+  }
+}
+
+@keyframes rally-ball-y {
+  0% {
+    transform: translate(-50%, -50%);
+    animation-timing-function: cubic-bezier(0.25, 0.6, 0.5, 1);
+  }
+  12.5% {
+    transform: translate(-50%, calc(-50% - var(--ball-rise)));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.4);
+  }
+  25% {
+    transform: translate(-50%, -50%);
+    animation-timing-function: cubic-bezier(0.25, 0.6, 0.5, 1);
+  }
+  37.5% {
+    transform: translate(-50%, calc(-50% - var(--ball-rise)));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.4);
+  }
+  50% {
+    transform: translate(-50%, -50%);
+    animation-timing-function: cubic-bezier(0.25, 0.6, 0.5, 1);
+  }
+  62.5% {
+    transform: translate(-50%, calc(-50% - var(--ball-rise)));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.4);
+  }
+  75% {
+    transform: translate(-50%, -50%);
+    animation-timing-function: cubic-bezier(0.25, 0.6, 0.5, 1);
+  }
+  87.5% {
+    transform: translate(-50%, calc(-50% - var(--ball-rise)));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.4);
+  }
+  100% {
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes rally-ball-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(1440deg);
+  }
+}
+
+.rally-ball {
+  top: 52%;
+  /* linear, and deliberately so — this is the layer that must never slow down */
+  animation: rally-ball-x var(--rally) linear infinite;
+}
+
+.rally-ball-arc {
+  animation: rally-ball-y var(--rally) linear infinite;
+}
+
+.rally-ball-spin {
+  animation: rally-ball-spin var(--rally) linear infinite;
+}
+
+/* The wind off the strike: a streak that flares as the ball is hit and is gone a moment
+   later, so the speed reads at the paddle rather than smearing the whole flight.
+
+   It hangs off the arc layer with its right edge pinned to the ball's centre, extending
+   backwards. The direction flips with the ball: scaleX(-1) about that same centre, and
+   because the flip is placed exactly on a strike keyframe — where the opacity is jumping
+   back to full anyway — the mirroring is never seen mid-flight. */
+.rally-ball-arc::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 50%;
+  width: 2.75rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(217 242 79 / 0), rgb(217 242 79 / 0.9));
+  transform-origin: 100% 50%;
+  pointer-events: none;
+  animation: rally-wind var(--rally) ease-out infinite;
+}
+
+@keyframes rally-wind {
+  0% {
+    opacity: 0.95;
+    transform: translateY(-50%) scaleX(1);
+  }
+  10% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(1);
+  }
+  24.99% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(1);
+  }
+  25% {
+    opacity: 0.95;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  35% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  49.99% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateY(-50%) scaleX(1);
+  }
+  60% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(1);
+  }
+  74.99% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(1);
+  }
+  75% {
+    opacity: 0.95;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  85% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  99.99% {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(-1);
+  }
+  100% {
+    opacity: 0.95;
+    transform: translateY(-50%) scaleX(1);
+  }
+}
+
+
+/* One swing per half-cycle, because each player is struck at twice per rally. 0% is the
+   moment of contact, which is why the wind-up lives at the *end* of the keyframes: it is
+   the approach to the next strike, not the recovery from the last one. */
+@keyframes rally-swing {
+  0% {
+    transform: rotate(-20deg);
+  }
+  10% {
+    transform: rotate(26deg);
+  }
+  30% {
+    transform: rotate(14deg);
+  }
+  70% {
+    transform: rotate(-46deg);
+  }
+  92% {
+    transform: rotate(-44deg);
+  }
+  100% {
+    transform: rotate(-20deg);
+  }
+}
+
+.rally-swing {
+  /* Half of --rally: the ball reaches each player twice per full rally. */
+  animation: rally-swing calc(var(--rally) / 2) ease-in-out infinite;
+  /* Both are load-bearing. transform-box decides what the origin below is measured
+     against, and only view-box puts it in the figure's own coordinates. */
+  transform-box: view-box;
+  transform-origin: 64px 52px;
+}
+
+/* The far player starts half a cycle in, so she strikes as it leaves him and the other way
+   about. A negative delay starts mid-animation rather than waiting. */
+.rally-swing-far {
+  animation-delay: calc(var(--rally) / -4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rally-ball,
+  .rally-ball-arc,
+  .rally-ball-spin,
+  .rally-swing {
+    animation: none;
+  }
+  /* Without the animations the ball has no keyframed position at all, so park it in play at
+     the apex rather than letting it collapse into the corner. The wind is a motion cue with
+     nothing left to cue, so it goes entirely. */
+  .rally-ball {
+    left: 50%;
+  }
+  .rally-ball-arc {
+    transform: translate(-50%, calc(-50% - var(--ball-rise)));
+  }
+  .rally-ball-arc::before {
+    display: none;
+  }
+}
+
+/* Payment method cards. Three separate motions, each doing a different job:
+
+   the deal-in (below, driven by React toggling data-dealt) brings the row in as a sequence
+   rather than a block; the sheen is a one-shot highlight that crosses each card just after
+   it lands, borrowing the glass language from the wordmark and the tagline; and the hover
+   state is the only one a visitor drives. Live methods lift on hover — the "coming soon"
+   ones deliberately do not, because looking clickable is exactly the wrong signal. */
+.pay-card {
+  position: relative;
+  overflow: hidden;
+  /* Set per card in JSX so the sheen chases the deal-in at the same stagger. */
+  --deal-delay: 0ms;
+}
+
+.pay-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgb(255 255 255 / 0.75) 45%,
+    rgb(255 255 255 / 0.9) 50%,
+    transparent
+  );
+  opacity: 0;
+}
+
+/* The sweep is armed only once the card has been dealt, so it cannot fire against an
+   invisible card while the pane is still below the fold. */
+.pay-card[data-dealt="true"]::after {
+  animation: pay-card-sheen 1s ease-out calc(var(--deal-delay) + 260ms) both;
+}
+
+@keyframes pay-card-sheen {
+  0% {
+    transform: translateX(-140%) skewX(-16deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(320%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+/* The mark itself gets a shorter, later beat than the card — it settles after the card it
+   sits in, which reads as the logo dropping into place rather than arriving with the box. */
+.pay-card[data-dealt="true"] .pay-mark {
+  animation: pay-mark-drop 0.5s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--deal-delay) + 120ms) both;
+}
+
+@keyframes pay-mark-drop {
+  0% {
+    transform: scale(0.5) rotate(-12deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-card[data-dealt="true"]::after,
+  .pay-card[data-dealt="true"] .pay-mark {
+    animation: none;
+  }
+  /* both fill-mode leaves the mark at its 0% keyframe when the animation is removed, so
+     restore the resting state explicitly. */
+  .pay-card .pay-mark {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Each new line of the rally-side chatter pops in. Keyed on the line index in JSX, so React
+   remounts the bubble body and the animation replays for every line rather than only the
+   first. Kept short — it fires every few seconds and anything slower would still be moving
+   when the next line lands. */
+@keyframes bubble-pop {
+  0% {
+    transform: translateY(6px) scale(0.94);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.bubble-pop {
+  animation: bubble-pop 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble-pop {
+    animation: none;
+  }
+}
+
+/* Staggered sweep across the How It Works tiles when the section scrolls into view. Two
+   keyframes rather than one because the card and its number are separate elements; they
+   share an animation-delay so each pair fires together. No fill-mode on purpose — the
+   element should fall back to its class-defined resting style once the pulse is over,
+   which `both` would prevent by pinning the final keyframe forever. */
+@keyframes step-edge-light {
+  0%,
+  100% {
+    border-color: rgb(255 255 255 / 0.15);
+    box-shadow: 0 0 0 0 rgb(184 240 90 / 0);
+  }
+  35% {
+    border-color: #b8f05a;
+    box-shadow: 0 0 26px -4px rgb(184 240 90 / 0.75);
+  }
+}
+
+@keyframes step-number-light {
+  0%,
+  100% {
+    color: rgb(184 240 90 / 0.35);
+  }
+  35% {
+    color: #b8f05a;
+    text-shadow: 0 0 22px rgb(184 240 90 / 0.55);
+  }
+}
+
+/* Tile shatter. Each shard carries its own --dx/--dy/--rot as inline custom properties, so
+   one keyframe pair drives all 32 cells and the scatter pattern lives in JS where it can be
+   derived from the cell's row/column. `out` throws the tile face apart; `in` runs the same
+   path backwards for the player surface, which is what makes it read as reassembly rather
+   than a crossfade. */
+@keyframes step-shatter-out {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--rot));
+    opacity: 0;
+  }
+}
+
+@keyframes step-shatter-in {
+  from {
+    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--rot));
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes step-player-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Learn Sports: the detail panel is keyed on the selected sport, so React remounts it on
+   every switch and these run again from the top. Cheaper and steadier than transitioning
+   half a dozen properties on shared nodes, and the rule rows can stagger off one delay. */
+@keyframes learn-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes learn-rule-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Booking prompt. Rises slightly and settles rather than snapping in at full size; the exit
+   is shorter and flatter so dismissing feels immediate while opening feels deliberate. */
+@keyframes modal-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-pop-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+/* Back-to-top ring: a lit fuse riding the arc's leading edge, and a small burst when it
+   closes. The spark itself no longer animates — it is a steady point, lit by its own
+   box-shadow, with the motion carried entirely by the embers falling off it. */
+
+
+
+/* Firework shower. Each dot gets its own dx/dy computed in JS, which is what lets the y
+   component carry a downward bias — a rotate()-based radial burst can only ever make an
+   even ring, and an even ring is the pulse this replaced. Holding opacity to 65% keeps the
+   dots bright through the throw so they fade on the fall, not on the way out. */
+@keyframes fuse-shower {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx), var(--dy), 0) scale(0.25);
+  }
+}
+
+/* Embers dripping off the fuse as it rides the ring. Screen-aligned: the element that emits
+   these is counter-rotated against the ring wrapper, so translating +y here falls straight
+   down the screen instead of "down" relative to wherever the spark currently sits on the
+   circle. --ex gives each ember a slightly different sideways drift. */
+@keyframes fuse-ember {
+  0% {
+    opacity: 0;
+    transform: translate(var(--ex), 0) scale(1);
+  }
+  14% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--ex), 20px) scale(0.25);
+  }
+}
+
+/* Highlights marquee. The track renders the eight tiles twice and travels exactly -50%, so
+   the second copy sits where the first began and the loop has no seam. Percentage, not a
+   pixel distance, because the tile width changes across breakpoints. */
+@keyframes highlight-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Like button. Overshoots then settles rather than a plain scale — the small dip at 70% is
+   what makes it read as a press instead of a resize. */
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  70% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* The ring that flies off the heart on like. */
+@keyframes like-ring {
+  from {
+    opacity: 0.7;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
   }
 }

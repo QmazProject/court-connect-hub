@@ -1219,8 +1219,14 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                         <div>
                           {(() => {
                             const rr = normalizeRules((c as unknown as { rate_rules?: unknown }).rate_rules);
-                            const varies = hasVariablePricing(Number(c.hourly_rate), rr);
-                            const lo = varies ? minRate(Number(c.hourly_rate), rr) : Number(c.hourly_rate);
+                            // Bookable hours only — a base rate the rules override
+                            // all day is not a price anyone can pay.
+                            const hrs = effectiveHours(
+                              { inherit_venue_hours: c.inherit_venue_hours, operating_hours: c.operating_hours },
+                              venueHours,
+                            );
+                            const varies = hasVariablePricing(Number(c.hourly_rate), rr, hrs);
+                            const lo = varies ? minRate(Number(c.hourly_rate), rr, hrs) : Number(c.hourly_rate);
                             return (
                               <>
                                 {varies && <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">from</span>}
@@ -1228,7 +1234,7 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                                 <span className="text-sm text-muted-foreground"> / hour</span>
                                 {varies && (
                                   <span className="mt-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                                    up to {peso(maxRate(Number(c.hourly_rate), rr))} · varies by time &amp; day
+                                    up to {peso(maxRate(Number(c.hourly_rate), rr, hrs))} · varies by time &amp; day
                                   </span>
                                 )}
                               </>

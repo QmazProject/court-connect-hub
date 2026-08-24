@@ -11,10 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as LandingRouteImport } from './routes/landing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
+import { Route as ExploreGuestRouteImport } from './routes/explore_.guest'
 import { Route as PaymentReturnRouteImport } from './routes/payment.return'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
 import { Route as ApiPublicPaymongoWebhookRouteImport } from './routes/api/public/paymongo.webhook'
@@ -28,14 +31,24 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingRoute = LandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -46,6 +59,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const CourtsCourtIdRoute = CourtsCourtIdRouteImport.update({
   id: '/courts/$courtId',
   path: '/courts/$courtId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreGuestRoute = ExploreGuestRouteImport.update({
+  id: '/explore_/guest',
+  path: '/explore/guest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaymentReturnRoute = PaymentReturnRouteImport.update({
@@ -67,20 +85,26 @@ const ApiPublicPaymongoWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
   '/explore': typeof ExploreRoute
+  '/landing': typeof LandingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
+  '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
   '/explore': typeof ExploreRoute
+  '/landing': typeof LandingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
+  '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
@@ -89,10 +113,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
   '/explore': typeof ExploreRoute
+  '/landing': typeof LandingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
+  '/explore_/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
@@ -101,20 +128,26 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/auth'
     | '/explore'
+    | '/landing'
+    | '/privacy'
+    | '/terms'
     | '/dashboard'
     | '/courts/$courtId'
+    | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
     | '/api/public/paymongo/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/auth'
     | '/explore'
+    | '/landing'
+    | '/privacy'
+    | '/terms'
     | '/dashboard'
     | '/courts/$courtId'
+    | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
     | '/api/public/paymongo/webhook'
@@ -122,10 +155,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
-    | '/auth'
     | '/explore'
+    | '/landing'
+    | '/privacy'
+    | '/terms'
     | '/_authenticated/dashboard'
     | '/courts/$courtId'
+    | '/explore_/guest'
     | '/payment/return'
     | '/venues/$venueId'
     | '/api/public/paymongo/webhook'
@@ -134,9 +170,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
   ExploreRoute: typeof ExploreRoute
+  LandingRoute: typeof LandingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
   CourtsCourtIdRoute: typeof CourtsCourtIdRoute
+  ExploreGuestRoute: typeof ExploreGuestRoute
   PaymentReturnRoute: typeof PaymentReturnRoute
   VenuesVenueIdRoute: typeof VenuesVenueIdRoute
   ApiPublicPaymongoWebhookRoute: typeof ApiPublicPaymongoWebhookRoute
@@ -158,18 +197,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/explore': {
       id: '/explore'
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing': {
+      id: '/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof LandingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/dashboard': {
@@ -184,6 +237,13 @@ declare module '@tanstack/react-router' {
       path: '/courts/$courtId'
       fullPath: '/courts/$courtId'
       preLoaderRoute: typeof CourtsCourtIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore_/guest': {
+      id: '/explore_/guest'
+      path: '/explore/guest'
+      fullPath: '/explore/guest'
+      preLoaderRoute: typeof ExploreGuestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payment/return': {
@@ -224,9 +284,12 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
   ExploreRoute: ExploreRoute,
+  LandingRoute: LandingRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
   CourtsCourtIdRoute: CourtsCourtIdRoute,
+  ExploreGuestRoute: ExploreGuestRoute,
   PaymentReturnRoute: PaymentReturnRoute,
   VenuesVenueIdRoute: VenuesVenueIdRoute,
   ApiPublicPaymongoWebhookRoute: ApiPublicPaymongoWebhookRoute,

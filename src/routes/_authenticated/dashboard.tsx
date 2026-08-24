@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { retryBookingPayment, cancelPendingBookings, recordVenueSettlement } from "@/lib/paymongo.functions";
@@ -27,7 +28,7 @@ import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
 
 const chLogo = { url: "/CHicon.png" };
 import {
-  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog, Home,
+  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
   Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, Clock, AlertTriangle, History as HistoryIcon,
   TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent, LogOut
 } from "lucide-react";
@@ -48,7 +49,15 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
+/** `view` picks which player pane is showing. A search param rather than a separate route so
+ *  the whole dashboard — including the tenant side, which ignores it — stays one route with
+ *  one auth guard and one data layer. */
+const dashboardSearchSchema = z.object({
+  view: z.enum(["bookings", "calendar"]).optional().catch("bookings"),
+});
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  validateSearch: dashboardSearchSchema,
   component: Dashboard,
 });
 
@@ -155,175 +164,7 @@ const DAYS: { key: string; label: string }[] = [
   { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
 ];
 
-export type PlayerSectionKey = "home" | "explore" | "bookings";
-
-export const PLAYER_NAV = [
-  { key: "home", label: "Home", icon: Home, to: "/" },
-  { key: "explore", label: "Explore", icon: MapPin, to: "/explore" },
-  { key: "bookings", label: "My Bookings", icon: BookOpen, to: "/dashboard" },
-] as const;
-
-export function PlayerShell({
-  children, section, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, onSignOut
-}: {
-  children: React.ReactNode;
-  section: PlayerSectionKey;
-  mobileOpen: boolean;
-  setMobileOpen: (v: boolean) => void;
-  collapsed: boolean;
-  setCollapsed: (v: boolean) => void;
-  userId?: string;
-  onSignOut?: () => void;
-}) {
-  const current = PLAYER_NAV.find((n) => n.key === section);
-  return (
-    <div className="flex h-dvh w-full">
-      {/* Desktop sidebar */}
-      <aside
-        className={
-          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-dvh md:flex-col transition-[width] duration-200 " +
-          (collapsed ? "md:w-16" : "md:w-62.5")
-        }
-      >
-        <PlayerSidebarBody
-          section={section}
-          collapsed={collapsed}
-          setCollapsed={setCollapsed}
-          onSignOut={onSignOut}
-        />
-      </aside>
-
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-1200 md:hidden">
-          <button aria-label="Close menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/40" />
-          <aside className="absolute inset-y-0 left-0 flex w-62.5 flex-col border-r border-border bg-card shadow-xl">
-            <PlayerSidebarBody
-              section={section}
-              collapsed={false}
-              setCollapsed={() => { }}
-              onClose={() => setMobileOpen(false)}
-              onSignOut={onSignOut}
-            />
-          </aside>
-        </div>
-      )}
-
-      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Mobile top bar */}
-        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
-          <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
-            <Menu className="h-4 w-4" /> Menu
-          </button>
-          <span className="text-sm font-semibold">{current?.label ?? "Workspace"}</span>
-          <NotificationBell userId={userId} />
-        </div>
-        
-        {/* Desktop top bar ONLY if not explore */}
-        {section !== "explore" && (
-           <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
-             <NotificationBell userId={userId} />
-           </div>
-        )}
-
-        {/* Content */}
-        {section === "explore" ? (
-          <div className="h-full w-full flex-1 min-h-0 motion-safe:animate-[landing-header-reveal_.3s_ease-out_both]">
-            {children}
-          </div>
-        ) : (
-          <div className="nice-scroll mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8 motion-safe:animate-[landing-header-reveal_.3s_ease-out_both]">
-            {children}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function PlayerSidebarBody({
-  section, collapsed, setCollapsed, onClose, onSignOut
-}: {
-  section: PlayerSectionKey;
-  collapsed: boolean;
-  setCollapsed: (v: boolean) => void;
-  onClose?: () => void;
-  onSignOut?: () => void;
-}) {
-  return (
-    <>
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <img src={chLogo.url} alt="CourtHub" className="h-7 w-7 shrink-0 rounded-full object-contain" />
-          {!collapsed && <span className="truncate font-display text-sm font-bold tracking-tight">CourtHub</span>}
-        </div>
-        {onClose ? (
-          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 hover:bg-secondary">
-            <X className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden rounded-md p-1 text-muted-foreground hover:bg-secondary md:inline-flex"
-          >
-            <Menu className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      <nav className="flex-1 overflow-y-auto p-2">
-        <ul className="space-y-1">
-          {PLAYER_NAV.map(({ key, label, icon: Icon, to }) => {
-            const active = section === key;
-            return (
-              <li key={key}>
-                <Link
-                  to={to}
-                  search={{}}
-                  onClick={onClose}
-                  title={collapsed ? label : undefined}
-                  className={
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
-                    (active
-                      ? "bg-primary/15 text-primary"
-                      : "text-foreground/80 hover:bg-secondary hover:text-foreground")
-                  }
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{label}</span>}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      <div className="mt-auto border-t border-border p-2">
-        <button
-          onClick={onSignOut}
-          title={collapsed ? "Sign out" : undefined}
-          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span className="truncate">Sign out</span>}
-        </button>
-      </div>
-      {!collapsed && (
-        <div className="border-t border-border px-3 py-3.5">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#12806d] shadow-[0_0_8px_hsl(var(--primary))]" />
-            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Player
-            </span>
-          </div>
-          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">
-            Workspace
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
+import { PlayerShell } from "@/components/PlayerShell";
 
 function Dashboard() {
   const { user } = Route.useRouteContext() as {
@@ -490,8 +331,8 @@ function TenantShell({
       {/* Desktop sidebar */}
       <aside
         className={
-          "sticky top-0 hidden shrink-0 self-start border-r border-border bg-card md:flex md:h-dvh md:flex-col transition-[width] duration-200 " +
-          (collapsed ? "md:w-16" : "md:w-60")
+          "sticky top-0 hidden shrink-0 self-start border-r-2 border-[#b8f05a]/40 bg-linear-to-b from-[#0f4a40] to-[#09231f] text-white md:flex md:h-dvh md:flex-col transition-[width] duration-200 " +
+          (collapsed ? "md:w-16" : "md:w-62.5")
         }
       >
         <SidebarBody
@@ -506,7 +347,7 @@ function TenantShell({
       {mobileOpen && (
         <div className="fixed inset-0 z-1200 md:hidden">
           <button aria-label="Close menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/40" />
-          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-card shadow-xl">
+          <aside className="absolute inset-y-0 left-0 flex w-62.5 flex-col border-r-2 border-[#b8f05a]/40 bg-linear-to-b from-[#0f4a40] to-[#09231f] text-white shadow-xl">
             <SidebarBody
               section={section}
               setSection={(s) => { setSection(s); setMobileOpen(false); }}
@@ -552,20 +393,33 @@ function SidebarBody({
 }) {
   return (
     <>
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <img src={chLogo.url} alt="CourtHub" className="h-7 w-7 shrink-0 rounded-full object-contain" />
-          {!collapsed && <span className="truncate font-display text-sm font-bold tracking-tight">CourtHub</span>}
+          {/* The rail collapses to 64px, where a 4:1 wordmark would sit ~15px tall and
+              stop being readable — the circle icon stands in for it at that width. */}
+          {collapsed ? (
+            <img src={chLogo.url} alt="CourtHub" className="h-7 w-7 shrink-0 rounded-full object-contain" />
+          ) : (
+            <span className="logo-glaze shrink-0">
+              <img
+                src="/courthub-wordmark.png"
+                alt="CourtHub"
+                width={983}
+                height={240}
+                className="h-7 w-auto object-contain"
+              />
+            </span>
+          )}
         </div>
         {onClose ? (
-          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 hover:bg-secondary">
+          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-[#b8f05a]">
             <X className="h-4 w-4" />
           </button>
         ) : (
           <button
             onClick={() => setCollapsed(!collapsed)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden rounded-md p-1 text-muted-foreground hover:bg-secondary md:inline-flex"
+            className="hidden rounded-md p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-[#b8f05a] md:inline-flex"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -583,8 +437,8 @@ function SidebarBody({
                   className={
                     "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
                     (active
-                      ? "bg-primary/15 text-primary"
-                      : "text-foreground/80 hover:bg-secondary hover:text-foreground")
+                      ? "bg-[#b8f05a] text-[#102521] shadow-sm"
+                      : "text-white/75 hover:bg-white/10 hover:text-[#b8f05a]")
                   }
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -596,14 +450,14 @@ function SidebarBody({
         </ul>
       </nav>
       {!collapsed && (
-        <div className="border-t border-border px-3 py-3.5">
+        <div className="border-t border-white/10 px-3 py-3.5">
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
-            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#b8f05a] shadow-[0_0_8px_#b8f05a]" />
+            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
               Tenant
             </span>
           </div>
-          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">
+          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-white">
             Workspace
           </div>
         </div>
@@ -617,7 +471,8 @@ function SidebarBody({
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="mb-6">
-      <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">Tenant workspace</p>
+      <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">{title}</h1>
       {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
     </div>
   );
@@ -1025,7 +880,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-1 text-3xl font-bold">{value}</div>
+      <div className="mt-1 font-display text-3xl font-semibold">{value}</div>
     </div>
   );
 }
@@ -5669,6 +5524,39 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
     : groupBookingSessions(tab === "past" ? past : cancelled).sort((a, b) => b.start_time.localeCompare(a.start_time)));
 
 
+  const view = Route.useSearch().view ?? "bookings";
+  /* Local calendar day for an ISO instant. en-CA gives YYYY-MM-DD, which sorts and compares as
+     a string — using the raw ISO would bucket by UTC and push a 9pm Manila booking onto the
+     following day. */
+  const dayKeyOf = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
+  const [calDay, setCalDay] = useState(() => new Date().toLocaleDateString("en-CA"));
+
+  /* Fourteen days from today. Bookings are bucketed once, so switching days is a lookup
+     rather than a re-scan of every booking. */
+  const calendarDays = useMemo(() => {
+    const byDay = new Map<string, PlayerBooking[]>();
+    for (const b of bookingsQ.data ?? []) {
+      if (b.status === "cancelled") continue;
+      const key = dayKeyOf(b.start_time);
+      const list = byDay.get(key);
+      if (list) list.push(b);
+      else byDay.set(key, [b]);
+    }
+    for (const list of byDay.values()) {
+      list.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      const key = d.toLocaleDateString("en-CA");
+      return { key, date: d, offset: i, bookings: byDay.get(key) ?? [] };
+    });
+  }, [bookingsQ.data]);
+
+  const calDayBookings = calendarDays.find((d) => d.key === calDay)?.bookings ?? [];
+
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
   const hours = (a: string, b: string) => Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600000));
@@ -5748,7 +5636,7 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
 
   return (
     <PlayerShell
-      section="bookings"
+      section={view === "calendar" ? "calendar" : "bookings"}
       mobileOpen={mobileOpen}
       setMobileOpen={setMobileOpen}
       collapsed={collapsed}
@@ -5756,6 +5644,124 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
       userId={userId}
       onSignOut={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
     >
+      {view === "calendar" ? (
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">Player workspace</p>
+              <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Your calendar</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Bookings for the next two weeks, at a glance. Cancelled bookings are left out.
+              </p>
+            </div>
+            <Link to="/explore" search={{}} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
+              Find a court
+            </Link>
+          </div>
+
+          {/* Day strip. Horizontal scroll rather than a month grid: a player cares about the
+              next few days, and 14 legible days beat 30 cramped ones. */}
+          <div className="nice-scroll mt-6 flex gap-2 overflow-x-auto pb-2">
+            {calendarDays.map(({ key, date, offset, bookings }) => {
+              const selected = key === calDay;
+              const count = bookings.length;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCalDay(key)}
+                  aria-pressed={selected}
+                  className={`flex w-16 shrink-0 flex-col items-center rounded-xl border px-2 py-2.5 transition ${
+                    selected
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : "border-border bg-card hover:border-primary/50 hover:bg-secondary"
+                  }`}
+                >
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${selected ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+                    {offset === 0 ? "Today" : offset === 1 ? "Tmrw" : date.toLocaleDateString("en-PH", { weekday: "short" })}
+                  </span>
+                  <span className="mt-0.5 font-display text-lg font-bold leading-none">
+                    {date.getDate()}
+                  </span>
+                  <span className={`mt-1 text-[9px] font-semibold ${selected ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+                    {date.toLocaleDateString("en-PH", { month: "short" })}
+                  </span>
+                  {/* A dot per booking up to three, so a busy day is visible without opening it. */}
+                  <span className="mt-1.5 flex h-1.5 items-center gap-0.5">
+                    {count === 0 ? (
+                      <span className={`h-1 w-1 rounded-full ${selected ? "bg-primary-foreground/30" : "bg-border"}`} />
+                    ) : (
+                      Array.from({ length: Math.min(count, 3) }).map((_, i) => (
+                        <span key={i} className={`h-1.5 w-1.5 rounded-full ${selected ? "bg-primary-foreground" : "bg-primary"}`} />
+                      ))
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-base font-bold">
+                {new Date(`${calDay}T00:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}
+              </h2>
+              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                {calDayBookings.length} {calDayBookings.length === 1 ? "booking" : "bookings"}
+              </span>
+            </div>
+
+            {bookingsQ.isLoading ? (
+              <p className="mt-6 text-center text-sm text-muted-foreground">Loading your bookings…</p>
+            ) : calDayBookings.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-dashed border-border py-10 text-center">
+                <p className="text-sm font-semibold">Nothing booked this day</p>
+                <p className="mt-1 text-xs text-muted-foreground">Free to play — find a court and fill it.</p>
+                <Link to="/explore" search={{}} className="mt-4 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">
+                  Browse courts
+                </Link>
+              </div>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {calDayBookings.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex items-start gap-3 rounded-xl border border-border bg-background p-3"
+                  >
+                    {/* The time is the thing being scanned for, so it leads and is fixed-width. */}
+                    <span className="w-20 shrink-0 text-left">
+                      <span className="block font-display text-sm font-bold leading-tight">
+                        {fmtTime(b.start_time)}
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        to {fmtTime(b.end_time)}
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">
+                        {b.courts?.venues?.name ?? "Venue"}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {b.courts?.map_emoji ?? "🏟️"} {b.courts?.name}
+                        {b.courts?.sports?.name ? ` · ${b.courts.sports.name}` : ""}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                        b.payment_status === "paid"
+                          ? "bg-primary/15 text-primary"
+                          : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                      }`}
+                    >
+                      {b.payment_status === "paid" ? "Paid" : "Unpaid"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -6011,6 +6017,7 @@ export function PlayerDashboard({ userId, fullName, email, embedded = false }: {
         </div>
       )}
       </div>
+      )}
     </PlayerShell>
   );
 }
