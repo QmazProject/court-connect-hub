@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
+import { ownedSlots } from "@/lib/court-slots";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { startBookingCheckout } from "@/lib/paymongo.functions";
@@ -8,12 +9,32 @@ import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { X, LogIn, UserPlus } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
-  normalizeRules, rateForHour, priceForHours, priceBreakdown, minRate, maxRate,
-  hasVariablePricing, peso, type RateRule, type DayKey,
+  normalizeRules,
+  rateForHour,
+  priceForHours,
+  priceBreakdown,
+  minRate,
+  maxRate,
+  hasVariablePricing,
+  peso,
+  type RateRule,
+  type DayKey,
 } from "@/lib/court-pricing";
 import { RateCard } from "@/components/RateCard";
-import { normalizeHours, effectiveHours, openHoursForDate, describeWindow } from "@/lib/operating-hours";
-import { addZonedDays, zonedDateISO, zonedDayBoundsUtc, zonedDayOfWeek, zonedHour, zonedHourToUtc } from "@/lib/tz";
+import {
+  normalizeHours,
+  effectiveHours,
+  openHoursForDate,
+  describeWindow,
+} from "@/lib/operating-hours";
+import {
+  addZonedDays,
+  zonedDateISO,
+  zonedDayBoundsUtc,
+  zonedDayOfWeek,
+  zonedHour,
+  zonedHourToUtc,
+} from "@/lib/tz";
 
 type Court = {
   id: number;
@@ -51,7 +72,9 @@ type Court = {
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="border-b border-border px-4 py-2.5 last:border-b-0 sm:odd:border-r">
-      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </dt>
       <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
     </div>
   );
@@ -97,7 +120,15 @@ const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
   { key: "qrph", label: "QR Ph", emoji: "🔳" },
 ];
 
-export function CourtBookingContent({ courtId, onClose, userId }: { courtId: number; onClose?: () => void; userId?: string | null }) {
+export function CourtBookingContent({
+  courtId,
+  onClose,
+  userId,
+}: {
+  courtId: number;
+  onClose?: () => void;
+  userId?: string | null;
+}) {
   const qc = useQueryClient();
   const [date, setDate] = useState(() => zonedDateISO());
   const [selected, setSelected] = useState<number[]>([]);
@@ -111,7 +142,12 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [carouselIdx, setCarouselIdx] = useState(0);
   const [voucherCode, setVoucherCode] = useState("");
-  const [voucher, setVoucher] = useState<{ id: string; discount: number; type: string; value: number } | null>(null);
+  const [voucher, setVoucher] = useState<{
+    id: string;
+    discount: number;
+    type: string;
+    value: number;
+  } | null>(null);
   const [voucherErr, setVoucherErr] = useState<string | null>(null);
   const [voucherLoading, setVoucherLoading] = useState(false);
 
@@ -165,7 +201,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
         blocked_by_other_sport: boolean;
         held_for_payment: boolean;
       }>;
-      const map = new Map<number, { remaining: number; blockedByOther: boolean; heldForPayment: boolean }>();
+      const map = new Map<
+        number,
+        { remaining: number; blockedByOther: boolean; heldForPayment: boolean }
+      >();
       rows.forEach((row) => {
         const h = zonedHour(row.hour_start);
         map.set(h, {
@@ -194,7 +233,6 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     };
   }, [courtId, date, qc]);
 
-
   const ownBookingsQ = useQuery({
     queryKey: ["court-own-bookings", courtId, date, userId],
     enabled: !!courtQ.data && !!userId,
@@ -205,6 +243,12 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
         .select("start_time, end_time, status, payment_status, created_at")
         .eq("court_id", courtId)
         .eq("user_id", userId)
+        /* Only bookings that still hold the slot. A cancelled or expired row is not
+           "your booking" any more — the availability RPC has already released the
+           hour back to everyone else, and without this filter the owner alone saw it
+           labelled "Your booking" and styled unclickable while every other player
+           could book it. */
+        .in("status", ["confirmed", "pending"])
         .lt("start_time", dayBounds.end.toISOString())
         .gt("end_time", dayBounds.start.toISOString());
       if (error) throw error;
@@ -233,7 +277,12 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           status: "confirmed",
-          unit_price: rateForHour(Number(courtQ.data!.hourly_rate), normalizeRules(courtQ.data!.rate_rules), date, hour),
+          unit_price: rateForHour(
+            Number(courtQ.data!.hourly_rate),
+            normalizeRules(courtQ.data!.rate_rules),
+            date,
+            hour,
+          ),
           voucher_id: applyVoucher ? voucher!.id : null,
           discount_amount: applyVoucher ? voucher!.discount : 0,
         };
@@ -260,7 +309,8 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
 
   async function applyVoucher() {
     if (!voucherCode.trim() || !courtQ.data) return;
-    setVoucherLoading(true); setVoucherErr(null);
+    setVoucherLoading(true);
+    setVoucherErr(null);
     try {
       const rules = normalizeRules(courtQ.data.rate_rules);
       const amount = selected.length
@@ -273,8 +323,17 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
-      if (!row?.ok) { setVoucher(null); setVoucherErr(row?.reason || "Invalid voucher"); return; }
-      setVoucher({ id: row.voucher_id, discount: Number(row.discount), type: row.discount_type, value: Number(row.discount_value) });
+      if (!row?.ok) {
+        setVoucher(null);
+        setVoucherErr(row?.reason || "Invalid voucher");
+        return;
+      }
+      setVoucher({
+        id: row.voucher_id,
+        discount: Number(row.discount),
+        type: row.discount_type,
+        value: Number(row.discount_value),
+      });
     } catch (e) {
       setVoucher(null);
       setVoucherErr((e as Error).message);
@@ -283,23 +342,17 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     }
   }
 
-  const ownSlotInfo = useMemo(() => {
-    const map = new Map<number, { kind: "hold" | "booking" }>();
-    for (const b of ownBookingsQ.data ?? []) {
-      const start = new Date(b.start_time).getTime();
-      const end = new Date(b.end_time).getTime();
-      const startHr = Math.floor((start - dayBounds.start.getTime()) / 3600000);
-      const endHr = Math.ceil((end - dayBounds.start.getTime()) / 3600000);
-      const isHold = b.status === "pending" && b.payment_status !== "paid";
-      for (let h = startHr; h < endHr; h++) {
-        map.set(h, { kind: isHold ? "hold" : "booking" });
-      }
-    }
-    return map;
-  }, [ownBookingsQ.data, dayBounds.start]);
+  const ownSlotInfo = useMemo(
+    () => ownedSlots(ownBookingsQ.data ?? [], dayBounds.start.getTime()),
+    [ownBookingsQ.data, dayBounds.start],
+  );
 
   if (courtQ.isLoading) {
-    return <div className="p-6"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></div>;
+    return (
+      <div className="p-6">
+        <div className="h-40 animate-pulse rounded-2xl bg-muted" />
+      </div>
+    );
   }
   if (!courtQ.data) {
     return (
@@ -312,10 +365,15 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const court = courtQ.data;
   const rules = normalizeRules(court.rate_rules);
   const baseRate = Number(court.hourly_rate);
-  const venueHours = normalizeHours((court.venues as unknown as { operating_hours?: unknown } | null)?.operating_hours);
+  const venueHours = normalizeHours(
+    (court.venues as unknown as { operating_hours?: unknown } | null)?.operating_hours,
+  );
   // The court's week. Quoted prices cover bookable hours only, so a rate that
   // exists only while the court is shut never reaches the header or rate card.
-  const courtHours = effectiveHours({ inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours }, venueHours);
+  const courtHours = effectiveHours(
+    { inherit_venue_hours: court.inherit_venue_hours, operating_hours: court.operating_hours },
+    venueHours,
+  );
   const variablePricing = hasVariablePricing(baseRate, rules, courtHours);
   const rateOf = (hour: number) => rateForHour(baseRate, rules, date, hour);
   const subtotal = priceForHours(baseRate, rules, date, selected);
@@ -327,8 +385,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
   const slots: number[] = Array.from({ length: 24 }, (_, i) => i).filter((h) => openHours.has(h));
   const closedToday = slots.length === 0;
   const capacity = Math.max(1, court.capacity ?? 1);
-  const slotInfo = (hour: number) => availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false, heldForPayment: false };
-  const isBooked = (hour: number) => slotInfo(hour).remaining <= 0 && !slotInfo(hour).blockedByOther;
+  const slotInfo = (hour: number) =>
+    availQ.data?.get(hour) ?? { remaining: capacity, blockedByOther: false, heldForPayment: false };
+  const isBooked = (hour: number) =>
+    slotInfo(hour).remaining <= 0 && !slotInfo(hour).blockedByOther;
   const isBlockedBySport = (hour: number) => slotInfo(hour).blockedByOther;
   const isPaymentHold = (hour: number) => slotInfo(hour).heldForPayment;
   const isBlocked = (hour: number) => blocked.has(hour);
@@ -336,8 +396,6 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
     const slotStart = zonedHourToUtc(date, hour).getTime();
     return slotStart < Date.now();
   };
-
-
 
   return (
     <div className="flex h-full flex-col">
@@ -406,8 +464,14 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
       )}
       {onClose && (
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#b8f05a]/25 bg-[#0b3d35]/95 px-4 py-2.5 text-white backdrop-blur">
-          <span className="font-display text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#b8f05a]">Reserve your court</span>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
+          <span className="font-display text-[11px] font-extrabold uppercase tracking-[0.24em] text-[#b8f05a]">
+            Reserve your court
+          </span>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full p-1.5 text-white/75 transition hover:bg-white/10 hover:text-white"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -435,7 +499,9 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               label="Sport type"
               value={
                 <span className="inline-flex items-center gap-1.5">
-                  {court.map_emoji && <span className="text-base leading-none">{court.map_emoji}</span>}
+                  {court.map_emoji && (
+                    <span className="text-base leading-none">{court.map_emoji}</span>
+                  )}
                   <span>{court.sports?.name ?? "—"}</span>
                 </span>
               }
@@ -448,7 +514,9 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                 <span className="block">
                   <span className="font-semibold">{court.venues?.name ?? "—"}</span>
                   {court.venues?.address && (
-                    <span className="mt-0.5 block text-xs text-muted-foreground">{court.venues.address}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {court.venues.address}
+                    </span>
                   )}
                 </span>
               }
@@ -458,22 +526,43 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               value={
                 variablePricing ? (
                   <span className="block">
-                    <span className="font-bold text-primary">from {peso(minRate(baseRate, rules, courtHours))}</span>{" "}
-                    <span className="text-xs text-muted-foreground">/ hour · up to {peso(maxRate(baseRate, rules, courtHours))}</span>
-                    <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rates vary by time &amp; day</span>
+                    <span className="font-bold text-primary">
+                      from {peso(minRate(baseRate, rules, courtHours))}
+                    </span>{" "}
+                    <span className="text-xs text-muted-foreground">
+                      / hour · up to {peso(maxRate(baseRate, rules, courtHours))}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Rates vary by time &amp; day
+                    </span>
                   </span>
                 ) : (
-                  <span><span className="font-bold text-primary">{peso(baseRate)}</span> <span className="text-xs text-muted-foreground">/ hour</span></span>
+                  <span>
+                    <span className="font-bold text-primary">{peso(baseRate)}</span>{" "}
+                    <span className="text-xs text-muted-foreground">/ hour</span>
+                  </span>
                 )
               }
             />
-            <DetailRow label="Surface type" value={court.surface_type || <span className="text-muted-foreground">Not specified</span>} />
+            <DetailRow
+              label="Surface type"
+              value={
+                court.surface_type || <span className="text-muted-foreground">Not specified</span>
+              }
+            />
             <DetailRow
               label="Player capacity"
               value={
-                court.player_capacity
-                  ? <span>{court.player_capacity} <span className="text-xs text-muted-foreground">player{court.player_capacity === 1 ? "" : "s"}</span></span>
-                  : <span className="text-muted-foreground">Not specified</span>
+                court.player_capacity ? (
+                  <span>
+                    {court.player_capacity}{" "}
+                    <span className="text-xs text-muted-foreground">
+                      player{court.player_capacity === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Not specified</span>
+                )
               }
             />
           </dl>
@@ -482,7 +571,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
         {sharedSpaceQ.data && (
           <section className="mb-5 rounded-2xl border border-primary/25 bg-primary/5 p-4">
             <div className="text-sm font-semibold text-foreground">Shared playing space</div>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">This court shares a playing area with other court layouts. Some time slots may be unavailable when a linked court is booked.</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              This court shares a playing area with other court layouts. Some time slots may be
+              unavailable when a linked court is booked.
+            </p>
           </section>
         )}
 
@@ -499,13 +591,21 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           </div>
           {(court.images?.length ?? 0) === 0 ? (
             <div className="flex h-56 w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 text-center sm:h-72">
-              <svg className="h-10 w-10 text-muted-foreground/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg
+                className="h-10 w-10 text-muted-foreground/60"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <circle cx="8.5" cy="8.5" r="1.5" />
                 <path d="m21 15-5-5L5 21" />
               </svg>
               <p className="mt-2 text-sm font-medium text-muted-foreground">No image set</p>
-              <p className="text-xs text-muted-foreground/80">The tenant hasn&apos;t uploaded photos for this court yet.</p>
+              <p className="text-xs text-muted-foreground/80">
+                The tenant hasn&apos;t uploaded photos for this court yet.
+              </p>
             </div>
           ) : (
             <>
@@ -527,16 +627,24 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                   <>
                     <button
                       type="button"
-                      onClick={() => setCarouselIdx((carouselIdx - 1 + court.images!.length) % court.images!.length)}
+                      onClick={() =>
+                        setCarouselIdx(
+                          (carouselIdx - 1 + court.images!.length) % court.images!.length,
+                        )
+                      }
                       className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
                       aria-label="Previous image"
-                    >‹</button>
+                    >
+                      ‹
+                    </button>
                     <button
                       type="button"
                       onClick={() => setCarouselIdx((carouselIdx + 1) % court.images!.length)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
                       aria-label="Next image"
-                    >›</button>
+                    >
+                      ›
+                    </button>
                   </>
                 )}
               </div>
@@ -547,7 +655,12 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                       key={i}
                       type="button"
                       onClick={() => setCarouselIdx(i)}
-                      className={"flex-shrink-0 overflow-hidden rounded-lg border-2 transition " + (i === carouselIdx ? "border-primary" : "border-transparent opacity-70 hover:opacity-100")}
+                      className={
+                        "flex-shrink-0 overflow-hidden rounded-lg border-2 transition " +
+                        (i === carouselIdx
+                          ? "border-primary"
+                          : "border-transparent opacity-70 hover:opacity-100")
+                      }
                       aria-label={`Show image ${i + 1}`}
                     >
                       <img src={src} alt="" className="h-14 w-20 object-cover" loading="lazy" />
@@ -559,21 +672,27 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           )}
         </section>
 
-
         {(court.description || (court.amenities?.length ?? 0) > 0) && (
           <section className="mb-5 rounded-2xl border border-border bg-card p-4">
             {court.description && (
               <>
                 <h2 className="text-sm font-semibold">About this court</h2>
-                <p className="mt-1.5 whitespace-pre-line text-sm text-muted-foreground">{court.description}</p>
+                <p className="mt-1.5 whitespace-pre-line text-sm text-muted-foreground">
+                  {court.description}
+                </p>
               </>
             )}
             {(court.amenities?.length ?? 0) > 0 && (
               <>
-                <h3 className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amenities</h3>
+                <h3 className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Amenities
+                </h3>
                 <ul className="mt-2 flex flex-wrap gap-1.5">
                   {court.amenities!.map((a) => (
-                    <li key={a} className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-medium">
+                    <li
+                      key={a}
+                      className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-medium"
+                    >
                       {a}
                     </li>
                   ))}
@@ -590,25 +709,47 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               <div className="flex flex-wrap items-center gap-1.5 text-sm">
                 <button
                   type="button"
-                  onClick={() => { setDate(shiftISO(date, -1)); setSelected([]); setErr(null); }}
+                  onClick={() => {
+                    setDate(shiftISO(date, -1));
+                    setSelected([]);
+                    setErr(null);
+                  }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
                   aria-label="Previous day"
-                >← Prev</button>
+                >
+                  ← Prev
+                </button>
                 <button
                   type="button"
-                  onClick={() => { setDate(zonedDateISO()); setSelected([]); setErr(null); }}
+                  onClick={() => {
+                    setDate(zonedDateISO());
+                    setSelected([]);
+                    setErr(null);
+                  }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
-                >Today</button>
+                >
+                  Today
+                </button>
                 <button
                   type="button"
-                  onClick={() => { setDate(shiftISO(date, 1)); setSelected([]); setErr(null); }}
+                  onClick={() => {
+                    setDate(shiftISO(date, 1));
+                    setSelected([]);
+                    setErr(null);
+                  }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
                   aria-label="Next day"
-                >Next →</button>
+                >
+                  Next →
+                </button>
                 <input
                   type="date"
                   value={date}
-                  onChange={(e) => { setDate(e.target.value); setSelected([]); setErr(null); }}
+                  onChange={(e) => {
+                    setDate(e.target.value);
+                    setSelected([]);
+                    setErr(null);
+                  }}
                   className="rounded-lg border border-input bg-background px-2 py-1.5 text-xs"
                 />
               </div>
@@ -618,7 +759,11 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               {closedToday
                 ? "This court is closed on this date. Pick another day."
                 : `Open ${describeWindow(
-                    courtHours[(["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[zonedDayOfWeek(date)]],
+                    courtHours[
+                      (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const)[
+                        zonedDayOfWeek(date)
+                      ]
+                    ],
                   )} · tap a time slot to select or deselect it; consecutive slots are automatically combined into a single time range.`}
             </p>
 
@@ -627,13 +772,34 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
             )}
 
             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" /> Available</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-yellow-500/60 bg-yellow-300" /> Selected</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-primary/50 bg-primary/15" /> Your booking</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-amber-500/60 bg-amber-200" /> Payment hold</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-red-500/50 bg-red-300" /> Booked</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-amber-400/60 bg-amber-200/60" /> Unavailable</span>
-              <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border border-orange-500/50 bg-orange-300" /> Past</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-green-500/50 bg-green-200" />{" "}
+                Available
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-yellow-500/60 bg-yellow-300" />{" "}
+                Selected
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-primary/50 bg-primary/15" />{" "}
+                Your booking
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-amber-500/60 bg-amber-200" />{" "}
+                Payment hold
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-red-500/50 bg-red-300" />{" "}
+                Booked
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-amber-400/60 bg-amber-200/60" />{" "}
+                Unavailable
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-sm border border-orange-500/50 bg-orange-300" />{" "}
+                Past
+              </span>
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4">
@@ -668,55 +834,91 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                   ? "border-yellow-500 bg-yellow-300 text-yellow-950"
                   : mine
                     ? "cursor-not-allowed border-primary/50 bg-primary/10 text-primary"
-                  : paymentHold
-                    ? "cursor-not-allowed border-amber-500/60 bg-amber-200 text-amber-950"
-                  : booked
-                    ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
-                    : otherSport
-                      ? "cursor-not-allowed border-purple-400/60 bg-purple-200/60 text-purple-900"
-                      : blockedSlot
-                        ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
-                        : past
-                          ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
-                          : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
+                    : paymentHold
+                      ? "cursor-not-allowed border-amber-500/60 bg-amber-200 text-amber-950"
+                      : booked
+                        ? "cursor-not-allowed border-red-500/50 bg-red-300 text-red-900"
+                        : otherSport
+                          ? "cursor-not-allowed border-purple-400/60 bg-purple-200/60 text-purple-900"
+                          : blockedSlot
+                            ? "cursor-not-allowed border-amber-400/60 bg-amber-200/60 text-amber-900"
+                            : past
+                              ? "cursor-not-allowed border-orange-500/50 bg-orange-300 text-orange-900"
+                              : "border-green-500/50 bg-green-200 text-green-900 hover:border-green-600 hover:bg-green-300";
                 return (
                   <button
                     key={h}
-                  disabled={disabled}
-                  onClick={() => {
-                    setErr(null);
-                    setSelected((prev) =>
-                      prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b),
-                    );
-                  }}
-                  title={mine ? "Booked by you" : paymentHold ? "Temporarily held while another player completes payment" : otherSport ? "Booked for a different sport" : label}
-                  className={"flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " + stateClass}
-                >
-                  <span className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}>{fmtHour(h)} – {fmtHour((h + 1) % 24)}</span>
-                    <span className="mt-0.5 text-[10px] font-semibold tabular-nums">{peso(rateOf(h))}</span>
-                    {label && <span className="mt-0.5 text-[9px] uppercase tracking-wide">{label}</span>}
+                    disabled={disabled}
+                    onClick={() => {
+                      setErr(null);
+                      setSelected((prev) =>
+                        prev.includes(h)
+                          ? prev.filter((x) => x !== h)
+                          : [...prev, h].sort((a, b) => a - b),
+                      );
+                    }}
+                    title={
+                      mine
+                        ? "Booked by you"
+                        : paymentHold
+                          ? "Temporarily held while another player completes payment"
+                          : otherSport
+                            ? "Booked for a different sport"
+                            : label
+                    }
+                    className={
+                      "flex flex-col items-center rounded-lg border px-1.5 py-1.5 text-xs font-medium transition " +
+                      stateClass
+                    }
+                  >
+                    <span
+                      className={"text-[11px] leading-tight " + (disabled ? "line-through" : "")}
+                    >
+                      {fmtHour(h)} – {fmtHour((h + 1) % 24)}
+                    </span>
+                    <span className="mt-0.5 text-[10px] font-semibold tabular-nums">
+                      {peso(rateOf(h))}
+                    </span>
+                    {label && (
+                      <span className="mt-0.5 text-[9px] uppercase tracking-wide">{label}</span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            {err && (
+              <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {err}
+              </p>
+            )}
 
             <div className="mt-4 border-t border-border pt-3">
               {court.voucher_enabled && selected.length > 0 && (
                 <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-primary">Voucher code</div>
+                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                    Voucher code
+                  </div>
                   {voucher ? (
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-sm">
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-700">Applied</span>
+                        <span className="rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs font-semibold text-emerald-700">
+                          Applied
+                        </span>
                         <span className="ml-2">
-                          {voucher.type === "percent" ? `${voucher.value}% off` : `₱${voucher.value.toFixed(0)} off`} — you save <b>₱{voucher.discount.toFixed(2)}</b>
+                          {voucher.type === "percent"
+                            ? `${voucher.value}% off`
+                            : `₱${voucher.value.toFixed(0)} off`}{" "}
+                          — you save <b>₱{voucher.discount.toFixed(2)}</b>
                         </span>
                       </div>
                       <button
                         type="button"
-                        onClick={() => { setVoucher(null); setVoucherCode(""); setVoucherErr(null); }}
+                        onClick={() => {
+                          setVoucher(null);
+                          setVoucherCode("");
+                          setVoucherErr(null);
+                        }}
                         className="text-xs text-muted-foreground underline hover:text-foreground"
                       >
                         Remove
@@ -726,7 +928,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                     <div className="flex gap-2">
                       <input
                         value={voucherCode}
-                        onChange={(e) => { setVoucherCode(e.target.value.toUpperCase()); setVoucherErr(null); }}
+                        onChange={(e) => {
+                          setVoucherCode(e.target.value.toUpperCase());
+                          setVoucherErr(null);
+                        }}
                         placeholder="Enter code"
                         className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm uppercase"
                       />
@@ -747,11 +952,24 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               <div className="text-sm text-muted-foreground">
                 {selected.length > 0 ? (
                   <>
-                    Selected <span className="font-semibold text-foreground">{selected.length} hr{selected.length > 1 ? "s" : ""}</span>
+                    Selected{" "}
+                    <span className="font-semibold text-foreground">
+                      {selected.length} hr{selected.length > 1 ? "s" : ""}
+                    </span>
                     {voucher ? (
-                      <> · Subtotal <span className="line-through">{peso(subtotal)}</span> · Total <span className="font-semibold text-emerald-700">₱{Math.max(0, subtotal - voucher.discount).toFixed(2)}</span></>
+                      <>
+                        {" "}
+                        · Subtotal <span className="line-through">{peso(subtotal)}</span> · Total{" "}
+                        <span className="font-semibold text-emerald-700">
+                          ₱{Math.max(0, subtotal - voucher.discount).toFixed(2)}
+                        </span>
+                      </>
                     ) : (
-                      <> · Total <span className="font-semibold text-foreground">{peso(subtotal)}</span></>
+                      <>
+                        {" "}
+                        · Total{" "}
+                        <span className="font-semibold text-foreground">{peso(subtotal)}</span>
+                      </>
                     )}
                     {variablePricing && breakdown.length > 0 && (
                       <div className="mt-1 text-[11px] text-muted-foreground">
@@ -772,14 +990,20 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
                             className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-foreground"
                           >
                             {fmtHour(r.start)} – {fmtHour(r.end % 24)}
-                            <span className="text-[10px] text-muted-foreground">· {hrs} hr{hrs > 1 ? "s" : ""}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              · {hrs} hr{hrs > 1 ? "s" : ""}
+                            </span>
                           </span>
                         );
                       })}
                     </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Adjacent slots are combined into one segment.</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Adjacent slots are combined into one segment.
+                    </p>
                   </>
-                ) : "Choose one or more hours."}
+                ) : (
+                  "Choose one or more hours."
+                )}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {selected.length > 0 && (
@@ -817,8 +1041,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
               </div>
 
               <p className="mt-2 text-xs text-muted-foreground">
-                {court.venues?.payment_mode === "full" && "Full payment required online to reserve the slot."}
-                {(!court.venues?.payment_mode || court.venues.payment_mode === "none") && "Payment handled at the venue."}
+                {court.venues?.payment_mode === "full" &&
+                  "Full payment required online to reserve the slot."}
+                {(!court.venues?.payment_mode || court.venues.payment_mode === "none") &&
+                  "Payment handled at the venue."}
               </p>
             </div>
           </section>
@@ -837,10 +1063,16 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           paymentMode={court.venues?.payment_mode ?? "full"}
           venueName={court.venues?.name ?? "CourtHub"}
           courtName={court.name}
-          onClose={() => { setCheckoutOpen(false); setPayLoading(null); }}
+          onClose={() => {
+            setCheckoutOpen(false);
+            setPayLoading(null);
+          }}
           payLoading={payLoading}
           setPayLoading={setPayLoading}
-          onError={(m) => { setErr(m); setCheckoutOpen(false); }}
+          onError={(m) => {
+            setErr(m);
+            setCheckoutOpen(false);
+          }}
         />
       )}
 
@@ -851,7 +1083,10 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
         >
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightbox(null);
+            }}
             className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
             aria-label="Close"
           >
@@ -860,10 +1095,15 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           {lightbox > 0 && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setLightbox(lightbox - 1); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightbox(lightbox - 1);
+              }}
               className="absolute left-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
               aria-label="Previous"
-            >‹</button>
+            >
+              ‹
+            </button>
           )}
           <img
             src={court.images[lightbox]}
@@ -874,10 +1114,15 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           {lightbox < court.images.length - 1 && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setLightbox(lightbox + 1); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightbox(lightbox + 1);
+              }}
               className="absolute right-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
               aria-label="Next"
-            >›</button>
+            >
+              ›
+            </button>
           )}
           <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
             {lightbox + 1} / {court.images.length}
@@ -924,7 +1169,11 @@ export function CourtBookingPanel({
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="h-[92vh] p-0 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
-          <CourtBookingContent courtId={renderedId} userId={userId} onClose={() => onOpenChange(false)} />
+          <CourtBookingContent
+            courtId={renderedId}
+            userId={userId}
+            onClose={() => onOpenChange(false)}
+          />
         </DrawerContent>
       </Drawer>
     );
@@ -940,27 +1189,48 @@ export function CourtBookingPanel({
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center border-r border-[#b8f05a]/30 bg-gradient-to-b from-[#09231f] via-[#0b3d35] to-[#12806d] shadow-[inset_-6px_0_12px_-8px_rgba(0,0,0,0.35)]"
         >
-          <span
-            className="whitespace-nowrap font-display text-[17px] font-extrabold uppercase italic tracking-[0.4em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] [writing-mode:vertical-rl] [transform:rotate(180deg)]"
-          >
+          <span className="whitespace-nowrap font-display text-[17px] font-extrabold uppercase italic tracking-[0.4em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] [writing-mode:vertical-rl] [transform:rotate(180deg)]">
             Book a Court
           </span>
         </div>
-        <CourtBookingContent courtId={renderedId} userId={userId} onClose={() => onOpenChange(false)} />
+        <CourtBookingContent
+          courtId={renderedId}
+          userId={userId}
+          onClose={() => onOpenChange(false)}
+        />
       </SheetContent>
     </Sheet>
   );
 }
 
 function CheckoutDrawer({
-  courtId, date, hours, subtotal, breakdown, voucherCode, discount, paymentMode, venueName, courtName,
-  onClose, payLoading, setPayLoading, onError,
+  courtId,
+  date,
+  hours,
+  subtotal,
+  breakdown,
+  voucherCode,
+  discount,
+  paymentMode,
+  venueName,
+  courtName,
+  onClose,
+  payLoading,
+  setPayLoading,
+  onError,
 }: {
-  courtId: number; date: string; hours: number[]; subtotal: number;
+  courtId: number;
+  date: string;
+  hours: number[];
+  subtotal: number;
   breakdown: { rate: number; hours: number }[];
-  voucherCode: string | null; discount: number;
-  paymentMode: "full" | "none"; venueName: string; courtName: string;
-  onClose: () => void; payLoading: PmMethod | null;
+  voucherCode: string | null;
+  discount: number;
+  paymentMode: "full" | "none";
+  venueName: string;
+  courtName: string;
+  onClose: () => void;
+  payLoading: PmMethod | null;
   setPayLoading: (m: PmMethod | null) => void;
   onError: (m: string) => void;
 }) {
@@ -970,7 +1240,14 @@ function CheckoutDrawer({
     setPayLoading(method);
     try {
       const res = await startBookingCheckout({
-        data: { courtId, date, hours, method, origin: window.location.origin, voucherCode: voucherCode || undefined },
+        data: {
+          courtId,
+          date,
+          hours,
+          method,
+          origin: window.location.origin,
+          voucherCode: voucherCode || undefined,
+        },
       });
       window.location.href = res.checkoutUrl;
     } catch (e) {
@@ -984,30 +1261,58 @@ function CheckoutDrawer({
       <div className="w-full max-w-md overflow-hidden rounded-t-2xl border border-[#b8f05a]/35 bg-card p-6 shadow-2xl sm:rounded-2xl">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-primary">CourtHub checkout</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-primary">
+              CourtHub checkout
+            </p>
             <h2 className="text-lg font-bold">Choose payment method</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{venueName} · {courtName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {venueName} · {courtName}
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-secondary" aria-label="Close">✕</button>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 text-muted-foreground hover:bg-secondary"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="mt-4 rounded-xl border border-[#dce8e2] bg-[#eaf5d8]/55 p-3 text-sm">
-          <div className="flex justify-between"><span className="text-muted-foreground">Hours</span><span>{hours.length}</span></div>
-          {breakdown.length > 1 && breakdown.map((b) => (
-            <div key={b.rate} className="mt-1 flex justify-between text-xs text-muted-foreground">
-              <span>{b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}</span>
-              <span>{peso(b.rate * b.hours)}</span>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Hours</span>
+            <span>{hours.length}</span>
+          </div>
+          {breakdown.length > 1 &&
+            breakdown.map((b) => (
+              <div key={b.rate} className="mt-1 flex justify-between text-xs text-muted-foreground">
+                <span>
+                  {b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}
+                </span>
+                <span>{peso(b.rate * b.hours)}</span>
+              </div>
+            ))}
+          {discount > 0 && (
+            <div className="mt-1 flex justify-between text-xs">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{peso(subtotal)}</span>
             </div>
-          ))}
-          {discount > 0 && (
-            <div className="mt-1 flex justify-between text-xs"><span className="text-muted-foreground">Subtotal</span><span>{peso(subtotal)}</span></div>
           )}
           {discount > 0 && (
-            <div className="mt-1 flex justify-between text-xs text-emerald-700"><span>Voucher discount</span><span>−₱{discount.toFixed(2)}</span></div>
+            <div className="mt-1 flex justify-between text-xs text-emerald-700">
+              <span>Voucher discount</span>
+              <span>−₱{discount.toFixed(2)}</span>
+            </div>
           )}
-          <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total</span><span>₱{fullAmount.toFixed(2)}</span></div>
+          <div className="mt-1 flex justify-between">
+            <span className="text-muted-foreground">Total</span>
+            <span>₱{fullAmount.toFixed(2)}</span>
+          </div>
           {paymentMode === "full" && (
-            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now</span><span className="text-primary">₱{fullAmount.toFixed(2)}</span></div>
+            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold">
+              <span>Due now</span>
+              <span className="text-primary">₱{fullAmount.toFixed(2)}</span>
+            </div>
           )}
         </div>
 

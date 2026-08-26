@@ -10,7 +10,7 @@
  * where, what do I owe — then how active have I been, then what did I spend.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -2265,14 +2265,18 @@ export function PlayerWorkspace({
   avatarUrl,
   view,
   focusBookingId,
+  openChatOnArrival,
 }: {
   userId: string;
   fullName: string;
   email: string;
   avatarUrl: string | null;
   view: "bookings" | "calendar" | "favorites" | "settings";
-  /** From `?booking=` on a reminder notification. */
+  /** From `?booking=` on a reminder or message notification. */
   focusBookingId?: number;
+  /** From `?chat=1` — a message notification wants the conversation open, not just
+   *  the booking scrolled into view. */
+  openChatOnArrival?: boolean;
 }) {
   const qc = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -2393,7 +2397,9 @@ export function PlayerWorkspace({
     if (confirm(`Cancel this booking?\n\n${when}${note}`)) cancelMut.mutate(s);
   };
 
-  const openChat = (s: PlayerSession) => {
+  /* useCallback because the deep-link effect below depends on it; an unstable
+     identity would re-run that effect on every render. */
+  const openChat = useCallback((s: PlayerSession) => {
     const vId = s.first.courts?.venues?.id;
     if (!vId) return;
     setChat({
@@ -2402,10 +2408,26 @@ export function PlayerWorkspace({
       title: s.first.courts?.venues?.name ?? "Venue",
       subtitle: `${fmtDate(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)}`,
     });
-  };
+  }, []);
 
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "All time";
   const loading = bookingsQ.isLoading || txQ.isLoading;
+
+  /* A message notification wants the conversation itself. Opening it needs the
+     session — the chat is keyed on the booking's venue — so this waits for the
+     bookings query and then opens the session that contains the linked id. The ref
+     makes it fire once per target: `stats` is rebuilt every render, and without it
+     closing the chat would immediately reopen it. */
+  const chatOpened = useRef<number | null>(null);
+  useEffect(() => {
+    if (!openChatOnArrival || !focusBookingId || loading) return;
+    if (chatOpened.current === focusBookingId) return;
+    const all = [...stats.upcoming, ...stats.completed, ...stats.cancelled];
+    const session = all.find((s) => s.ids.includes(focusBookingId));
+    if (!session) return;
+    chatOpened.current = focusBookingId;
+    openChat(session);
+  }, [openChatOnArrival, focusBookingId, loading, stats, openChat]);
 
   /* A reminder deep-links to one booking. Scroll to it once the list it lives in has
      actually rendered — before the query settles there is nothing to scroll to. */

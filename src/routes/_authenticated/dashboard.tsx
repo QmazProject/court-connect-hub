@@ -286,7 +286,7 @@ function Dashboard() {
   const role = profileQ.data?.role === "tenant" ? "tenant" : metadataRole;
 
   if (role !== "tenant") {
-    return <PlayerWorkspace userId={user.id} fullName={fullName} email={user.email ?? ""} avatarUrl={profileQ.data?.avatar_url ?? null} view={search.view ?? "bookings"} focusBookingId={search.booking} />;
+    return <PlayerWorkspace userId={user.id} fullName={fullName} email={user.email ?? ""} avatarUrl={profileQ.data?.avatar_url ?? null} view={search.view ?? "bookings"} focusBookingId={search.booking} openChatOnArrival={search.chat} />;
   }
 
   const venues = venuesQ.data ?? [];
