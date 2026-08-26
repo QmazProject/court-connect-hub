@@ -64,7 +64,15 @@ export function useNotifications(userId: string | undefined) {
 
   const markAllRead = () => markRead(items.filter((n) => !n.read_at).map((n) => n.id));
 
-  return { items, unread, loading: query.isLoading, markRead, markAllRead };
+  /* Opening a notification marks it read, so the detail view needs a way to undo
+     that — "I will deal with this later" is the whole reason an unread badge is
+     useful, and without this, reading one is irreversible. */
+  const markUnread = async (id: string) => {
+    await supabase.from("notifications").update({ read_at: null }).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["notifications", userId] });
+  };
+
+  return { items, unread, loading: query.isLoading, markRead, markAllRead, markUnread };
 }
 
 export function timeAgo(iso: string) {
@@ -77,6 +85,38 @@ export function timeAgo(iso: string) {
   const d = Math.round(h / 24);
   if (d < 7) return `${d}d ago`;
   return new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+}
+
+/** The full date, for the detail view. `timeAgo` is right in a list — "2h ago" is
+ *  what you want when scanning — but a notification you have opened deserves the
+ *  actual time, because that is usually the thing being checked. */
+export function formatFullDate(iso: string) {
+  return new Date(iso).toLocaleString("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** Human name for a notification `type`. The raw values are snake_case identifiers
+ *  written for the database; this is what a player should read. */
+export const NOTIFICATION_LABEL: Record<string, string> = {
+  booking_cancelled: "Booking cancelled",
+  booking_confirmed: "Booking confirmed",
+  booking_reminder_day: "Booking reminder",
+  booking_reminder_soon: "Starting soon",
+  refund: "Refund",
+  message: "Message",
+  hours_changed: "Opening hours changed",
+};
+
+/** Falls back to a readable version of the raw type rather than hiding it — an
+ *  unlabelled new type should still show something a human can act on. */
+export function notificationLabel(type: string): string {
+  return NOTIFICATION_LABEL[type] ?? type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 export const NOTIFICATION_ICON: Record<string, string> = {
