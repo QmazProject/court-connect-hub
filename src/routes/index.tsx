@@ -77,7 +77,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { VenueMap, type MapVenue } from "@/components/VenueMap";
 import { MapPicker } from "@/components/MapPicker";
-import { PlayerShell } from "@/components/PlayerShell";
+import { PlayerShell, PlayerSearchBar } from "@/components/PlayerShell";
 import { LegalReader } from "@/components/LegalDocument";
 import { PaymentRally } from "@/components/PaymentRally";
 import { PRIVACY, TERMS, LEGAL_VERSION } from "@/lib/legal";
@@ -266,7 +266,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
       if (!user) return null;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role, full_name")
+        .select("role, full_name, avatar_url")
         .eq("id", user.id)
         .maybeSingle();
       const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
@@ -279,6 +279,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
           (typeof metadata.full_name === "string" ? metadata.full_name : "") ||
           user.email?.split("@")[0] ||
           "Player",
+        avatarUrl: profile?.avatar_url ?? null,
         role,
       };
     },
@@ -631,6 +632,13 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
   const activeVenue =
     activeVenueId != null ? displayVenues.find((v) => v.id === activeVenueId) : null;
 
+  /* Shared by the shell and by the search bar in the toolbar below, which is outside
+     the shell on this page. */
+  const signOutPlayer = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
   // Auto-scroll list to active venue
   const listRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -643,7 +651,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
     <div className="flex h-full flex-col">
       {/* TOP TOOLBAR */}
       <div className="sticky top-0 z-900 border-b-2 border-[#b8f05a]/50 bg-linear-to-br from-[#0f4a40] to-[#09231f]">
-        <div className="flex w-full flex-col gap-2.5 px-4 py-3 sm:px-6">
+        <div className="flex w-full flex-col gap-2.5 px-4 py-3 sm:px-6 md:pr-8 lg:pr-10">
           {/* Title + tagline */}
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -656,6 +664,23 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                   : "Explore the map, filter by sport or price, and lock in your slot."}
               </p>
             </div>
+            {/* A signed-in player gets the master search and the bell here rather than
+                in a bar of their own — this page is a full-height map, and a second
+                strip above it cost more than it was worth. */}
+            {/* `!guestMode` as well as `player`: /explore/guest keeps showing the guest
+                face to someone who signed in while sitting on it (see the note on that
+                route), and a personal search bar beside a "Guest mode" badge would be
+                the wrong half of that contradiction to resolve here. */}
+            {player && player.role !== "tenant" && !guestMode && (
+              <PlayerSearchBar
+                userId={player.id}
+                onSignOut={signOutPlayer}
+                tone="dark"
+                /* `self-center` against the row's `items-start`: the title beside it is
+                   two lines, and a top-aligned field reads as if it slipped. */
+                className="hidden self-center md:flex"
+              />
+            )}
             {guestMode && (
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-[#b8f05a]/45 bg-[#b8f05a]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[.14em] text-[#d9ff9b]">
@@ -1196,10 +1221,9 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
         collapsed={collapsed}
         setCollapsed={setCollapsed}
         userId={player.id}
-        onSignOut={async () => {
-          await supabase.auth.signOut();
-          window.location.href = "/";
-        }}
+        fullName={player.name}
+        avatarUrl={player.avatarUrl}
+        onSignOut={signOutPlayer}
       >
         <div className="h-full w-full flex-1 min-h-0">
           {exploreContent}
@@ -4339,7 +4363,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
             ],
             [
               "Can I pay at the venue?",
-              "Some venues accept payment at the venue, while others require a full payment or downpayment online. The booking panel shows the exact payment requirement before you confirm.",
+              "Some venues accept payment at the venue, while others require the full amount online. The booking panel shows the exact payment requirement before you confirm.",
             ],
             [
               "What sports are supported?",

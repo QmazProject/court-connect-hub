@@ -1,7 +1,12 @@
 import type React from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
-import { BookOpen, CalendarDays, LogOut, MapPin, Menu, X } from "lucide-react";
+import { BookOpen, CalendarDays, Heart, LogOut, MapPin, Menu, Settings, X } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MasterSearch } from "@/components/MasterSearch";
+import { usePlayerSearchEntries } from "@/lib/player-search";
+import { cn } from "@/lib/utils";
+import { initialsOf } from "@/lib/avatar";
 
 /* Lifted out of routes/_authenticated/dashboard.tsx, which is ~6,300 lines and pulls in the
    PayMongo and refund server functions. The landing page needs only this shell to wrap the
@@ -11,13 +16,22 @@ import { NotificationBell } from "@/components/NotificationBell";
 
 const chLogo = { url: "/CHicon.png" };
 
-export type PlayerSectionKey = "explore" | "bookings" | "calendar";
+export type PlayerSectionKey = "explore" | "favorites" | "bookings" | "calendar" | "settings";
 
 /** No Home entry on purpose. Once a player is signed in their start page is
  *  Explore; the landing page belongs to signed-out visitors, and `LandingPage`
  *  bounces a signed-in player back to /explore. Signing out is the way back. */
 export const PLAYER_NAV = [
   { key: "explore", label: "Explore", icon: MapPin, to: "/explore", search: {} },
+  /* Next to Explore because it answers the same question — where do I play — for a
+     player who has already decided. Same route as My Bookings, switched by `view`. */
+  {
+    key: "favorites",
+    label: "Favorites",
+    icon: Heart,
+    to: "/dashboard",
+    search: { view: "favorites" as const },
+  },
   { key: "bookings", label: "My Bookings", icon: BookOpen, to: "/dashboard", search: {} },
   /* Same route as My Bookings, switched by search param — see the note on the dashboard's
      validateSearch for why this is not its own route. */
@@ -28,10 +42,19 @@ export const PLAYER_NAV = [
     to: "/dashboard",
     search: { view: "calendar" as const },
   },
+  /* Last, and below the things a player came here to do. Same route again — the
+     whole player side is one route switched by `view`. */
+  {
+    key: "settings",
+    label: "Settings",
+    icon: Settings,
+    to: "/dashboard",
+    search: { view: "settings" as const },
+  },
 ] as const;
 
 export function PlayerShell({
-  children, section, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, onSignOut
+  children, section, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, fullName, avatarUrl, onSignOut
 }: {
   children: React.ReactNode;
   section: PlayerSectionKey;
@@ -40,6 +63,8 @@ export function PlayerShell({
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
   userId?: string;
+  fullName?: string;
+  avatarUrl?: string | null;
   onSignOut?: () => void;
 }) {
   const current = PLAYER_NAV.find((n) => n.key === section);
@@ -56,6 +81,8 @@ export function PlayerShell({
           section={section}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
+          fullName={fullName}
+          avatarUrl={avatarUrl}
           onSignOut={onSignOut}
         />
       </aside>
@@ -70,6 +97,8 @@ export function PlayerShell({
               collapsed={false}
               setCollapsed={() => { }}
               onClose={() => setMobileOpen(false)}
+              fullName={fullName}
+              avatarUrl={avatarUrl}
               onSignOut={onSignOut}
             />
           </aside>
@@ -78,19 +107,20 @@ export function PlayerShell({
 
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
-        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
+        <div className="relative flex items-center justify-between gap-2 border-b border-border bg-background px-4 py-2 md:hidden">
           <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
             <Menu className="h-4 w-4" /> Menu
           </button>
-          <span className="text-sm font-semibold">{current?.label ?? "Workspace"}</span>
-          <NotificationBell userId={userId} />
+          <span className="truncate text-sm font-semibold">{current?.label ?? "Workspace"}</span>
+          <PlayerSearchBar userId={userId} onSignOut={onSignOut} compact />
         </div>
         
-        {/* Desktop top bar ONLY if not explore */}
+        {/* Desktop top bar — every section except Explore, whose own green toolbar
+            carries the search and the bell so the map keeps the full height. */}
         {section !== "explore" && (
-           <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
-             <NotificationBell userId={userId} />
-           </div>
+          <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
+            <PlayerSearchBar userId={userId} onSignOut={onSignOut} />
+          </div>
         )}
 
         {/* Content */}
@@ -108,13 +138,91 @@ export function PlayerShell({
   );
 }
 
+/** Profile picture, falling back to initials. On the dark rail, so the ring and the
+ *  placeholder are white-on-green rather than the app's usual card colours. */
+function PlayerAvatar({
+  avatarUrl,
+  fullName,
+  className = "h-8 w-8",
+  title,
+}: {
+  avatarUrl?: string | null;
+  fullName?: string;
+  className?: string;
+  title?: string;
+}) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt=""
+        title={title}
+        className={cn("shrink-0 rounded-full border border-white/25 object-cover", className)}
+      />
+    );
+  }
+  return (
+    <span
+      title={title}
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full border border-white/25 bg-white/10 font-display text-[11px] font-bold text-[#b8f05a]",
+        className,
+      )}
+    >
+      {initialsOf(fullName, "P")}
+    </span>
+  );
+}
+
+/**
+ * The master search and the notification bell as one unit.
+ *
+ * Exported because Explore does not use the shell's top bar: its own green toolbar
+ * hosts them, on the line with "What are you playing today?". Keeping them together
+ * in one component is what stops that page from having to re-do the query state, the
+ * role registry and the two tone props by hand.
+ */
+export function PlayerSearchBar({
+  userId,
+  onSignOut,
+  compact = false,
+  tone = "light",
+  className = "",
+}: {
+  userId?: string;
+  onSignOut?: () => void;
+  compact?: boolean;
+  tone?: "light" | "dark";
+  className?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const { entries, loading } = usePlayerSearchEntries({ userId, query, onSignOut });
+  return (
+    <div className={cn("flex shrink-0 items-center gap-2", className)}>
+      <MasterSearch
+        value={query}
+        onValueChange={setQuery}
+        entries={entries}
+        loading={loading}
+        compact={compact}
+        tone={tone}
+        storageKey="courthub:master-search:player"
+        placeholder="Search courts, bookings, pages…"
+      />
+      <NotificationBell userId={userId} tone={tone} />
+    </div>
+  );
+}
+
 export function PlayerSidebarBody({
-  section, collapsed, setCollapsed, onClose, onSignOut
+  section, collapsed, setCollapsed, onClose, fullName, avatarUrl, onSignOut
 }: {
   section: PlayerSectionKey;
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
   onClose?: () => void;
+  fullName?: string;
+  avatarUrl?: string | null;
   onSignOut?: () => void;
 }) {
   return (
@@ -187,17 +295,32 @@ export function PlayerSidebarBody({
           {!collapsed && <span className="truncate">Sign out</span>}
         </button>
       </div>
-      {!collapsed && (
+      {!collapsed ? (
         <div className="border-t border-white/10 px-3 py-3.5">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#b8f05a] shadow-[0_0_8px_#b8f05a]" />
-            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
-              Player
+          <span
+            className="logo-glaze"
+            style={{ "--logo-glaze-src": "url(/role-player.png)" } as CSSProperties}
+          >
+            <img src="/role-player.png" alt="" className="h-8 w-auto object-contain" />
+          </span>
+          {/* Picture before the name, which is what a player recognises first. */}
+          <div className="mt-2 flex items-center gap-2.5">
+            <PlayerAvatar avatarUrl={avatarUrl} fullName={fullName} className="h-8 w-8" />
+            <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-tight text-white">
+              {fullName || "Player"}
             </span>
           </div>
-          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-white">
-            Workspace
-          </div>
+        </div>
+      ) : (
+        /* The collapsed rail is 64px and has no room for a name, but the picture is
+           exactly what still works at that width. */
+        <div className="border-t border-white/10 px-3 py-3.5">
+          <PlayerAvatar
+            avatarUrl={avatarUrl}
+            fullName={fullName}
+            className="mx-auto h-9 w-9"
+            title={fullName || "Player"}
+          />
         </div>
       )}
     </>

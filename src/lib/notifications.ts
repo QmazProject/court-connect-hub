@@ -25,7 +25,9 @@ export function useNotifications(userId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
-        .select("id, type, title, body, link, booking_id, venue_id, conversation_id, read_at, created_at")
+        .select(
+          "id, type, title, body, link, booking_id, venue_id, conversation_id, read_at, created_at",
+        )
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -53,7 +55,10 @@ export function useNotifications(userId: string | undefined) {
 
   const markRead = async (ids: string[]) => {
     if (ids.length === 0) return;
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).in("id", ids);
+    await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .in("id", ids);
     qc.invalidateQueries({ queryKey: ["notifications", userId] });
   };
 
@@ -77,6 +82,8 @@ export function timeAgo(iso: string) {
 export const NOTIFICATION_ICON: Record<string, string> = {
   booking_cancelled: "🚫",
   booking_confirmed: "✅",
+  booking_reminder_day: "📅",
+  booking_reminder_soon: "⏰",
   refund: "💸",
   message: "💬",
   hours_changed: "🕒",

@@ -58,6 +58,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:description", content: "Book & manage sports courts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      /* Colours the OS chrome once CourtHub is installed, and is what makes the
+         Add to Home Screen prompt offer a real app rather than a shortcut — which
+         is the only route to push notifications on iOS. */
+      { name: "theme-color", content: "#0f4a40" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "CourtHub" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -67,6 +73,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon-16.png", type: "image/png", sizes: "16x16" },
       { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
       { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "256x256" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/CHicon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" },
@@ -98,6 +106,18 @@ function RootComponent() {
      without a Back control a visitor who opened one from the map has no way out but the
      browser button. */
   const showFloatingNav = isVenuePage || isCourtPage;
+
+  /* Register the push worker once per load. Registration is idempotent and cheap —
+     the browser keeps it across sessions — but doing it here rather than only when
+     Settings turns push on is what picks up a new sw.js after a deploy, and what
+     restores handling for a player who subscribed on an earlier visit. */
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+      /* Blocked by a private window or an unsupported browser. Push simply stays
+         off; Settings explains why when the player looks. */
+    });
+  }, []);
   
   const handleBack = () => {
     if (window.history.length > 2) {

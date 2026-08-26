@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Bell, CheckCheck } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useNotifications, timeAgo, NOTIFICATION_ICON } from "@/lib/notifications";
@@ -7,13 +8,18 @@ export function NotificationBell({
   userId,
   onOpenBooking,
   align = "end",
+  /** "dark" is for the Explore toolbar, a deep green panel where the default light
+   *  border and near-black icon would not be visible. The popover itself is unchanged. */
+  tone = "light",
 }: {
   userId: string | undefined;
   onOpenBooking?: (bookingId: number, conversationId: string | null) => void;
   align?: "start" | "center" | "end";
+  tone?: "light" | "dark";
 }) {
   const { items, unread, loading, markRead, markAllRead } = useNotifications(userId);
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   if (!userId) return null;
 
@@ -22,11 +28,23 @@ export function NotificationBell({
       <PopoverTrigger asChild>
         <button
           aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
-          className="relative rounded-md border border-border p-2 text-foreground hover:bg-secondary"
+          className={
+            "relative rounded-md border p-2 transition-colors " +
+            (tone === "dark"
+              ? "border-white/20 bg-white/10 text-white hover:bg-white/20"
+              : "border-border text-foreground hover:bg-secondary")
+          }
         >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+            <span
+              className={
+                "absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold " +
+                (tone === "dark"
+                  ? "bg-[#b8f05a] text-[#102521]"
+                  : "bg-primary text-primary-foreground")
+              }
+            >
               {unread > 9 ? "9+" : unread}
             </span>
           )}
@@ -61,6 +79,14 @@ export function NotificationBell({
                       if (n.booking_id && onOpenBooking) {
                         onOpenBooking(n.booking_id, n.conversation_id);
                         setOpen(false);
+                        return;
+                      }
+                      /* Without a host handler a notification was a dead end. Reminders
+                         carry their own deep link, so follow it — a reminder you cannot
+                         act on is worse than no reminder. */
+                      if (n.link) {
+                        setOpen(false);
+                        navigate({ to: n.link });
                       }
                     }}
                     className={
@@ -68,13 +94,23 @@ export function NotificationBell({
                       (n.read_at ? "" : "bg-primary/5")
                     }
                   >
-                    <span className="mt-0.5 text-base leading-none">{NOTIFICATION_ICON[n.type] ?? "🔔"}</span>
+                    <span className="mt-0.5 text-base leading-none">
+                      {NOTIFICATION_ICON[n.type] ?? "🔔"}
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-semibold leading-snug">{n.title}</span>
-                      {n.body && <span className="mt-0.5 block line-clamp-2 text-[11px] text-muted-foreground">{n.body}</span>}
-                      <span className="mt-1 block text-[10px] uppercase tracking-wider text-muted-foreground">{timeAgo(n.created_at)}</span>
+                      {n.body && (
+                        <span className="mt-0.5 block line-clamp-2 text-[11px] text-muted-foreground">
+                          {n.body}
+                        </span>
+                      )}
+                      <span className="mt-1 block text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {timeAgo(n.created_at)}
+                      </span>
                     </span>
-                    {!n.read_at && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+                    {!n.read_at && (
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    )}
                   </button>
                 </li>
               ))}

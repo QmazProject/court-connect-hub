@@ -1,11 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
-import { retryBookingPayment, cancelPendingBookings, recordVenueSettlement } from "@/lib/paymongo.functions";
-import { groupBookingSessions, formatDateLabel, formatSessionLabel, formatTimeRange } from "@/lib/booking-groups";
+import { groupBookingSessions, formatDateLabel, formatSessionLabel } from "@/lib/booking-groups";
 
 import { CourtBlockRulesEditor, allPairsEnabled, ruleKey, type RuleCourt } from "@/components/CourtBlockRulesEditor";
 import { RateRulesEditor } from "@/components/RateRulesEditor";
@@ -20,6 +19,9 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MasterSearch } from "@/components/MasterSearch";
+import { TENANT_ANCHORS, useTenantSearchEntries, type TenantCourtsTab } from "@/lib/tenant-search";
+import type { SearchEntry } from "@/lib/master-search";
 import { BookingChat } from "@/components/BookingChat";
 import { CancelRefundDialog, type CancelTarget } from "@/components/CancelRefundDialog";
 import { HoursConflictDialog, type HoursConflict } from "@/components/HoursConflictDialog";
@@ -30,7 +32,8 @@ const chLogo = { url: "/CHicon.png" };
 import {
   LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
   Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, Clock, AlertTriangle, History as HistoryIcon,
-  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent, LogOut
+  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent, LogOut,
+  TrendingUp, TrendingDown, Wallet, Flame, Trophy, Timer, Sparkles, CreditCard
 } from "lucide-react";
 
 type SectionKey =
@@ -53,7 +56,10 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
  *  the whole dashboard — including the tenant side, which ignores it — stays one route with
  *  one auth guard and one data layer. */
 const dashboardSearchSchema = z.object({
-  view: z.enum(["bookings", "calendar"]).optional().catch("bookings"),
+  view: z.enum(["bookings", "calendar", "favorites", "settings"]).optional().catch("bookings"),
+  /* Set by booking reminders so tapping the notification lands on the booking it is
+     about, rather than the top of the workspace. */
+  booking: z.coerce.number().int().positive().optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -164,19 +170,28 @@ const DAYS: { key: string; label: string }[] = [
   { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
 ];
 
-import { PlayerShell } from "@/components/PlayerShell";
+import { PlayerWorkspace } from "@/components/player/PlayerWorkspace";
+/* Shared with the player calendar — see the note in the module. */
+import { sportStyle } from "@/lib/sport-colors";
 
 function Dashboard() {
   const { user } = Route.useRouteContext() as {
     user: { id: string; email?: string; user_metadata?: { role?: unknown; full_name?: unknown } };
   };
   const qc = useQueryClient();
+  /* Which player pane is showing. The tenant side ignores it — see the note on
+     validateSearch for why both roles share one route. */
+  const search = Route.useSearch();
   const [section, setSection] = useState<SectionKey>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [createVenueOpen, setCreateVenueOpen] = useState(false);
   const [addCourtOpen, setAddCourtOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  /* Lifted out of VenuesCourtsTabs so a search result can open a specific tab. The
+     tabs themselves still switch it the same way they always did. */
+  const [courtsTab, setCourtsTab] = useState<TenantCourtsTab>("venues");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
@@ -200,9 +215,44 @@ function Dashboard() {
     },
   });
 
+  // Read from metadata up front — it's on the route context synchronously, before
+  // profileQ resolves, so the sidebar shows a name on the very first paint instead of
+  // popping in once the query settles.
+  const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
+  const fullName = profileQ.data?.full_name ?? metadataName;
+
+  /* Above the loading gate below: this is a hook, and the gate returns early. */
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }, []);
+  const searchVenues = useMemo(() => venuesQ.data ?? [], [venuesQ.data]);
+  const searchActions = useMemo(
+    () => ({
+      setSection,
+      setCourtsTab,
+      openCreateVenue: () => setCreateVenueOpen(true),
+      openAddCourt: () => setAddCourtOpen(true),
+      openCreateGroup: () => setCreateGroupOpen(true),
+      onSignOut: () => { void signOut(); },
+    }),
+    [signOut],
+  );
+  const { entries: searchEntries, loading: searchLoading } = useTenantSearchEntries({
+    query: searchQuery,
+    venues: searchVenues,
+    actions: searchActions,
+  });
+  const shellSearch = {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    entries: searchEntries,
+    loading: searchLoading,
+  };
+
   if (profileQ.isLoading) {
     return (
-      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} search={shellSearch}>
         <Skeleton />
       </TenantShell>
     );
@@ -212,17 +262,16 @@ function Dashboard() {
   // tenant is never shown the player workspace while that row is propagating.
   const metadataRole = user.user_metadata?.role === "tenant" ? "tenant" : "player";
   const role = profileQ.data?.role === "tenant" ? "tenant" : metadataRole;
-  const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
 
   if (role !== "tenant") {
-    return <PlayerDashboard userId={user.id} fullName={profileQ.data?.full_name ?? metadataName} email={user.email ?? ""} />;
+    return <PlayerWorkspace userId={user.id} fullName={fullName} email={user.email ?? ""} avatarUrl={profileQ.data?.avatar_url ?? null} view={search.view ?? "bookings"} focusBookingId={search.booking} />;
   }
 
   const venues = venuesQ.data ?? [];
   const loadingVenues = venuesQ.isLoading;
 
   return (
-    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed}>
+    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} search={shellSearch}>
       {section === "dashboard" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
@@ -248,7 +297,7 @@ function Dashboard() {
               }
             />
           ) : (
-            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col"><VenuesCourtsTabs venues={venues} /></div>
+            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col"><VenuesCourtsTabs venues={venues} tab={courtsTab} setTab={setCourtsTab} /></div>
           )}
 
           <CreateVenueDrawer
@@ -313,7 +362,7 @@ function Dashboard() {
 
 
 function TenantShell({
-  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId,
+  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, fullName, search,
 }: {
   children: React.ReactNode;
   section: SectionKey;
@@ -323,9 +372,29 @@ function TenantShell({
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
   userId?: string;
+  fullName?: string;
+  /* Built by Dashboard, which owns the state a result has to act on. */
+  search: {
+    query: string;
+    setQuery: (v: string) => void;
+    entries: SearchEntry[];
+    loading: boolean;
+  };
 }) {
 
   const current = NAV.find((n) => n.key === section);
+  /* Both bars share one query; only one of them is ever on screen. */
+  const searchField = (compact: boolean) => (
+    <MasterSearch
+      value={search.query}
+      onValueChange={search.setQuery}
+      entries={search.entries}
+      loading={search.loading}
+      compact={compact}
+      storageKey="courthub:master-search:tenant"
+      placeholder="Search venues, courts, pages…"
+    />
+  );
   return (
     <div className="flex h-dvh w-full">
       {/* Desktop sidebar */}
@@ -340,6 +409,7 @@ function TenantShell({
           setSection={setSection}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
+          fullName={fullName}
         />
       </aside>
 
@@ -354,6 +424,7 @@ function TenantShell({
               collapsed={false}
               setCollapsed={() => { }}
               onClose={() => setMobileOpen(false)}
+              fullName={fullName}
             />
           </aside>
         </div>
@@ -361,15 +432,19 @@ function TenantShell({
 
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
-        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2 md:hidden">
+        <div className="relative flex items-center justify-between gap-2 border-b border-border bg-background px-4 py-2 md:hidden">
           <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
             <Menu className="h-4 w-4" /> Menu
           </button>
-          <span className="text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
-          <NotificationBell userId={userId} />
+          <span className="truncate text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
+          <div className="flex shrink-0 items-center gap-2">
+            {searchField(true)}
+            <NotificationBell userId={userId} />
+          </div>
         </div>
         {/* Desktop top bar */}
-        <div className="hidden items-center justify-end border-b border-border bg-background px-6 py-2 md:flex">
+        <div className="hidden items-center justify-end gap-2 border-b border-border bg-background px-6 py-2 md:flex">
+          {searchField(false)}
           <NotificationBell userId={userId} />
         </div>
 
@@ -383,13 +458,14 @@ function TenantShell({
 }
 
 function SidebarBody({
-  section, setSection, collapsed, setCollapsed, onClose,
+  section, setSection, collapsed, setCollapsed, onClose, fullName,
 }: {
   section: SectionKey;
   setSection: (s: SectionKey) => void;
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
   onClose?: () => void;
+  fullName?: string;
 }) {
   return (
     <>
@@ -451,18 +527,16 @@ function SidebarBody({
       </nav>
       {!collapsed && (
         <div className="border-t border-white/10 px-3 py-3.5">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#b8f05a] shadow-[0_0_8px_#b8f05a]" />
-            <span className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-white/55">
-              Tenant
-            </span>
-          </div>
-          <div className="mt-0.5 font-display text-base font-bold tracking-tight text-white">
-            Workspace
+          <span
+            className="logo-glaze"
+            style={{ "--logo-glaze-src": "url(/role-tenant.png)" } as CSSProperties}
+          >
+            <img src="/role-tenant.png" alt="" className="h-8 w-auto object-contain" />
+          </span>
+          <div className="mt-2 truncate font-display text-sm font-bold tracking-tight text-white">
+            {fullName || "Venue manager"}
           </div>
         </div>
-
-
       )}
     </>
   );
@@ -2483,16 +2557,16 @@ function SettingsSection({
     queryKey: ["venue-payment-settings"],
     enabled: role === "tenant",
     queryFn: async () => {
-      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, downpayment_type, downpayment_value, refund_cutoff_hours");
+      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
       if (error) throw error;
-      return data as { id: number; name: string; payment_mode: string; downpayment_type: "percent" | "fixed"; downpayment_value: number; refund_cutoff_hours: number }[];
+      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
     },
   });
 
-  const savePaymentSettings = async (venueId: number, mode: string, downpaymentType: "percent" | "fixed", downpaymentValue: number, cutoff: number) => {
+  const savePaymentSettings = async (venueId: number, mode: string, cutoff: number) => {
     const { error } = await supabase
       .from("venues")
-      .update({ payment_mode: mode, downpayment_type: downpaymentType, downpayment_value: downpaymentValue, refund_cutoff_hours: cutoff })
+      .update({ payment_mode: mode, refund_cutoff_hours: cutoff })
       .eq("id", venueId);
     if (error) alert(error.message);
     else qc.invalidateQueries({ queryKey: ["venue-payment-settings"] });
@@ -2517,7 +2591,7 @@ function SettingsSection({
     <div className="space-y-6">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences." />
 
-      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+      <div id={TENANT_ANCHORS.account} className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <h3 className="text-base font-semibold">Account</h3>
         <p className="mt-1 text-xs text-muted-foreground">Your profile information.</p>
 
@@ -2563,12 +2637,12 @@ function SettingsSection({
       </div>
 
       {role === "tenant" && (
-        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div id={TENANT_ANCHORS.payments} className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Payment configuration</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Settle at venue keeps payment offline. Choose <b>Full payment</b> or a configurable <b>downpayment</b> to enable GCash, Maya, GrabPay and QR Ph. Downpayments can be a percentage of the booked total or a fixed peso amount. Refund cutoff blocks player-initiated refunds inside the window before the booking.
+                Settle at venue keeps payment offline. Choose <b>Full payment</b> to collect the whole amount online through GCash, Maya, GrabPay and QR Ph. Refund cutoff blocks player-initiated refunds inside the window before the booking.
               </p>
             </div>
             <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold">PayMongo · Test mode</span>
@@ -2603,8 +2677,11 @@ function SettingsSection({
 
 // ================= Venues & Courts tabs =================
 
-function VenuesCourtsTabs({ venues }: { venues: Venue[] }) {
-  const [tab, setTab] = useState<"venues" | "courts" | "groups">("venues");
+function VenuesCourtsTabs({ venues, tab, setTab }: {
+  venues: Venue[];
+  tab: TenantCourtsTab;
+  setTab: (t: TenantCourtsTab) => void;
+}) {
   const venueIds = venues.map((v) => v.id);
   const courtsTotalQ = useQuery({
     queryKey: ["venues-court-counts", venueIds],
@@ -4537,7 +4614,6 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
-      partially_paid: "bg-amber-500/15 text-amber-700",
       pending: "bg-amber-500/15 text-amber-700",
       failed: "bg-destructive/15 text-destructive",
       refunded: "bg-muted text-muted-foreground",
@@ -4635,18 +4711,16 @@ function KpiTile({ label, value }: { label: string; value: string }) {
 function VenuePaymentRow({
   venue, onSave,
 }: {
-  venue: { id: number; name: string; payment_mode: string; downpayment_type: "percent" | "fixed"; downpayment_value: number; refund_cutoff_hours: number };
-  onSave: (id: number, mode: string, downpaymentType: "percent" | "fixed", downpaymentValue: number, cutoff: number) => Promise<void>;
+  venue: { id: number; name: string; payment_mode: string; refund_cutoff_hours: number };
+  onSave: (id: number, mode: string, cutoff: number) => Promise<void>;
 }) {
   const [mode, setMode] = useState(venue.payment_mode);
-  const [downpaymentType, setDownpaymentType] = useState<"percent" | "fixed">(venue.downpayment_type ?? "percent");
-  const [downpaymentValue, setDownpaymentValue] = useState(venue.downpayment_value ?? 50);
   const [cutoff, setCutoff] = useState(venue.refund_cutoff_hours);
   const [saving, setSaving] = useState(false);
-  const dirty = mode !== venue.payment_mode || downpaymentType !== venue.downpayment_type || downpaymentValue !== venue.downpayment_value || cutoff !== venue.refund_cutoff_hours;
+  const dirty = mode !== venue.payment_mode || cutoff !== venue.refund_cutoff_hours;
 
   return (
-    <div className="grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end">
+    <div className="grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
       <div>
         <p className="text-sm font-semibold">{venue.name}</p>
         <p className="text-[11px] text-muted-foreground">
@@ -4658,20 +4732,15 @@ function VenuePaymentRow({
         <select value={mode} onChange={(e) => setMode(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm">
           <option value="none">Settle at venue</option>
           <option value="full">Full payment</option>
-          <option value="downpayment">Downpayment</option>
         </select>
       </label>
-      {mode === "downpayment" && <>
-        <label className="block"><span className="text-[11px] font-medium text-muted-foreground">Downpayment type</span><select value={downpaymentType} onChange={(e) => setDownpaymentType(e.target.value as "percent" | "fixed")} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm"><option value="percent">Percent of total</option><option value="fixed">Fixed amount</option></select></label>
-        <label className="block"><span className="text-[11px] font-medium text-muted-foreground">{downpaymentType === "percent" ? "Percent" : "Amount (PHP)"}</span><input type="number" min={downpaymentType === "percent" ? 1 : 20} max={downpaymentType === "percent" ? 100 : undefined} value={downpaymentValue} onChange={(e) => setDownpaymentValue(Number(e.target.value))} className="mt-1 w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-sm" /></label>
-      </>}
       <label className="block">
         <span className="text-[11px] font-medium text-muted-foreground">Refund cutoff (hrs)</span>
         <input type="number" min={0} value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} className="mt-1 w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-sm" />
       </label>
       <button
         disabled={!dirty || saving}
-        onClick={async () => { setSaving(true); await onSave(venue.id, mode, downpaymentType, downpaymentValue, cutoff); setSaving(false); }}
+        onClick={async () => { setSaving(true); await onSave(venue.id, mode, cutoff); setSaving(false); }}
         className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
       >
         {saving ? "Saving…" : "Save"}
@@ -4694,7 +4763,6 @@ type BookingRow = {
   created_at: string;
   unit_price: number | null;
   discount_amount: number | null;
-  transactions: { amount: number; status: string }[] | null;
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
 
@@ -4702,12 +4770,10 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">("upcoming");
-  const [payFilter, setPayFilter] = useState<"all" | "paid" | "partially_paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
+  const [payFilter, setPayFilter] = useState<"all" | "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
-  const [settlementTarget, setSettlementTarget] = useState<{ ids: number[]; label: string; balance: number } | null>(null);
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const settleFn = useServerFn(recordVenueSettlement);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -4721,7 +4787,7 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
     queryFn: async () => {
       let q = supabase
         .from("bookings")
-        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, created_at, unit_price, discount_amount, transactions(amount, status), courts(name, venue_id, venues(name))")
+        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, created_at, unit_price, discount_amount, courts(name, venue_id, venues(name))")
         .order("start_time", { ascending: false })
         .limit(500);
       if (payFilter !== "all") q = q.eq("payment_status", payFilter);
@@ -4761,14 +4827,13 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const payBadge = (s: string, refundStatus?: string | null) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
-      partially_paid: "bg-amber-500/15 text-amber-700",
       pending: "bg-amber-500/15 text-amber-700",
       unpaid: "bg-amber-500/15 text-amber-700",
       failed: "bg-destructive/10 text-destructive",
       cancelled: "bg-muted text-muted-foreground",
       refunded: "bg-muted text-muted-foreground",
     };
-    const label = refundStatus === "pending" ? "Awaiting refund" : s === "partially_paid" ? "Balance due at venue" : s === "pending" ? "Payment pending" : s;
+    const label = refundStatus === "pending" ? "Awaiting refund" : s === "pending" ? "Payment pending" : s.replace(/_/g, " ");
     return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const stBadge = (s: string) => {
@@ -4812,7 +4877,6 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
         <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
           <option value="all">Any payment</option>
           <option value="paid">Paid</option>
-          <option value="partially_paid">Balance due at venue</option>
           <option value="pending">Payment pending</option>
           <option value="unpaid">Unpaid (legacy)</option>
           <option value="failed">Failed</option>
@@ -4846,11 +4910,6 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                 const cancelled = r.status === "cancelled";
                 const venueId = r.courts?.venue_id;
                 const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
-                const balance = s.items.reduce((total, item) => {
-                  const expected = Number(item.unit_price ?? 0) - Number(item.discount_amount ?? 0);
-                  const paid = (item.transactions ?? []).reduce((sum, transaction) => transaction.status === "paid" ? sum + Number(transaction.amount) : sum, 0);
-                  return total + Math.max(0, expected - paid);
-                }, 0);
                 return (
                   <tr key={s.key} className="border-t border-border">
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -4874,9 +4933,6 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                           >
                             Message
                           </button>
-                        )}
-                        {r.status === "confirmed" && s.items.some((item) => item.payment_status === "partially_paid") && (
-                          <button onClick={() => setSettlementTarget({ ids: s.ids, label, balance })} className="rounded-lg border border-amber-500/40 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/10">Settle ₱{balance.toFixed(2)}</button>
                         )}
                         {!cancelled && r.status !== "expired" && (
                           <button
@@ -4908,8 +4964,6 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
         />
       )}
 
-      {settlementTarget && <VenueSettlementDialog target={settlementTarget} onClose={() => setSettlementTarget(null)} onDone={() => { qc.invalidateQueries({ queryKey: ["tenant-bookings"] }); qc.invalidateQueries({ queryKey: ["tenant-transactions"] }); }} settleFn={settleFn} />}
-
       {chat && (
         <BookingChat
           bookingId={chat.bookingId}
@@ -4924,50 +4978,6 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
     </div>
   );
 }
-
-function VenueSettlementDialog({
-  target, onClose, onDone, settleFn,
-}: {
-  target: { ids: number[]; label: string; balance: number };
-  onClose: () => void;
-  onDone: () => void;
-  settleFn: (input: { data: { bookingIds: number[]; amount: number; method: string; note?: string } }) => Promise<unknown>;
-}) {
-  const [amount, setAmount] = useState(() => target.balance.toFixed(2));
-  const [method, setMethod] = useState("cash");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) { setError("Enter a valid amount."); return; }
-    setBusy(true); setError(null);
-    try {
-      await settleFn({ data: { bookingIds: target.ids, amount: value, method, note: note || undefined } });
-      onDone(); onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not record the settlement.");
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <form onSubmit={submit} onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
-        <h3 className="text-lg font-semibold">Record venue settlement</h3>
-        <p className="mt-1 text-xs text-muted-foreground">{target.label}</p>
-        <p className="mt-3 rounded-lg bg-amber-500/10 p-3 text-xs text-amber-800">Remaining balance: <b>₱{target.balance.toFixed(2)}</b>. Record only the amount actually collected; the system rejects an amount above the verified outstanding balance.</p>
-        <label className="mt-4 block text-sm font-medium">Amount collected (PHP)<input autoFocus type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" required /></label>
-        <label className="mt-3 block text-sm font-medium">Method<select value={method} onChange={(event) => setMethod(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2"><option value="cash">Cash</option><option value="card">Card</option><option value="gcash">GCash at venue</option><option value="maya">Maya at venue</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select></label>
-        <label className="mt-3 block text-sm font-medium">Note (optional)<input maxLength={280} value={note} onChange={(event) => setNote(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2" placeholder="Receipt number or staff note" /></label>
-        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm font-semibold">Cancel</button><button disabled={busy} className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Recording..." : "Record settlement"}</button></div>
-      </form>
-    </div>
-  );
-}
-
 
 // ================= Customers =================
 
@@ -5092,21 +5102,6 @@ type CalBooking = {
     sports: { name: string; slug: string | null } | null;
   } | null;
 };
-
-const SPORT_COLORS: Record<string, { bg: string; dot: string; text: string; border: string }> = {
-  tennis: { bg: "bg-emerald-100", dot: "bg-emerald-500", text: "text-emerald-900", border: "border-emerald-200" },
-  basketball: { bg: "bg-amber-100", dot: "bg-amber-500", text: "text-amber-900", border: "border-amber-200" },
-  badminton: { bg: "bg-sky-100", dot: "bg-sky-500", text: "text-sky-900", border: "border-sky-200" },
-  volleyball: { bg: "bg-violet-100", dot: "bg-violet-500", text: "text-violet-900", border: "border-violet-200" },
-  pickleball: { bg: "bg-pink-100", dot: "bg-pink-500", text: "text-pink-900", border: "border-pink-200" },
-  football: { bg: "bg-lime-100", dot: "bg-lime-500", text: "text-lime-900", border: "border-lime-200" },
-  squash: { bg: "bg-rose-100", dot: "bg-rose-500", text: "text-rose-900", border: "border-rose-200" },
-  default: { bg: "bg-slate-100", dot: "bg-slate-500", text: "text-slate-900", border: "border-slate-200" },
-};
-function sportStyle(slug?: string | null) {
-  if (!slug) return SPORT_COLORS.default;
-  return SPORT_COLORS[slug.toLowerCase()] ?? SPORT_COLORS.default;
-}
 
 function CalendarSection({ venues }: { venues: Venue[] }) {
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
@@ -5432,605 +5427,18 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
     </div>
   );
 }
-
-// ================= Player Dashboard =================
-
-type PlayerBooking = {
-  id: number;
-  court_id: number;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_status: string;
-  refund_status?: string | null;
-  created_at: string;
-  courts: {
-    name: string;
-    hourly_rate: number;
-    map_emoji: string | null;
-    images: string[] | null;
-    sports: { name: string } | null;
-    venues: { id: number; name: string; address: string | null; is_active: boolean } | null;
-  } | null;
-};
-
-export function PlayerDashboard({ userId, fullName, email, embedded = false }: { userId: string; fullName: string; email: string; embedded?: boolean }) {
-  const qc = useQueryClient();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [tab, setTab] = useState<"upcoming" | "past" | "cancelled">("upcoming");
-  const [chat, setChat] = useState<{ bookingId: number; venueId: number; title: string; subtitle: string } | null>(null);
-
-
-  const bookingsQ = useQuery({
-    queryKey: ["player-bookings", userId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("id, court_id, start_time, end_time, status, payment_status, refund_status, created_at, courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address, is_active))")
-        .eq("user_id", userId)
-        .order("start_time", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data as unknown as PlayerBooking[]) ?? [];
-    },
-  });
-
-  const txQ = useQuery({
-    queryKey: ["player-transactions", userId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("id, booking_id, amount, status, method, paid_at, created_at, provider_ref")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(400);
-      if (error) throw error;
-      return (data ?? []) as { id: string; booking_id: number; amount: number; status: string; method: string | null; paid_at: string | null; created_at: string; provider_ref: string | null }[];
-    },
-  });
-
-  const retryFn = useServerFn(retryBookingPayment);
-  const cancelPendingFn = useServerFn(cancelPendingBookings);
-  const [payFor, setPayFor] = useState<{ ids: number[]; amount: number; courtName: string } | null>(null);
-  const [payMethod, setPayMethod] = useState<"gcash" | "paymaya" | "grab_pay" | "qrph">("gcash");
-  const [payBusy, setPayBusy] = useState(false);
-  const [payErr, setPayErr] = useState<string | null>(null);
-
-  const cancelMut = useMutation({
-    mutationFn: async (bookingId: number) => {
-      const { error } = await supabase.from("bookings").update({ status: "cancelled" }).eq("id", bookingId).eq("user_id", userId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["player-bookings", userId] }),
-  });
-
-  const rows = bookingsQ.data ?? [];
-  const txByBooking = new Map((txQ.data ?? []).map((t) => [t.booking_id, t]));
-  const now = new Date();
-  const nowIso = now.toISOString();
-
-  const upcoming = rows.filter((r) => r.end_time >= nowIso && (r.status === "pending" || r.status === "confirmed"));
-  const past = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled" && r.status !== "expired");
-  const cancelled = rows.filter((r) => r.status === "cancelled" || r.status === "expired");
-
-  const totalSpent = (txQ.data ?? []).filter((t) => t.status === "paid").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const nextUp = upcoming.slice().sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
-  const allSessions = groupBookingSessions(rows);
-  const nextUpSession = nextUp ? allSessions.find((s) => s.ids.includes(nextUp.id)) : undefined;
-
-  const shown = (tab === "upcoming"
-    ? groupBookingSessions(upcoming).sort((a, b) => a.start_time.localeCompare(b.start_time))
-    : groupBookingSessions(tab === "past" ? past : cancelled).sort((a, b) => b.start_time.localeCompare(a.start_time)));
-
-
-  const view = Route.useSearch().view ?? "bookings";
-  /* Local calendar day for an ISO instant. en-CA gives YYYY-MM-DD, which sorts and compares as
-     a string — using the raw ISO would bucket by UTC and push a 9pm Manila booking onto the
-     following day. */
-  const dayKeyOf = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
-  const [calDay, setCalDay] = useState(() => new Date().toLocaleDateString("en-CA"));
-
-  /* Fourteen days from today. Bookings are bucketed once, so switching days is a lookup
-     rather than a re-scan of every booking. */
-  const calendarDays = useMemo(() => {
-    const byDay = new Map<string, PlayerBooking[]>();
-    for (const b of bookingsQ.data ?? []) {
-      if (b.status === "cancelled") continue;
-      const key = dayKeyOf(b.start_time);
-      const list = byDay.get(key);
-      if (list) list.push(b);
-      else byDay.set(key, [b]);
-    }
-    for (const list of byDay.values()) {
-      list.sort((a, b) => a.start_time.localeCompare(b.start_time));
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      const key = d.toLocaleDateString("en-CA");
-      return { key, date: d, offset: i, bookings: byDay.get(key) ?? [] };
-    });
-  }, [bookingsQ.data]);
-
-  const calDayBookings = calendarDays.find((d) => d.key === calDay)?.bookings ?? [];
-
-  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
-  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
-  const hours = (a: string, b: string) => Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 3600000));
-  const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const payBadge = (s: string, refundStatus?: string | null) => {
-    const map: Record<string, string> = {
-      paid: "bg-primary/15 text-primary",
-      pending: "bg-amber-500/15 text-amber-700",
-      unpaid: "bg-amber-500/15 text-amber-700",
-      failed: "bg-destructive/10 text-destructive",
-      cancelled: "bg-muted text-muted-foreground",
-      refunded: "bg-muted text-muted-foreground",
-    };
-    const label = refundStatus === "pending" ? "Awaiting refund" : s === "partially_paid" ? "Balance due at venue" : s === "pending" ? "Payment pending" : s;
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
-  };
-  const stBadge = (s: string) => {
-    const map: Record<string, string> = {
-      confirmed: "bg-primary/10 text-primary",
-      pending: "bg-amber-500/15 text-amber-700",
-      cancelled: "bg-destructive/10 text-destructive",
-      expired: "bg-muted text-muted-foreground",
-      completed: "bg-emerald-500/15 text-emerald-700",
-    };
-    const label = s === "pending" ? "Awaiting payment" : s;
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
-  };
-
-  // Group unpaid pending bookings by their shared checkout session (provider_ref)
-  // so "Pay now" retries the full slot batch together.
-  const siblingsForRetry = (bookingId: number): number[] => {
-    const tx = (txQ.data ?? []).find((t) => t.booking_id === bookingId);
-    if (!tx?.provider_ref) return [bookingId];
-    const sameSession = (txQ.data ?? [])
-      .filter((t) => t.provider_ref === tx.provider_ref)
-      .map((t) => t.booking_id);
-    const eligible = rows
-      .filter((r) => sameSession.includes(r.id) && r.status === "pending" && ["pending", "failed", "unpaid"].includes(r.payment_status))
-      .map((r) => r.id);
-    return eligible.length > 0 ? eligible : [bookingId];
-  };
-
-  const openPay = (b: PlayerBooking) => {
-    const ids = siblingsForRetry(b.id);
-    const bookings = rows.filter((r) => ids.includes(r.id));
-    const hrs = bookings.length;
-    const rate = b.courts?.hourly_rate ?? 0;
-    // Payment amount reflects the venue's payment_mode via retry fn; assume full here for display.
-    const amount = rate * hrs;
-    setPayFor({ ids, amount, courtName: `${b.courts?.venues?.name ?? ""} · ${b.courts?.name ?? ""}` });
-    setPayErr(null);
-  };
-
-  const submitPay = async () => {
-    if (!payFor) return;
-    setPayBusy(true);
-    setPayErr(null);
-    try {
-      const res = await retryFn({
-        data: { bookingIds: payFor.ids, method: payMethod, origin: window.location.origin },
-      });
-      window.location.href = res.checkoutUrl;
-    } catch (e) {
-      setPayErr((e as Error).message);
-      setPayBusy(false);
-    }
-  };
-
-  const cancelPending = async (bookingId: number) => {
-    if (!confirm("Cancel this unpaid booking? It will not be reserved.")) return;
-    const ids = siblingsForRetry(bookingId);
-    await cancelPendingFn({ data: { bookingIds: ids } });
-    qc.invalidateQueries({ queryKey: ["player-bookings", userId] });
-  };
-
-
-  return (
-    <PlayerShell
-      section={view === "calendar" ? "calendar" : "bookings"}
-      mobileOpen={mobileOpen}
-      setMobileOpen={setMobileOpen}
-      collapsed={collapsed}
-      setCollapsed={setCollapsed}
-      userId={userId}
-      onSignOut={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
-    >
-      {view === "calendar" ? (
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Player workspace</p>
-              <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Your calendar</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Bookings for the next two weeks, at a glance. Cancelled bookings are left out.
-              </p>
-            </div>
-            <Link to="/explore" search={{}} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
-              Find a court
-            </Link>
-          </div>
-
-          {/* Day strip. Horizontal scroll rather than a month grid: a player cares about the
-              next few days, and 14 legible days beat 30 cramped ones. */}
-          <div className="nice-scroll mt-6 flex gap-2 overflow-x-auto pb-2">
-            {calendarDays.map(({ key, date, offset, bookings }) => {
-              const selected = key === calDay;
-              const count = bookings.length;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setCalDay(key)}
-                  aria-pressed={selected}
-                  className={`flex w-16 shrink-0 flex-col items-center rounded-xl border px-2 py-2.5 transition ${
-                    selected
-                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : "border-border bg-card hover:border-primary/50 hover:bg-secondary"
-                  }`}
-                >
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${selected ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
-                    {offset === 0 ? "Today" : offset === 1 ? "Tmrw" : date.toLocaleDateString("en-PH", { weekday: "short" })}
-                  </span>
-                  <span className="mt-0.5 font-display text-lg font-bold leading-none">
-                    {date.getDate()}
-                  </span>
-                  <span className={`mt-1 text-[9px] font-semibold ${selected ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
-                    {date.toLocaleDateString("en-PH", { month: "short" })}
-                  </span>
-                  {/* A dot per booking up to three, so a busy day is visible without opening it. */}
-                  <span className="mt-1.5 flex h-1.5 items-center gap-0.5">
-                    {count === 0 ? (
-                      <span className={`h-1 w-1 rounded-full ${selected ? "bg-primary-foreground/30" : "bg-border"}`} />
-                    ) : (
-                      Array.from({ length: Math.min(count, 3) }).map((_, i) => (
-                        <span key={i} className={`h-1.5 w-1.5 rounded-full ${selected ? "bg-primary-foreground" : "bg-primary"}`} />
-                      ))
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-base font-bold">
-                {new Date(`${calDay}T00:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" })}
-              </h2>
-              <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-                {calDayBookings.length} {calDayBookings.length === 1 ? "booking" : "bookings"}
-              </span>
-            </div>
-
-            {bookingsQ.isLoading ? (
-              <p className="mt-6 text-center text-sm text-muted-foreground">Loading your bookings…</p>
-            ) : calDayBookings.length === 0 ? (
-              <div className="mt-6 rounded-xl border border-dashed border-border py-10 text-center">
-                <p className="text-sm font-semibold">Nothing booked this day</p>
-                <p className="mt-1 text-xs text-muted-foreground">Free to play — find a court and fill it.</p>
-                <Link to="/explore" search={{}} className="mt-4 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">
-                  Browse courts
-                </Link>
-              </div>
-            ) : (
-              <ul className="mt-4 space-y-2">
-                {calDayBookings.map((b) => (
-                  <li
-                    key={b.id}
-                    className="flex items-start gap-3 rounded-xl border border-border bg-background p-3"
-                  >
-                    {/* The time is the thing being scanned for, so it leads and is fixed-width. */}
-                    <span className="w-20 shrink-0 text-left">
-                      <span className="block font-display text-sm font-bold leading-tight">
-                        {fmtTime(b.start_time)}
-                      </span>
-                      <span className="block text-[10px] text-muted-foreground">
-                        to {fmtTime(b.end_time)}
-                      </span>
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">
-                        {b.courts?.venues?.name ?? "Venue"}
-                      </span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {b.courts?.map_emoji ?? "🏟️"} {b.courts?.name}
-                        {b.courts?.sports?.name ? ` · ${b.courts.sports.name}` : ""}
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                        b.payment_status === "paid"
-                          ? "bg-primary/15 text-primary"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                      }`}
-                    >
-                      {b.payment_status === "paid" ? "Paid" : "Unpaid"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      ) : (
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Player workspace</p>
-            <h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Hi, {fullName || email.split("@")[0]} 👋</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Track your court bookings, upcoming games and payment history.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/explore" search={{}} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Find a court</Link>
-          </div>
-        </div>
-
-        {/* KPI tiles */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <PlayerKpi label="Upcoming" value={String(upcoming.filter((r) => r.payment_status === "paid").length)} hint={nextUp ? `Next: ${fmtDate(nextUp.start_time)}` : "No upcoming"} />
-        <PlayerKpi label="Awaiting payment" value={String(upcoming.filter((r) => r.payment_status !== "paid").length)} hint="Reserved only after payment" />
-        <PlayerKpi label="Total spent" value={peso(totalSpent)} hint={`${(txQ.data ?? []).filter((t) => t.status === "paid").length} paid`} />
-        <PlayerKpi label="Cancelled" value={String(cancelled.length)} hint="Lifetime" />
-      </div>
-
-      {/* Unpaid banner */}
-      {upcoming.filter((r) => r.payment_status !== "paid").length > 0 && tab === "upcoming" && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <p className="font-medium text-amber-800 dark:text-amber-300">
-            You have unpaid booking{upcoming.filter((r) => r.payment_status !== "paid").length > 1 ? "s" : ""}. Slots are only reserved after payment.
-          </p>
-        </div>
-      )}
-
-      {/* Next up highlight */}
-      {nextUp && tab === "upcoming" && (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-primary/30 bg-linear-to-br from-primary/10 to-transparent p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/15 text-2xl">{nextUp.courts?.map_emoji ?? "🎾"}</div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Next game</p>
-                <p className="mt-0.5 font-semibold">{nextUp.courts?.venues?.name ?? "Venue"} · {nextUp.courts?.name}</p>
-                <p className="text-xs text-muted-foreground">{fmtDate(nextUp.start_time)} · {formatTimeRange(nextUpSession?.start_time ?? nextUp.start_time, nextUpSession?.end_time ?? nextUp.end_time)} · {nextUp.courts?.sports?.name}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {payBadge(nextUp.payment_status)}
-              {stBadge(nextUp.status)}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="mt-6 flex gap-2 border-b border-border">
-        {(["upcoming", "past", "cancelled"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold capitalize transition ${tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            {t} <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10px]">{t === "upcoming" ? upcoming.length : t === "past" ? past.length : cancelled.length}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* List */}
-      <div className="mt-4">
-        {bookingsQ.isLoading ? (
-          <div className="text-sm text-muted-foreground">Loading your bookings…</div>
-        ) : shown.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center">
-            <p className="font-semibold">Nothing here yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {tab === "upcoming" ? "Book a court to see it here." : tab === "past" ? "Your past games will show here." : "No cancelled bookings."}
-            </p>
-            {tab === "upcoming" && (
-              <Link to="/explore" search={{}} className="mt-3 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Browse courts</Link>
-            )}
-          </div>
-        ) : (
-          <ul className="grid gap-3">
-            {shown.map((sess) => {
-              const b = sess.first;
-              const tx = txByBooking.get(b.id);
-              const h = sess.hours;
-              const txTotal = sess.ids.reduce((sum, id) => sum + Number(txByBooking.get(id)?.amount ?? 0), 0);
-              const amount = txTotal > 0 ? txTotal : (b.courts?.hourly_rate ?? 0) * h;
-              const venueInactive = b.courts?.venues?.is_active === false;
-              const paymentFailed = ["pending", "failed", "unpaid"].includes(b.payment_status) && b.status === "pending";
-
-              return (
-                <li key={sess.key} className="overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
-
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl">{b.courts?.map_emoji ?? "🎾"}</div>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{b.courts?.venues?.name ?? "Venue"} · <span className="text-muted-foreground">{b.courts?.name}</span></p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{b.courts?.sports?.name ?? "Sport"} · {h} hr{h > 1 ? "s" : ""}</p>
-                        <p className="mt-1 text-sm">{fmtDate(sess.start_time)}</p>
-                        <p className="text-xs text-muted-foreground">{formatTimeRange(sess.start_time, sess.end_time)}{sess.ids.length > 1 ? ` · ${sess.ids.length} slots` : ""}</p>
-
-                        {b.courts?.venues?.address && <p className="mt-1 truncate text-[11px] text-muted-foreground">📍 {b.courts.venues.address}</p>}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <p className="font-semibold text-primary">{peso(amount)}</p>
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        {venueInactive && (
-                          <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">Venue inactive</span>
-                        )}
-                        {payBadge(b.payment_status, b.refund_status)}
-                        {stBadge(b.status)}
-                      </div>
-                      {tx?.method && <p className="text-[10px] uppercase tracking-wider text-muted-foreground">via {tx.method}</p>}
-                    </div>
-                  </div>
-                  {venueInactive && paymentFailed && (
-                    <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
-                      This venue is no longer active. Payment can't be completed — please choose another venue.
-                    </div>
-                  )}
-                  {(() => {
-                    const isUnpaidUpcoming = tab === "upcoming" && b.status === "pending" && ["pending", "failed", "unpaid"].includes(b.payment_status) && new Date(b.start_time) > now;
-                    const isPaidUpcoming = tab === "upcoming" && b.payment_status === "paid" && new Date(b.start_time) > now;
-                    const vId = b.courts?.venues?.id;
-                    return (
-                      <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-border pt-3">
-                        {vId && (
-                          <button
-                            onClick={() => setChat({
-                              bookingId: b.id,
-                              venueId: vId,
-                              title: b.courts?.venues?.name ?? "Venue",
-                              subtitle: `${fmtDate(sess.start_time)} · ${formatSessionLabel(sess.start_time, sess.end_time)}`,
-                            })}
-                            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-primary hover:text-primary"
-                          >
-                            Message venue
-                          </button>
-                        )}
-                        {isUnpaidUpcoming && (
-                          <>
-                            <button
-                              onClick={() => openPay(b)}
-                              disabled={venueInactive}
-                              title={venueInactive ? "Venue is inactive — payment disabled" : undefined}
-                              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Pay now
-                            </button>
-                            <button
-                              onClick={() => cancelPending(b.id)}
-                              className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10"
-                            >
-                              Cancel
-                            </button>
-                          </>
-
-                        )}
-                        {isPaidUpcoming && (
-                          <button
-                            onClick={() => { if (confirm("Cancel this booking?")) cancelMut.mutate(b.id); }}
-                            disabled={cancelMut.isPending}
-                            className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                          >
-                            Cancel booking
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      {chat && (
-        <BookingChat
-          bookingId={chat.bookingId}
-          venueId={chat.venueId}
-          playerId={userId}
-          meId={userId}
-          title={chat.title}
-          subtitle={chat.subtitle}
-          onClose={() => setChat(null)}
-        />
-      )}
-
-
-      {/* Pay now modal */}
-      {payFor && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-display text-lg font-semibold">Complete payment</h3>
-                <p className="mt-1 text-xs text-muted-foreground">{payFor.courtName}</p>
-              </div>
-              <button onClick={() => setPayFor(null)} className="rounded-lg p-1 hover:bg-muted" disabled={payBusy}>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-4 rounded-xl bg-secondary/60 p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">{payFor.ids.length} hour{payFor.ids.length > 1 ? "s" : ""}</span>
-                <span className="font-semibold">{peso(payFor.amount)}</span>
-              </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">Final amount depends on venue payment mode (full or 50% down).</p>
-            </div>
-            <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment method</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {([
-                  { v: "gcash", l: "GCash" },
-                  { v: "paymaya", l: "Maya" },
-                  { v: "grab_pay", l: "GrabPay" },
-                  { v: "qrph", l: "QR Ph" },
-                ] as const).map((m) => (
-                  <button
-                    key={m.v}
-                    onClick={() => setPayMethod(m.v)}
-                    disabled={payBusy}
-                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${payMethod === m.v ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}
-                  >
-                    {m.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {payErr && <p className="mt-3 text-xs font-medium text-destructive">{payErr}</p>}
-            <div className="mt-5 flex gap-2">
-              <button
-                onClick={() => setPayFor(null)}
-                disabled={payBusy}
-                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
-              >
-                Not now
-              </button>
-              <button
-                onClick={submitPay}
-                disabled={payBusy}
-                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {payBusy ? "Redirecting…" : "Continue to pay"}
-              </button>
-            </div>
-            <p className="mt-3 text-[10px] text-muted-foreground">
-              Your slot is only reserved after payment is successful. If cancelled, the booking is removed.
-            </p>
-          </div>
-        </div>
-      )}
-      </div>
-      )}
-    </PlayerShell>
-  );
-}
-
+/** Shared stat tile used by the tenant sections (transactions, bookings, customers).
+ *  The player workspace uses `PlayerTile` instead — see the note there. */
 function PlayerKpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 font-display text-2xl font-semibold">{value}</p>
+      <p className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }
+
 
 // ===========================================================================
 // Vouchers Section

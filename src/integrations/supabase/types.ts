@@ -225,6 +225,32 @@ export type Database = {
           },
         ]
       }
+      court_favorites: {
+        Row: {
+          court_id: number
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          court_id: number
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          court_id?: number
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "court_favorites_court_id_fkey"
+            columns: ["court_id"]
+            isOneToOne: false
+            referencedRelation: "courts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courts: {
         Row: {
           amenities: string[]
@@ -393,6 +419,89 @@ export type Database = {
           },
         ]
       }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          channel: string
+          created_at: string
+          id: number
+          last_error: string | null
+          notification_id: string
+          sent_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          channel: string
+          created_at?: string
+          id?: never
+          last_error?: string | null
+          notification_id: string
+          sent_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          created_at?: string
+          id?: never
+          last_error?: string | null
+          notification_id?: string
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          bookings_enabled: boolean
+          email_enabled: boolean
+          messages_enabled: boolean
+          payments_enabled: boolean
+          push_enabled: boolean
+          quiet_hours_end: number | null
+          quiet_hours_start: number | null
+          reminders_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bookings_enabled?: boolean
+          email_enabled?: boolean
+          messages_enabled?: boolean
+          payments_enabled?: boolean
+          push_enabled?: boolean
+          quiet_hours_end?: number | null
+          quiet_hours_start?: number | null
+          reminders_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bookings_enabled?: boolean
+          email_enabled?: boolean
+          messages_enabled?: boolean
+          payments_enabled?: boolean
+          push_enabled?: boolean
+          quiet_hours_end?: number | null
+          quiet_hours_start?: number | null
+          reminders_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string | null
@@ -475,6 +584,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -483,6 +593,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           full_name?: string | null
           id: string
@@ -491,12 +602,43 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
           phone?: string | null
           role?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          last_used_at: string | null
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          last_used_at?: string | null
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          last_used_at?: string | null
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -684,8 +826,6 @@ export type Database = {
           contact_phone: string | null
           created_at: string | null
           description: string | null
-          downpayment_type: string
-          downpayment_value: number
           facility_services: string[]
           fees: Json
           fees_notes: string | null
@@ -712,8 +852,6 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           description?: string | null
-          downpayment_type?: string
-          downpayment_value?: number
           facility_services?: string[]
           fees?: Json
           fees_notes?: string | null
@@ -740,8 +878,6 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           description?: string | null
-          downpayment_type?: string
-          downpayment_value?: number
           facility_services?: string[]
           fees?: Json
           fees_notes?: string | null
@@ -872,6 +1008,20 @@ export type Database = {
         Args: { _created_at: string; _status: string }
         Returns: boolean
       }
+      claim_notification_outbox: {
+        Args: { _limit?: number }
+        Returns: {
+          attempts: number
+          body: string
+          channel: string
+          id: number
+          link: string
+          notification_id: string
+          title: string
+          type: string
+          user_id: string
+        }[]
+      }
       court_effective_hours: { Args: { _court_id: number }; Returns: Json }
       court_is_open: {
         Args: { _court_id: number; _ts: string }
@@ -885,9 +1035,22 @@ export type Database = {
         Args: { _court_id: number; _ts: string }
         Returns: number
       }
+      expire_pending_payment_holds: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       expire_stale_pending_bookings: {
         Args: { _older_than?: string }
         Returns: number
+      }
+      finalize_paid_checkout: {
+        Args: { _method: string; _payment_id: string; _session_id: string }
+        Returns: {
+          booking_ids: number[]
+          confirmed: boolean
+          reason: string
+          refund_required: boolean
+        }[]
       }
       get_court_availability: {
         Args: { _court_id: number; _from: string; _to: string }

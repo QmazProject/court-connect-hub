@@ -42,9 +42,7 @@ type Court = {
     timezone: string;
     latitude: number | null;
     longitude: number | null;
-    payment_mode: "none" | "full" | "downpayment";
-    downpayment_type: "percent" | "fixed";
-    downpayment_value: number;
+    payment_mode: "none" | "full";
     refund_cutoff_hours: number;
     operating_hours?: Record<string, string> | null;
   } | null;
@@ -123,7 +121,7 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
       const { data, error } = await supabase
         .from("courts")
         .select(
-          "id, name, hourly_rate, is_indoor, operating_hours, inherit_venue_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, rate_rules, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, downpayment_type, downpayment_value, refund_cutoff_hours, operating_hours)",
+          "id, name, hourly_rate, is_indoor, operating_hours, inherit_venue_hours, blocked_hours, blocked_dates, description, amenities, images, coming_soon, capacity, physical_court_id, map_emoji, surface_type, player_capacity, voucher_enabled, rate_rules, sports(name), venues(name, address, timezone, latitude, longitude, payment_mode, refund_cutoff_hours, operating_hours)",
         )
         .eq("id", courtId)
         .maybeSingle();
@@ -820,7 +818,6 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
 
               <p className="mt-2 text-xs text-muted-foreground">
                 {court.venues?.payment_mode === "full" && "Full payment required online to reserve the slot."}
-                {court.venues?.payment_mode === "downpayment" && `${court.venues.downpayment_type === "fixed" ? peso(court.venues.downpayment_value) : `${court.venues.downpayment_value}%`} downpayment online; balance settled at the venue.`}
                 {(!court.venues?.payment_mode || court.venues.payment_mode === "none") && "Payment handled at the venue."}
               </p>
             </div>
@@ -838,8 +835,6 @@ export function CourtBookingContent({ courtId, onClose, userId }: { courtId: num
           voucherCode={voucher ? voucherCode.trim() : null}
           discount={voucher?.discount ?? 0}
           paymentMode={court.venues?.payment_mode ?? "full"}
-          downpaymentType={court.venues?.downpayment_type ?? "percent"}
-          downpaymentValue={court.venues?.downpayment_value ?? 50}
           venueName={court.venues?.name ?? "CourtHub"}
           courtName={court.name}
           onClose={() => { setCheckoutOpen(false); setPayLoading(null); }}
@@ -958,21 +953,18 @@ export function CourtBookingPanel({
 }
 
 function CheckoutDrawer({
-  courtId, date, hours, subtotal, breakdown, voucherCode, discount, paymentMode, downpaymentType, downpaymentValue, venueName, courtName,
+  courtId, date, hours, subtotal, breakdown, voucherCode, discount, paymentMode, venueName, courtName,
   onClose, payLoading, setPayLoading, onError,
 }: {
   courtId: number; date: string; hours: number[]; subtotal: number;
   breakdown: { rate: number; hours: number }[];
   voucherCode: string | null; discount: number;
-  paymentMode: "full" | "downpayment" | "none"; downpaymentType: "percent" | "fixed"; downpaymentValue: number; venueName: string; courtName: string;
+  paymentMode: "full" | "none"; venueName: string; courtName: string;
   onClose: () => void; payLoading: PmMethod | null;
   setPayLoading: (m: PmMethod | null) => void;
   onError: (m: string) => void;
 }) {
   const fullAmount = Math.max(0, subtotal - (discount || 0));
-  const dueNow = paymentMode === "downpayment"
-    ? downpaymentType === "fixed" ? Math.min(fullAmount, downpaymentValue) : fullAmount * downpaymentValue / 100
-    : fullAmount;
 
   const pay = async (method: PmMethod) => {
     setPayLoading(method);
@@ -1014,12 +1006,8 @@ function CheckoutDrawer({
             <div className="mt-1 flex justify-between text-xs text-emerald-700"><span>Voucher discount</span><span>−₱{discount.toFixed(2)}</span></div>
           )}
           <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total</span><span>₱{fullAmount.toFixed(2)}</span></div>
-          {paymentMode === "downpayment" && (
-            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now ({downpaymentType === "fixed" ? peso(downpaymentValue) : `${downpaymentValue}%`})</span><span className="text-primary">₱{dueNow.toFixed(2)}</span></div>
-          )}
-          {paymentMode === "downpayment" && <div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Balance at venue</span><span>₱{Math.max(0, fullAmount - dueNow).toFixed(2)}</span></div>}
           {paymentMode === "full" && (
-            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now</span><span className="text-primary">₱{dueNow.toFixed(2)}</span></div>
+            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold"><span>Due now</span><span className="text-primary">₱{fullAmount.toFixed(2)}</span></div>
           )}
         </div>
 

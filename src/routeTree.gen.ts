@@ -21,6 +21,7 @@ import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
 import { Route as ExploreGuestRouteImport } from './routes/explore_.guest'
 import { Route as PaymentReturnRouteImport } from './routes/payment.return'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
+import { Route as ApiInternalNotificationsDrainRouteImport } from './routes/api/internal/notifications.drain'
 import { Route as ApiPublicPaymongoWebhookRouteImport } from './routes/api/public/paymongo.webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -82,6 +83,12 @@ const VenuesVenueIdRoute = VenuesVenueIdRouteImport.update({
   path: '/venues/$venueId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalNotificationsDrainRoute =
+  ApiInternalNotificationsDrainRouteImport.update({
+    id: '/api/internal/notifications/drain',
+    path: '/api/internal/notifications/drain',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymongoWebhookRoute =
   ApiPublicPaymongoWebhookRouteImport.update({
     id: '/api/public/paymongo/webhook',
@@ -101,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
   '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRoutesById {
@@ -131,6 +140,7 @@ export interface FileRoutesById {
   '/explore_/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
 export interface FileRouteTypes {
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
+    | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
+    | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   id:
     | '__root__'
@@ -176,6 +188,7 @@ export interface FileRouteTypes {
     | '/explore_/guest'
     | '/payment/return'
     | '/venues/$venueId'
+    | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -191,6 +204,7 @@ export interface RootRouteChildren {
   ExploreGuestRoute: typeof ExploreGuestRoute
   PaymentReturnRoute: typeof PaymentReturnRoute
   VenuesVenueIdRoute: typeof VenuesVenueIdRoute
+  ApiInternalNotificationsDrainRoute: typeof ApiInternalNotificationsDrainRoute
   ApiPublicPaymongoWebhookRoute: typeof ApiPublicPaymongoWebhookRoute
 }
 
@@ -280,6 +294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VenuesVenueIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/notifications/drain': {
+      id: '/api/internal/notifications/drain'
+      path: '/api/internal/notifications/drain'
+      fullPath: '/api/internal/notifications/drain'
+      preLoaderRoute: typeof ApiInternalNotificationsDrainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/paymongo/webhook': {
       id: '/api/public/paymongo/webhook'
       path: '/api/public/paymongo/webhook'
@@ -313,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreGuestRoute: ExploreGuestRoute,
   PaymentReturnRoute: PaymentReturnRoute,
   VenuesVenueIdRoute: VenuesVenueIdRoute,
+  ApiInternalNotificationsDrainRoute: ApiInternalNotificationsDrainRoute,
   ApiPublicPaymongoWebhookRoute: ApiPublicPaymongoWebhookRoute,
 }
 export const routeTree = rootRouteImport

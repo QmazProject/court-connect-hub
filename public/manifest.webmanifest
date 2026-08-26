@@ -1,0 +1,15 @@
+{
+  "name": "CourtHub",
+  "short_name": "CourtHub",
+  "description": "Find and book sports courts across the Philippines.",
+  "start_url": "/explore",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#09231f",
+  "theme_color": "#0f4a40",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "/CHicon.png", "sizes": "393x393", "type": "image/png", "purpose": "any" },
+    { "src": "/courthub-badge.png", "sizes": "400x400", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { CourtBookingPanel } from "@/components/CourtBookingPanel";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { addZonedDays, zonedDateISO, zonedDayBoundsUtc, zonedDayOfWeek } from "@/lib/tz";
 
 const searchSchema = z.object({
@@ -539,6 +540,7 @@ function VenueDetail() {
         }
         onOpenCourt={(id) => openCourt(id)}
         openCourtId={openCourtId ?? null}
+        userId={userQ.data ?? null}
 
       />
 
@@ -656,9 +658,11 @@ type ExploreCourtsProps = {
   onSelectSport: (slug: string | null) => void;
   onOpenCourt: (id: number) => void;
   openCourtId: number | null;
+  /** Signed-in player, for the favorite heart. Null for a visitor browsing signed out. */
+  userId: string | null;
 };
 
-function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, onOpenCourt, openCourtId }: ExploreCourtsProps) {
+function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, onOpenCourt, openCourtId, userId }: ExploreCourtsProps) {
 
   // ALL sports the system supports (system-wide list)
   const allSportsQ = useQuery({
@@ -1103,10 +1107,18 @@ function ExploreCourts({ venue, courts, loading, selectedSport, onSelectSport, o
                     : remaining <= 2
                     ? "bg-amber-100 text-amber-700"
                     : "bg-emerald-100 text-emerald-700";
-                const baseCls = "group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md";
+                const baseCls = "group relative overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:shadow-md";
                 const hasImages = !!(c.images && c.images.length > 0);
                 return (
                   <div key={c.id} className={`${baseCls} ${soon ? "cursor-not-allowed" : ""}`} aria-disabled={soon}>
+                    {/* Outside the photo button, not inside it — a button cannot nest in a
+                        button, and the photo's own click opens the image viewer. */}
+                    <FavoriteButton
+                      courtId={c.id}
+                      courtName={c.name}
+                      userId={userId}
+                      className="absolute right-3 top-3"
+                    />
                     <button
                       type="button"
                       onClick={() => !soon && hasImages && setCourtImageView({ images: c.images!, name: c.name, idx: 0 })}
