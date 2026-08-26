@@ -7,6 +7,7 @@ import {
   timeAgo,
   formatFullDate,
   notificationLabel,
+  notificationActionLabel,
   NOTIFICATION_ICON,
   type AppNotification,
 } from "@/lib/notifications";
@@ -270,7 +271,7 @@ function NotificationDetail({
               onClick={onFollowUp}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:opacity-90"
             >
-              {n.booking_id ? "View booking" : "Open"} <ArrowRight className="h-3.5 w-3.5" />
+              {notificationActionLabel(n.type)} <ArrowRight className="h-3.5 w-3.5" />
             </button>
           )}
           <button

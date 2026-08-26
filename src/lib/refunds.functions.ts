@@ -45,10 +45,29 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
         const { refundPayment } = await import("./paymongo.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+        /* Collected rather than written per iteration. The PayMongo call and the
+           transaction row — the money record — stay exactly as they were, one at a
+           time, in order. Only the `bookings` status write is batched, and only
+           after the loop.
+
+           Why: each `.update()` is its own round trip and therefore its own
+           transaction, so the deferred notification trigger fired once per hourly
+           row. The first row to commit won the dedupe key and described a
+           three-hour refund as one hour. Updating the successful rows in a single
+           statement means the trigger sees the whole refunded set at once and
+           reports the real span and total. This mirrors what the webhook refund
+           path already does (`.in("id", bookingIds)`), so the two paths now behave
+           identically instead of one being subtly wrong. */
+        const refundedBookingIds: number[] = [];
+        const failedBookingIds: number[] = [];
+
         for (const t of txs ?? []) {
           const paymentId = (t.raw as { payment_id?: string } | null)?.payment_id;
           if (!paymentId) {
-            failures.push(`Booking #${t.booking_id}: no payment reference on file — settle manually.`);
+            failures.push(
+              `Booking #${t.booking_id}: no payment reference on file — settle manually.`,
+            );
+            failedBookingIds.push(t.booking_id);
             continue;
           }
           try {
@@ -61,15 +80,33 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
               .from("transactions")
               .update({ status: "refunded", refunded_at: new Date().toISOString() })
               .eq("id", t.id);
-            await supabaseAdmin
-              .from("bookings")
-              .update({ refund_status: "refunded", payment_status: "refunded" })
-              .eq("id", t.booking_id);
+            refundedBookingIds.push(t.booking_id);
             refunded += 1;
           } catch (e) {
             console.error("refund failed", t.booking_id, e);
             failures.push(`Booking #${t.booking_id}: ${(e as Error).message}`);
+            failedBookingIds.push(t.booking_id);
           }
+        }
+
+        if (refundedBookingIds.length > 0) {
+          await supabaseAdmin
+            .from("bookings")
+            .update({ refund_status: "refunded", payment_status: "refunded" })
+            .in("id", refundedBookingIds);
+        }
+
+        /* Previously a failed refund left no trace on the booking — the reason was
+           returned to the caller and then lost, and `venue_refund_failed` could
+           never fire because nothing ever wrote that state. Recording it is what
+           makes a stuck refund visible to the venue afterwards. The provider's
+           message is deliberately NOT stored here: it goes to the log above, and
+           the venue is shown a plain-language notification instead. */
+        if (failedBookingIds.length > 0) {
+          await supabaseAdmin
+            .from("bookings")
+            .update({ refund_status: "failed" })
+            .in("id", failedBookingIds);
         }
       }
     }

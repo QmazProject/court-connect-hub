@@ -20,6 +20,9 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MasterSearch } from "@/components/MasterSearch";
+import { NotificationSettingsCard } from "@/components/NotificationSettingsCard";
+import { ProfileSettingsCard } from "@/components/ProfileSettingsCard";
+import { UserAvatar } from "@/components/UserAvatar";
 import { TENANT_ANCHORS, useTenantSearchEntries, type TenantCourtsTab } from "@/lib/tenant-search";
 import type { SearchEntry } from "@/lib/master-search";
 import { BookingChat } from "@/components/BookingChat";
@@ -55,8 +58,19 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
 /** `view` picks which player pane is showing. A search param rather than a separate route so
  *  the whole dashboard — including the tenant side, which ignores it — stays one route with
  *  one auth guard and one data layer. */
+const TENANT_SECTIONS = [
+  "dashboard", "calendar", "bookings", "courts",
+  "customers", "team", "transactions", "vouchers", "settings",
+] as const;
+
 const dashboardSearchSchema = z.object({
   view: z.enum(["bookings", "calendar", "favorites", "settings"]).optional().catch("bookings"),
+  /* Tenant deep links. A notification about a booking has to land on the booking,
+     and the tenant workspace switches panes with React state rather than routes —
+     so the link carries the pane, and the Dashboard seeds its state from it. */
+  section: z.enum(TENANT_SECTIONS).optional().catch(undefined),
+  /** Open the booking's conversation, not just the booking. Set by message links. */
+  chat: z.coerce.boolean().optional().catch(undefined),
   /* Set by booking reminders so tapping the notification lands on the booking it is
      about, rather than the top of the workspace. */
   booking: z.coerce.number().int().positive().optional().catch(undefined),
@@ -182,7 +196,13 @@ function Dashboard() {
   /* Which player pane is showing. The tenant side ignores it — see the note on
      validateSearch for why both roles share one route. */
   const search = Route.useSearch();
-  const [section, setSection] = useState<SectionKey>("dashboard");
+  const [section, setSection] = useState<SectionKey>(search.section ?? "dashboard");
+  /* Not just the initial value: clicking a second notification while the dashboard is
+     already open changes the search param without remounting, and the pane has to
+     follow it. */
+  useEffect(() => {
+    if (search.section) setSection(search.section);
+  }, [search.section]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [createVenueOpen, setCreateVenueOpen] = useState(false);
@@ -220,6 +240,8 @@ function Dashboard() {
   // popping in once the query settles.
   const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
   const fullName = profileQ.data?.full_name ?? metadataName;
+  /* Read before the loading gate below narrows `profileQ.data` away. */
+  const avatarUrl = profileQ.data?.avatar_url ?? null;
 
   /* Above the loading gate below: this is a hook, and the gate returns early. */
   const signOut = useCallback(async () => {
@@ -252,7 +274,7 @@ function Dashboard() {
 
   if (profileQ.isLoading) {
     return (
-      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} search={shellSearch}>
+      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} avatarUrl={avatarUrl} search={shellSearch}>
         <Skeleton />
       </TenantShell>
     );
@@ -271,7 +293,7 @@ function Dashboard() {
   const loadingVenues = venuesQ.isLoading;
 
   return (
-    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} search={shellSearch}>
+    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} avatarUrl={avatarUrl} search={shellSearch}>
       {section === "dashboard" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
@@ -326,7 +348,12 @@ function Dashboard() {
       )}
       {section === "bookings" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <BookingsSection venues={venues} userId={user.id} />
+          <BookingsSection
+            venues={venues}
+            userId={user.id}
+            focusBookingId={search.booking}
+            openChat={search.chat}
+          />
         </div>
       )}
       {section === "customers" && (
@@ -352,6 +379,7 @@ function Dashboard() {
             email={user.email ?? ""}
             role={profileQ.data?.role ?? "tenant"}
             userId={user.id}
+            avatarUrl={avatarUrl}
             onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
           />
         </div>
@@ -362,7 +390,7 @@ function Dashboard() {
 
 
 function TenantShell({
-  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, fullName, search,
+  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, fullName, avatarUrl, search,
 }: {
   children: React.ReactNode;
   section: SectionKey;
@@ -373,6 +401,7 @@ function TenantShell({
   setCollapsed: (v: boolean) => void;
   userId?: string;
   fullName?: string;
+  avatarUrl?: string | null;
   /* Built by Dashboard, which owns the state a result has to act on. */
   search: {
     query: string;
@@ -410,6 +439,7 @@ function TenantShell({
           collapsed={collapsed}
           setCollapsed={setCollapsed}
           fullName={fullName}
+          avatarUrl={avatarUrl}
         />
       </aside>
 
@@ -425,6 +455,7 @@ function TenantShell({
               setCollapsed={() => { }}
               onClose={() => setMobileOpen(false)}
               fullName={fullName}
+              avatarUrl={avatarUrl}
             />
           </aside>
         </div>
@@ -458,7 +489,7 @@ function TenantShell({
 }
 
 function SidebarBody({
-  section, setSection, collapsed, setCollapsed, onClose, fullName,
+  section, setSection, collapsed, setCollapsed, onClose, fullName, avatarUrl,
 }: {
   section: SectionKey;
   setSection: (s: SectionKey) => void;
@@ -466,6 +497,7 @@ function SidebarBody({
   setCollapsed: (v: boolean) => void;
   onClose?: () => void;
   fullName?: string;
+  avatarUrl?: string | null;
 }) {
   return (
     <>
@@ -525,7 +557,7 @@ function SidebarBody({
           })}
         </ul>
       </nav>
-      {!collapsed && (
+      {!collapsed ? (
         <div className="border-t border-white/10 px-3 py-3.5">
           <span
             className="logo-glaze"
@@ -533,9 +565,25 @@ function SidebarBody({
           >
             <img src="/role-tenant.png" alt="" className="h-8 w-auto object-contain" />
           </span>
-          <div className="mt-2 truncate font-display text-sm font-bold tracking-tight text-white">
-            {fullName || "Venue manager"}
+          {/* Picture before the name — the same shape the player rail uses. This is
+              the signed-in staff member, not the venue. */}
+          <div className="mt-2 flex items-center gap-2.5">
+            <UserAvatar avatarUrl={avatarUrl} fullName={fullName} className="h-8 w-8" fallback="V" />
+            <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-tight text-white">
+              {fullName || "Venue manager"}
+            </span>
           </div>
+        </div>
+      ) : (
+        /* 64px of rail leaves no room for a name, but the picture still reads. */
+        <div className="border-t border-white/10 px-3 py-3.5">
+          <UserAvatar
+            avatarUrl={avatarUrl}
+            fullName={fullName}
+            className="mx-auto h-9 w-9"
+            fallback="V"
+            title={fullName || "Venue manager"}
+          />
         </div>
       )}
     </>
@@ -2544,8 +2592,15 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
 }
 
 function SettingsSection({
-  fullName, email, role, userId, onSaved,
-}: { fullName: string; email: string; role: string; userId: string; onSaved: () => void }) {
+  fullName, email, role, userId, avatarUrl, onSaved,
+}: {
+  fullName: string;
+  email: string;
+  role: string;
+  userId: string;
+  avatarUrl: string | null;
+  onSaved: () => void;
+}) {
   const [name, setName] = useState(fullName);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -2590,6 +2645,23 @@ function SettingsSection({
   return (
     <div className="space-y-6">
       <SectionHeader title="Settings" subtitle="Manage your account and preferences." />
+
+      {/* Both cards are the ones the player workspace uses. A profile picture belongs
+          to the signed-in account, not to a role, so the storage path, the policies
+          and the validation are shared rather than duplicated. */}
+      {role === "tenant" && userId && (
+        <>
+          <ProfileSettingsCard
+            userId={userId}
+            fullName={fullName}
+            email={email}
+            avatarUrl={avatarUrl}
+            role="tenant"
+            onSaved={onSaved}
+          />
+          <NotificationSettingsCard userId={userId} email={email} role="tenant" />
+        </>
+      )}
 
       <div id={TENANT_ANCHORS.account} className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <h3 className="text-base font-semibold">Account</h3>
@@ -4766,7 +4838,16 @@ type BookingRow = {
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
 
-function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }) {
+function BookingsSection({
+  venues, userId, focusBookingId, openChat,
+}: {
+  venues: Venue[];
+  userId: string;
+  /** From `?booking=` on a notification link — the session anchor id. */
+  focusBookingId?: number;
+  /** From `?chat=1` on a message notification. */
+  openChat?: boolean;
+}) {
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">("upcoming");
@@ -4774,11 +4855,25 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  /* One shot per target. `sessions` is rebuilt on every render, so an effect that
+     depended on it would re-run forever and keep re-opening the chat. */
+  const focusHandled = useRef<number | null>(null);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  /* A notification points at one specific booking, and the default filters hide most
+     of them — a cancelled or refunded booking is not in "Upcoming". Widen the filters
+     so the thing being linked to is actually on screen. */
+  useEffect(() => {
+    if (!focusBookingId) return;
+    focusHandled.current = null;
+    setStatus("all");
+    setPayFilter("all");
+    setVenueFilter("all");
+  }, [focusBookingId]);
 
 
 
@@ -4818,6 +4913,35 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
   const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p]));
   const rows = bookingsQ.data ?? [];
   const sessions = groupBookingSessions(rows).sort((a, b) => b.start_time.localeCompare(a.start_time));
+
+  /* The link carries the session's anchor id, but any hourly row of the session is a
+     valid match — `ids.includes` rather than an equality test on the first id, so a
+     link still resolves if the anchor row is filtered out. */
+  useEffect(() => {
+    if (!focusBookingId || bookingsQ.isLoading) return;
+    if (focusHandled.current === focusBookingId) return;
+    const target = sessions.find((x) => x.ids.includes(focusBookingId));
+    if (!target) return;
+    focusHandled.current = focusBookingId;
+
+    document
+      .getElementById(`tenant-booking-${target.ids[0]}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    if (openChat) {
+      const r = target.first;
+      const venueId = r.courts?.venue_id;
+      if (venueId) {
+        setChat({
+          bookingId: r.id,
+          venueId,
+          playerId: r.user_id,
+          title: nameMap.get(r.user_id)?.full_name || "Player",
+          subtitle: `${formatDateLabel(target.start_time)} · ${formatSessionLabel(target.start_time, target.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`,
+        });
+      }
+    }
+  }, [focusBookingId, openChat, bookingsQ.isLoading, sessions, nameMap]);
 
   const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && (r.status === "pending" || r.status === "confirmed")).length;
   const paidCount = rows.filter((r) => r.payment_status === "paid").length;
@@ -4910,8 +5034,16 @@ function BookingsSection({ venues, userId }: { venues: Venue[]; userId: string }
                 const cancelled = r.status === "cancelled";
                 const venueId = r.courts?.venue_id;
                 const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
+                const focused = !!focusBookingId && s.ids.includes(focusBookingId);
                 return (
-                  <tr key={s.key} className="border-t border-border">
+                  <tr
+                    key={s.key}
+                    id={`tenant-booking-${s.ids[0]}`}
+                    className={
+                      "border-t border-border transition-colors " +
+                      (focused ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : "")
+                    }
+                  >
                     <td className="px-4 py-3 whitespace-nowrap">
                       {formatDateLabel(s.start_time)}
                       <div className="text-[11px] text-muted-foreground">{formatSessionLabel(s.start_time, s.end_time)}</div>

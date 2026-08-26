@@ -465,37 +465,49 @@ export type Database = {
       }
       notification_preferences: {
         Row: {
+          booking_changes_enabled: boolean
           bookings_enabled: boolean
+          cancellations_enabled: boolean
           email_enabled: boolean
           messages_enabled: boolean
+          new_bookings_enabled: boolean
           payments_enabled: boolean
           push_enabled: boolean
           quiet_hours_end: number | null
           quiet_hours_start: number | null
+          refunds_enabled: boolean
           reminders_enabled: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
+          booking_changes_enabled?: boolean
           bookings_enabled?: boolean
+          cancellations_enabled?: boolean
           email_enabled?: boolean
           messages_enabled?: boolean
+          new_bookings_enabled?: boolean
           payments_enabled?: boolean
           push_enabled?: boolean
           quiet_hours_end?: number | null
           quiet_hours_start?: number | null
+          refunds_enabled?: boolean
           reminders_enabled?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
+          booking_changes_enabled?: boolean
           bookings_enabled?: boolean
+          cancellations_enabled?: boolean
           email_enabled?: boolean
           messages_enabled?: boolean
+          new_bookings_enabled?: boolean
           payments_enabled?: boolean
           push_enabled?: boolean
           quiet_hours_end?: number | null
           quiet_hours_start?: number | null
+          refunds_enabled?: boolean
           reminders_enabled?: boolean
           updated_at?: string
           user_id?: string
@@ -505,6 +517,7 @@ export type Database = {
       notifications: {
         Row: {
           body: string | null
+          dedupe_key: string | null
           booking_id: number | null
           conversation_id: string | null
           created_at: string
@@ -518,6 +531,7 @@ export type Database = {
         }
         Insert: {
           body?: string | null
+          dedupe_key?: string | null
           booking_id?: number | null
           conversation_id?: string | null
           created_at?: string
@@ -531,6 +545,7 @@ export type Database = {
         }
         Update: {
           body?: string | null
+          dedupe_key?: string | null
           booking_id?: number | null
           conversation_id?: string | null
           created_at?: string

@@ -6,7 +6,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { MasterSearch } from "@/components/MasterSearch";
 import { usePlayerSearchEntries } from "@/lib/player-search";
 import { cn } from "@/lib/utils";
-import { initialsOf } from "@/lib/avatar";
+import { UserAvatar } from "@/components/UserAvatar";
 
 /* Lifted out of routes/_authenticated/dashboard.tsx, which is ~6,300 lines and pulls in the
    PayMongo and refund server functions. The landing page needs only this shell to wrap the
@@ -135,42 +135,6 @@ export function PlayerShell({
         )}
       </div>
     </div>
-  );
-}
-
-/** Profile picture, falling back to initials. On the dark rail, so the ring and the
- *  placeholder are white-on-green rather than the app's usual card colours. */
-function PlayerAvatar({
-  avatarUrl,
-  fullName,
-  className = "h-8 w-8",
-  title,
-}: {
-  avatarUrl?: string | null;
-  fullName?: string;
-  className?: string;
-  title?: string;
-}) {
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt=""
-        title={title}
-        className={cn("shrink-0 rounded-full border border-white/25 object-cover", className)}
-      />
-    );
-  }
-  return (
-    <span
-      title={title}
-      className={cn(
-        "grid shrink-0 place-items-center rounded-full border border-white/25 bg-white/10 font-display text-[11px] font-bold text-[#b8f05a]",
-        className,
-      )}
-    >
-      {initialsOf(fullName, "P")}
-    </span>
   );
 }
 
@@ -305,7 +269,7 @@ export function PlayerSidebarBody({
           </span>
           {/* Picture before the name, which is what a player recognises first. */}
           <div className="mt-2 flex items-center gap-2.5">
-            <PlayerAvatar avatarUrl={avatarUrl} fullName={fullName} className="h-8 w-8" />
+            <UserAvatar avatarUrl={avatarUrl} fullName={fullName} className="h-8 w-8" fallback="P" />
             <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-tight text-white">
               {fullName || "Player"}
             </span>
@@ -315,10 +279,11 @@ export function PlayerSidebarBody({
         /* The collapsed rail is 64px and has no room for a name, but the picture is
            exactly what still works at that width. */
         <div className="border-t border-white/10 px-3 py-3.5">
-          <PlayerAvatar
+          <UserAvatar
             avatarUrl={avatarUrl}
             fullName={fullName}
             className="mx-auto h-9 w-9"
+            fallback="P"
             title={fullName || "Player"}
           />
         </div>

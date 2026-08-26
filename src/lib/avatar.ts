@@ -18,19 +18,54 @@ const SIGNED_EXPIRY = 60 * 60 * 24 * 365 * 10;
 
 export const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
 
+/** What the bucket will accept. Narrow on purpose: the avatars bucket must not become
+ *  a general file drop, and the storage policies scope *who* can write, not *what*. */
+export const ALLOWED_AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+/**
+ * Where one user's avatar object lives.
+ *
+ * The first path segment is the owner's uid, and every storage policy on this bucket
+ * checks `(storage.foldername(name))[1] = auth.uid()`, so the path *is* the access
+ * control. Exported so that rule can be asserted in a test rather than only existing
+ * inside a mutation.
+ *
+ * A fresh name per upload rather than a fixed `avatar.jpg`: the previous signed URL
+ * stays valid until the profile row is updated, so the picture never flashes empty,
+ * and no CDN holds a stale copy under a reused name.
+ */
+export function avatarObjectPath(userId: string, fileName: string, unique: string): string {
+  /* `split(".").pop()` returns the whole string when there is no dot, which turned a
+     file called "photo" into "photo.photo". Take the extension only when one exists,
+     then strip it to [a-z0-9] so no separator or traversal can reach the path. */
+  const dot = fileName.lastIndexOf(".");
+  const raw = dot > 0 && dot < fileName.length - 1 ? fileName.slice(dot + 1) : "";
+  const ext = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${userId}/${unique}.${ext || "jpg"}`;
+}
+
+/** Shared by the hook and its test, so the two cannot disagree about what is allowed. */
+export function validateAvatarFile(file: { type: string; size: number }): string | null {
+  if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+    return "Pick a PNG, JPG, WebP or GIF image.";
+  }
+  if (file.size > MAX_AVATAR_BYTES) return "Pick an image under 3 MB.";
+  return null;
+}
+
 export function useAvatarUpload(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (file: File) => {
       if (!userId) throw new Error("Not signed in");
-      if (!file.type.startsWith("image/")) throw new Error("That file is not an image.");
-      if (file.size > MAX_AVATAR_BYTES) throw new Error("Pick an image under 3 MB.");
+      const invalid = validateAvatarFile(file);
+      if (invalid) throw new Error(invalid);
 
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      /* A new path per upload rather than a fixed `avatar.jpg`: the old signed URL
-         stays valid until the row is updated, so the picture never flashes empty,
-         and no CDN holds a stale copy under a reused name. */
-      const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const path = avatarObjectPath(
+        userId,
+        file.name,
+        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      );
 
       const { error: upErr } = await supabase.storage
         .from(BUCKET)

@@ -104,6 +104,7 @@ export function formatFullDate(iso: string) {
 /** Human name for a notification `type`. The raw values are snake_case identifiers
  *  written for the database; this is what a player should read. */
 export const NOTIFICATION_LABEL: Record<string, string> = {
+  // Player
   booking_cancelled: "Booking cancelled",
   booking_confirmed: "Booking confirmed",
   booking_reminder_day: "Booking reminder",
@@ -111,7 +112,26 @@ export const NOTIFICATION_LABEL: Record<string, string> = {
   refund: "Refund",
   message: "Message",
   hours_changed: "Opening hours changed",
+  // Tenant — venue operations
+  venue_booking_new: "New booking",
+  venue_booking_changed: "Booking changed",
+  venue_booking_cancelled: "Booking cancelled",
+  venue_payment_received: "Payment received",
+  venue_refund_processed: "Refund processed",
+  venue_refund_failed: "Refund needs attention",
 };
+
+/** What the primary button in the detail view should say. A message wants "Open
+ *  conversation", a payment wants "View payment" — "View booking" for all of them
+ *  reads as if the app does not know what it just told you. */
+export function notificationActionLabel(type: string): string {
+  if (type === "message") return "Open conversation";
+  if (type === "venue_payment_received" || type === "refund") return "View payment";
+  if (type.startsWith("venue_refund")) return "View refund";
+  if (type === "venue_booking_cancelled" || type === "booking_cancelled")
+    return "Review cancellation";
+  return "View booking";
+}
 
 /** Falls back to a readable version of the raw type rather than hiding it — an
  *  unlabelled new type should still show something a human can act on. */
@@ -127,4 +147,10 @@ export const NOTIFICATION_ICON: Record<string, string> = {
   refund: "💸",
   message: "💬",
   hours_changed: "🕒",
+  venue_booking_new: "🎉",
+  venue_booking_changed: "🔄",
+  venue_booking_cancelled: "❌",
+  venue_payment_received: "💳",
+  venue_refund_processed: "💸",
+  venue_refund_failed: "⚠️",
 };
