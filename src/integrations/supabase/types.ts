@@ -25,7 +25,11 @@ export type Database = {
           end_time: string
           id: number
           payment_status: string
+          refund_method: string | null
           refund_mode: string | null
+          refund_reference: string | null
+          refund_settled_at: string | null
+          refund_settled_by: string | null
           refund_status: string
           start_time: string
           status: string
@@ -43,7 +47,11 @@ export type Database = {
           end_time: string
           id?: never
           payment_status?: string
+          refund_method?: string | null
           refund_mode?: string | null
+          refund_reference?: string | null
+          refund_settled_at?: string | null
+          refund_settled_by?: string | null
           refund_status?: string
           start_time: string
           status?: string
@@ -61,7 +69,11 @@ export type Database = {
           end_time?: string
           id?: never
           payment_status?: string
+          refund_method?: string | null
           refund_mode?: string | null
+          refund_reference?: string | null
+          refund_settled_at?: string | null
+          refund_settled_by?: string | null
           refund_status?: string
           start_time?: string
           status?: string
@@ -127,6 +139,32 @@ export type Database = {
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_reads: {
+        Row: {
+          conversation_id: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_reads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -386,27 +424,39 @@ export type Database = {
       }
       messages: {
         Row: {
+          attachment_name: string | null
+          attachment_type: string | null
+          attachment_url: string | null
           body: string
           conversation_id: string
           created_at: string
           id: string
           read_at: string | null
+          reply_to: string | null
           sender_id: string
         }
         Insert: {
+          attachment_name?: string | null
+          attachment_type?: string | null
+          attachment_url?: string | null
           body: string
           conversation_id: string
           created_at?: string
           id?: string
           read_at?: string | null
+          reply_to?: string | null
           sender_id: string
         }
         Update: {
+          attachment_name?: string | null
+          attachment_type?: string | null
+          attachment_url?: string | null
           body?: string
           conversation_id?: string
           created_at?: string
           id?: string
           read_at?: string | null
+          reply_to?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -1124,9 +1174,20 @@ export type Database = {
         Args: { _booking_ids: number[]; _reason: string; _refund_mode: string }
         Returns: number
       }
+      mark_conversation_read: {
+        Args: { _conversation_id: string }
+        Returns: undefined
+      }
       staff_mark_refund_settled: {
-        Args: { _booking_ids: number[] }
+        Args: { _booking_ids: number[]; _method?: string; _reference?: string }
         Returns: number
+      }
+      unread_counts_for_bookings: {
+        Args: { _booking_ids: number[] }
+        Returns: {
+          booking_id: number
+          unread: number
+        }[]
       }
       venue_has_active_bookings: {
         Args: { _venue_id: number }

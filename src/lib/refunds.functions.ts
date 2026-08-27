@@ -71,7 +71,7 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
             continue;
           }
           try {
-            await refundPayment({
+            const result = await refundPayment({
               paymentId,
               amountCentavos: Math.round(Number(t.amount) * 100),
               reason: "requested_by_customer",
@@ -80,6 +80,20 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
               .from("transactions")
               .update({ status: "refunded", refunded_at: new Date().toISOString() })
               .eq("id", t.id);
+
+            /* Written per row, BEFORE the batched status flip below, and deliberately
+               touching neither status nor refund_status — the notification trigger
+               keys on those, so this pass is silent. Doing it in this order means the
+               provider's reference is already on the booking when the single status
+               update fires the one accurate notification. */
+            await supabaseAdmin
+              .from("bookings")
+              .update({
+                refund_method: "paymongo",
+                refund_reference: result?.data?.id ?? paymentId,
+              })
+              .eq("id", t.booking_id);
+
             refundedBookingIds.push(t.booking_id);
             refunded += 1;
           } catch (e) {
@@ -92,7 +106,11 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
         if (refundedBookingIds.length > 0) {
           await supabaseAdmin
             .from("bookings")
-            .update({ refund_status: "refunded", payment_status: "refunded" })
+            .update({
+              refund_status: "refunded",
+              payment_status: "refunded",
+              refund_settled_at: new Date().toISOString(),
+            })
             .in("id", refundedBookingIds);
         }
 

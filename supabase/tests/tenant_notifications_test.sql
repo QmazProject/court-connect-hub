@@ -455,5 +455,138 @@ BEGIN
   RAISE NOTICE 'ok  every SECURITY DEFINER function pins search_path';
 END $$;
 
-\echo '=== all tenant notification + refund + avatar checks passed ==='
+-- ---------------------------------------------------------------------------
+\echo '=== 14. refund settlement records method and reference ==='
+-- ---------------------------------------------------------------------------
+SAVEPOINT s14;
+DO $$
+DECLARE _id bigint; _r RECORD;
+BEGIN
+  INSERT INTO public.bookings
+    (court_id, user_id, start_time, end_time, status, payment_status, refund_status, unit_price)
+  VALUES (pg_temp.id('court_a')::bigint, pg_temp.id('player')::uuid,
+          date_trunc('hour', now()) + interval '30 hours',
+          date_trunc('hour', now()) + interval '31 hours',
+          'cancelled', 'paid', 'pending', 500)
+  RETURNING id INTO _id;
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  -- staff_mark_refund_settled runs as the caller; impersonate Owner A.
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', pg_temp.id('owner_a'), 'role', 'authenticated')::text, true);
+  PERFORM public.staff_mark_refund_settled(ARRAY[_id], 'manual', 'GCash ref 123');
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  SELECT refund_status, payment_status, refund_method, refund_reference, refund_settled_at
+    INTO _r FROM public.bookings WHERE id = _id;
+
+  IF _r.refund_status <> 'refunded' OR _r.payment_status <> 'refunded' THEN
+    RAISE EXCEPTION 'FAIL: settlement did not clear the refund: %', _r;
+  END IF;
+  IF _r.refund_method <> 'manual' OR _r.refund_reference <> 'GCash ref 123' THEN
+    RAISE EXCEPTION 'FAIL: method/reference not recorded: %', _r;
+  END IF;
+  IF _r.refund_settled_at IS NULL THEN
+    RAISE EXCEPTION 'FAIL: refund_settled_at not stamped';
+  END IF;
+  RAISE NOTICE 'ok  manual settlement recorded with method and reference';
+END $$;
+ROLLBACK TO SAVEPOINT s14;
+
+-- ---------------------------------------------------------------------------
+\echo '=== 15. unread counts exclude your own messages and respect the read mark ==='
+-- ---------------------------------------------------------------------------
+SAVEPOINT s15;
+DO $$
+DECLARE _bid bigint; _conv uuid; _n integer;
+BEGIN
+  INSERT INTO public.bookings
+    (court_id, user_id, start_time, end_time, status, payment_status, unit_price)
+  VALUES (pg_temp.id('court_a')::bigint, pg_temp.id('player')::uuid,
+          date_trunc('hour', now()) + interval '30 hours',
+          date_trunc('hour', now()) + interval '31 hours',
+          'confirmed', 'paid', 500)
+  RETURNING id INTO _bid;
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  INSERT INTO public.conversations (booking_id, venue_id, player_id)
+  VALUES (_bid, pg_temp.id('venue_a')::bigint, pg_temp.id('player')::uuid)
+  RETURNING id INTO _conv;
+
+  -- Two from the player, one from the venue.
+  INSERT INTO public.messages (conversation_id, sender_id, body)
+  VALUES (_conv, pg_temp.id('player')::uuid, 'Can we move to 7pm?'),
+         (_conv, pg_temp.id('player')::uuid, 'Or 8pm?'),
+         (_conv, pg_temp.id('owner_a')::uuid, 'Sure.');
+
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub', pg_temp.id('owner_a'), 'role', 'authenticated')::text, true);
+
+  SELECT unread INTO _n FROM public.unread_counts_for_bookings(ARRAY[_bid]);
+  PERFORM pg_temp.check('venue sees 2 unread (its own reply excluded)', _n, 2);
+
+  PERFORM public.mark_conversation_read(_conv);
+  SELECT COALESCE((SELECT unread FROM public.unread_counts_for_bookings(ARRAY[_bid])), 0) INTO _n;
+  PERFORM pg_temp.check('after reading, 0 unread', _n, 0);
+
+  -- A new message after the read mark counts again.
+  INSERT INTO public.messages (conversation_id, sender_id, body)
+  VALUES (_conv, pg_temp.id('player')::uuid, 'Thanks!');
+  SELECT unread INTO _n FROM public.unread_counts_for_bookings(ARRAY[_bid]);
+  PERFORM pg_temp.check('a later message counts again', _n, 1);
+END $$;
+ROLLBACK TO SAVEPOINT s15;
+
+-- ---------------------------------------------------------------------------
+\echo '=== 16. a message must carry a body or an attachment ==='
+-- ---------------------------------------------------------------------------
+SAVEPOINT s16;
+DO $$
+DECLARE _bid bigint; _conv uuid; _failed boolean := false;
+BEGIN
+  INSERT INTO public.bookings
+    (court_id, user_id, start_time, end_time, status, payment_status, unit_price)
+  VALUES (pg_temp.id('court_a')::bigint, pg_temp.id('player')::uuid,
+          date_trunc('hour', now()) + interval '30 hours',
+          date_trunc('hour', now()) + interval '31 hours',
+          'confirmed', 'paid', 500)
+  RETURNING id INTO _bid;
+  SET CONSTRAINTS ALL IMMEDIATE;
+
+  INSERT INTO public.conversations (booking_id, venue_id, player_id)
+  VALUES (_bid, pg_temp.id('venue_a')::bigint, pg_temp.id('player')::uuid)
+  RETURNING id INTO _conv;
+
+  -- An image with no caption is fine.
+  INSERT INTO public.messages (conversation_id, sender_id, body, attachment_url, attachment_type)
+  VALUES (_conv, pg_temp.id('player')::uuid, '', 'https://example.test/x.png', 'image/png');
+  RAISE NOTICE 'ok  attachment-only message accepted';
+
+  -- An empty message with nothing attached is not.
+  BEGIN
+    INSERT INTO public.messages (conversation_id, sender_id, body)
+    VALUES (_conv, pg_temp.id('player')::uuid, '   ');
+  EXCEPTION WHEN check_violation THEN _failed := true;
+  END;
+  IF NOT _failed THEN
+    RAISE EXCEPTION 'FAIL: an empty message with no attachment was accepted';
+  END IF;
+  RAISE NOTICE 'ok  empty message rejected';
+END $$;
+ROLLBACK TO SAVEPOINT s16;
+
+-- ---------------------------------------------------------------------------
+\echo '=== 17. chat attachment policies are scoped to conversation participants ==='
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE _n bigint;
+BEGIN
+  SELECT count(*) INTO _n FROM pg_policies
+   WHERE schemaname = 'storage' AND tablename = 'objects'
+     AND policyname LIKE '%chat attachments%'
+     AND COALESCE(qual, '') || COALESCE(with_check, '') LIKE '%is_conversation_participant%';
+  PERFORM pg_temp.check('both chat-attachment policies check participation', _n, 2);
+END $$;
+
+\echo '=== all tenant notification + refund + chat + avatar checks passed ==='
 ROLLBACK;

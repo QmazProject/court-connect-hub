@@ -292,6 +292,7 @@ function BookingCard({
   onPay,
   onCancel,
   onMessage,
+  unread = 0,
   actions = true,
 }: {
   session: PlayerSession;
@@ -303,6 +304,8 @@ function BookingCard({
   onPay?: (s: PlayerSession) => void;
   onCancel?: (s: PlayerSession) => void;
   onMessage?: (s: PlayerSession) => void;
+  /** Unread messages on this booking's thread, for the button badge. */
+  unread?: number;
   actions?: boolean;
 }) {
   const r = session.first;
@@ -410,9 +413,16 @@ function BookingCard({
           {c?.venues?.id && onMessage && (
             <button
               onClick={() => onMessage(session)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold transition hover:border-primary hover:text-primary"
+              className="relative rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold transition hover:border-primary hover:text-primary"
             >
               Message venue
+              {/* So a player can see which booking the venue replied on without having
+                  to catch the notification. Clears when the thread is opened. */}
+              {unread > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
             </button>
           )}
           {state !== "upcoming" && (
@@ -615,6 +625,7 @@ function UpcomingSection({
   onPay,
   onCancel,
   onMessage,
+  unreadFor,
 }: {
   sessions: PlayerSession[];
   idx: TxIndex;
@@ -623,6 +634,7 @@ function UpcomingSection({
   onPay: (s: PlayerSession) => void;
   onCancel: (s: PlayerSession) => void;
   onMessage: (s: PlayerSession) => void;
+  unreadFor: (ids: number[]) => number;
 }) {
   const [when, setWhen] = useState<WhenFilter>("all");
   const [sport, setSport] = useState("all");
@@ -747,6 +759,7 @@ function UpcomingSection({
               onPay={onPay}
               onCancel={onCancel}
               onMessage={onMessage}
+              unread={unreadFor(s.ids)}
             />
           ))}
         </ul>
@@ -1217,12 +1230,14 @@ function HistorySection({
   userId,
   focusBookingId,
   onMessage,
+  unreadFor,
 }: {
   stats: ReturnType<typeof buildPlayerStats>;
   idx: TxIndex;
   userId: string;
   focusBookingId?: number;
   onMessage: (s: PlayerSession) => void;
+  unreadFor: (ids: number[]) => number;
 }) {
   const [tab, setTab] = useState<HistoryTab>("all");
   const [q, setQ] = useState("");
@@ -1324,6 +1339,7 @@ function HistorySection({
                 idx={idx}
                 userId={userId}
                 onMessage={onMessage}
+              unread={unreadFor(s.ids)}
               />
             ))}
           </ul>
@@ -2399,6 +2415,27 @@ export function PlayerWorkspace({
 
   /* useCallback because the deep-link effect below depends on it; an unstable
      identity would re-run that effect on every render. */
+  /* One round trip for every booking on screen, rather than a query per card. */
+  const unreadQ = useQuery({
+    queryKey: ["unread-messages", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const ids = (bookingsQ.data ?? []).map((b) => b.id);
+      if (ids.length === 0) return new Map<number, number>();
+      const { data, error } = await supabase.rpc("unread_counts_for_bookings", {
+        _booking_ids: ids,
+      });
+      if (error) throw error;
+      const map = new Map<number, number>();
+      for (const r of data ?? []) map.set(Number(r.booking_id), Number(r.unread));
+      return map;
+    },
+  });
+  const unreadFor = useCallback(
+    (ids: number[]) => ids.reduce((n, id) => n + (unreadQ.data?.get(id) ?? 0), 0),
+    [unreadQ.data],
+  );
+
   const openChat = useCallback((s: PlayerSession) => {
     const vId = s.first.courts?.venues?.id;
     if (!vId) return;
@@ -2469,7 +2506,10 @@ export function PlayerWorkspace({
           meId={userId}
           title={chat.title}
           subtitle={chat.subtitle}
-          onClose={() => setChat(null)}
+          onClose={() => {
+            setChat(null);
+            qc.invalidateQueries({ queryKey: ["unread-messages"] });
+          }}
         />
       )}
       {payFor && (
@@ -2675,6 +2715,7 @@ export function PlayerWorkspace({
           onPay={openPay}
           onCancel={askCancel}
           onMessage={openChat}
+          unreadFor={unreadFor}
         />
       )}
 
@@ -2755,6 +2796,7 @@ export function PlayerWorkspace({
         userId={userId}
         focusBookingId={focusBookingId}
         onMessage={openChat}
+        unreadFor={unreadFor}
       />
       <div className="h-8" />
     </div>,

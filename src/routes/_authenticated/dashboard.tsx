@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel } from "@/lib/booking-groups";
+import { canCancel, canSettleRefund, describeRefund } from "@/lib/booking-actions";
 
 import { CourtBlockRulesEditor, allPairsEnabled, ruleKey, type RuleCourt } from "@/components/CourtBlockRulesEditor";
 import { RateRulesEditor } from "@/components/RateRulesEditor";
@@ -4830,6 +4831,8 @@ type BookingRow = {
   start_time: string;
   end_time: string;
   status: string;
+  refund_method?: string | null;
+  refund_reference?: string | null;
   payment_status: string;
   refund_status?: string | null;
   created_at: string;
@@ -4837,6 +4840,104 @@ type BookingRow = {
   discount_amount: number | null;
   courts: { name: string; venue_id: number; venues: { name: string } | null } | null;
 };
+
+/**
+ * Records how a refund was actually returned.
+ *
+ * The method matters after the fact: "refunded" alone cannot distinguish money PayMongo
+ * pushed back automatically from money a manager sent by GCash after agreeing it in the
+ * chat. The reference is what makes the manual case auditable.
+ */
+function SettleRefundDialog({
+  target, busy, error, onClose, onConfirm,
+}: {
+  target: { ids: number[]; label: string };
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (method: "manual" | "paymongo", reference: string) => void;
+}) {
+  const [method, setMethod] = useState<"manual" | "paymongo">("manual");
+  const [reference, setReference] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-[1400] grid place-items-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <h3 className="font-display text-base font-bold">Mark refund settled</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{target.label}</p>
+        <p className="mt-3 rounded-xl bg-secondary/60 p-3 text-xs text-muted-foreground">
+          Only record this once the money has actually left your side. The player is told
+          immediately, and the booking moves from <b>Awaiting refund</b> to <b>Refunded</b>.
+        </p>
+
+        <div className="mt-4 space-y-2">
+          <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+            <input
+              type="radio"
+              className="mt-0.5"
+              checked={method === "manual"}
+              onChange={() => setMethod("manual")}
+            />
+            <span>
+              Sent manually
+              <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                GCash, bank transfer or cash — the destination you agreed in the booking chat.
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+            <input
+              type="radio"
+              className="mt-0.5"
+              checked={method === "paymongo"}
+              onChange={() => setMethod("paymongo")}
+            />
+            <span>
+              Returned through PayMongo
+              <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                Use this only if you pushed the refund from the PayMongo dashboard yourself.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <label className="mt-4 block">
+          <span className="text-xs font-medium text-muted-foreground">
+            Reference {method === "manual" ? "(GCash ref. no., receipt or note)" : "(PayMongo refund id)"}
+          </span>
+          <input
+            value={reference}
+            onChange={(e) => setReference(e.target.value.slice(0, 200))}
+            placeholder={method === "manual" ? "e.g. GCash ref 0123 4567 8901" : "e.g. ref_..."}
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            Optional, but it is what proves the refund later. Shown to the player.
+          </span>
+        </label>
+
+        {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            Not yet
+          </button>
+          <button
+            onClick={() => onConfirm(method, reference)}
+            disabled={busy}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? "Recording…" : "Mark settled"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BookingsSection({
   venues, userId, focusBookingId, openChat,
@@ -4853,6 +4954,7 @@ function BookingsSection({
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">("upcoming");
   const [payFilter, setPayFilter] = useState<"all" | "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
+  const [settleTarget, setSettleTarget] = useState<{ ids: number[]; label: string } | null>(null);
   const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   /* One shot per target. `sessions` is rebuilt on every render, so an effect that
@@ -4882,7 +4984,7 @@ function BookingsSection({
     queryFn: async () => {
       let q = supabase
         .from("bookings")
-        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, created_at, unit_price, discount_amount, courts(name, venue_id, venues(name))")
+        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, refund_method, refund_reference, created_at, unit_price, discount_amount, courts(name, venue_id, venues(name))")
         .order("start_time", { ascending: false })
         .limit(500);
       if (payFilter !== "all") q = q.eq("payment_status", payFilter);
@@ -4913,6 +5015,42 @@ function BookingsSection({
   const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p]));
   const rows = bookingsQ.data ?? [];
   const sessions = groupBookingSessions(rows).sort((a, b) => b.start_time.localeCompare(a.start_time));
+
+  /* One round trip for the whole table rather than a query per row. Keyed on the ids
+     actually on screen so it refetches when the filters change. */
+  const bookingIdsOnScreen = rows.map((r) => r.id);
+  const unreadQ = useQuery({
+    queryKey: ["unread-messages", bookingIdsOnScreen.join(",")],
+    enabled: bookingIdsOnScreen.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("unread_counts_for_bookings", {
+        _booking_ids: bookingIdsOnScreen,
+      });
+      if (error) throw error;
+      const map = new Map<number, number>();
+      for (const r of data ?? []) map.set(Number(r.booking_id), Number(r.unread));
+      return map;
+    },
+  });
+  /* A session is several booking rows but one conversation per row id; the thread is
+     opened on `first`, so that is the row whose count belongs on the button. */
+  const unreadFor = (ids: number[]) =>
+    ids.reduce((n, id) => n + (unreadQ.data?.get(id) ?? 0), 0);
+
+  const settleRefund = useMutation({
+    mutationFn: async (args: { ids: number[]; method: "manual" | "paymongo"; reference: string }) => {
+      const { error } = await supabase.rpc("staff_mark_refund_settled", {
+        _booking_ids: args.ids,
+        _method: args.method,
+        _reference: args.reference.trim() || undefined,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setSettleTarget(null);
+      qc.invalidateQueries({ queryKey: ["tenant-bookings"] });
+    },
+  });
 
   /* The link carries the session's anchor id, but any hourly row of the session is a
      valid match — `ids.includes` rather than an equality test on the first id, so a
@@ -4957,7 +5095,12 @@ function BookingsSection({
       cancelled: "bg-muted text-muted-foreground",
       refunded: "bg-muted text-muted-foreground",
     };
-    const label = refundStatus === "pending" ? "Awaiting refund" : s === "pending" ? "Payment pending" : s.replace(/_/g, " ");
+    const label =
+      refundStatus === "pending"
+        ? "Awaiting refund"
+        : s === "pending"
+          ? "Payment pending"
+          : s.replace(/_/g, " ");
     return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
   };
   const stBadge = (s: string) => {
@@ -5035,6 +5178,16 @@ function BookingsSection({
                 const venueId = r.courts?.venue_id;
                 const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
                 const focused = !!focusBookingId && s.ids.includes(focusBookingId);
+                /* The rules live in @/lib/booking-actions so they can be tested; using
+                   them here is what makes those tests mean anything. */
+                const actionInput = {
+                  status: r.status,
+                  refund_status: r.refund_status ?? "none",
+                  sessionEndsAt: s.end_time,
+                };
+                const showCancel = canCancel(actionInput, nowMs);
+                const showSettle = canSettleRefund(actionInput);
+                const refundNote = describeRefund(r.refund_status ?? "none", r.refund_method);
                 return (
                   <tr
                     key={s.key}
@@ -5055,20 +5208,55 @@ function BookingsSection({
                       {stBadge(r.status)}
                       {paymentHoldRemaining(r) && <div className="mt-1 text-[10px] font-medium text-amber-700">{paymentHoldRemaining(r)}</div>}
                     </td>
-                    <td className="px-4 py-3">{payBadge(r.payment_status, r.refund_status)}</td>
+                    <td className="px-4 py-3">
+                      {payBadge(r.payment_status, r.refund_status)}
+                      {/* "Refunded" alone does not say whether PayMongo pushed it back or
+                          a manager sent it by hand — which is the whole question when a
+                          player asks where their money went. */}
+                      {refundNote && (
+                        <div className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                          {refundNote}
+                          {r.refund_reference && (
+                            <span className="block truncate" title={r.refund_reference}>
+                              {r.refund_reference}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5 whitespace-nowrap">
                         {venueId && (
                           <button
                             onClick={() => setChat({ bookingId: r.id, venueId, playerId: r.user_id, title: p?.full_name || "Player", subtitle: label })}
-                            className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
+                            className="relative rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
                           >
                             Message
+                            {/* So a venue can see WHICH booking is waiting on them without
+                                depending on a notification having been noticed. Clears
+                                itself once the thread is opened. */}
+                            {unreadFor(s.ids) > 0 && (
+                              <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                                {unreadFor(s.ids) > 9 ? "9+" : unreadFor(s.ids)}
+                              </span>
+                            )}
                           </button>
                         )}
-                        {!cancelled && r.status !== "expired" && (
+                        {/* A refund the venue agreed to settle itself sits on "Awaiting
+                            refund" until someone records that it was sent. Nothing in the
+                            app called staff_mark_refund_settled before, so this was a
+                            dead end. */}
+                        {showSettle && (
                           <button
-                            onClick={() => setCancelTarget({ bookingIds: s.ids, label, hasPaid: paid })}
+                            onClick={() => setSettleTarget({ ids: s.ids, label })}
+                            className="rounded-lg border border-primary/50 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
+                          >
+                            Mark refund settled
+                          </button>
+                        )}
+                        {showCancel && (
+                          <button
+                            onClick={() => setCancelTarget({ label, slots: s.items })}
                             className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
                           >
                             Cancel
@@ -5096,6 +5284,17 @@ function BookingsSection({
         />
       )}
 
+      {settleTarget && (
+        <SettleRefundDialog
+          target={settleTarget}
+          busy={settleRefund.isPending}
+          error={settleRefund.error instanceof Error ? settleRefund.error.message : null}
+          onClose={() => settleRefund.isPending || setSettleTarget(null)}
+          onConfirm={(method, reference) =>
+            settleRefund.mutate({ ids: settleTarget.ids, method, reference })
+          }
+        />
+      )}
       {chat && (
         <BookingChat
           bookingId={chat.bookingId}
@@ -5104,7 +5303,10 @@ function BookingsSection({
           meId={userId}
           title={`Chat with ${chat.title}`}
           subtitle={chat.subtitle}
-          onClose={() => setChat(null)}
+          onClose={() => {
+            setChat(null);
+            qc.invalidateQueries({ queryKey: ["unread-messages"] });
+          }}
         />
       )}
     </div>
