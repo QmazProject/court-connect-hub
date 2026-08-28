@@ -17,6 +17,13 @@ import { addZonedDays, zonedDateISO, zonedDayBoundsUtc, zonedDayOfWeek } from "@
 const searchSchema = z.object({
   sport: z.string().optional(),
   court: z.coerce.number().int().positive().optional(),
+  /* Handed over by the assistant so a "Book 7-9 PM" chip lands on the right day with
+     those hours already picked. Both are suggestions the panel re-validates. */
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  hours: z.string().optional(),
 });
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -99,7 +106,21 @@ type ChipKey =
 
 function VenueDetail() {
   const { venueId } = Route.useParams();
-  const { sport, court: openCourtId } = Route.useSearch();
+  const {
+    sport,
+    court: openCourtId,
+    date: prefillDate,
+    hours: prefillRaw,
+  } = Route.useSearch();
+  /* Ignore anything that is not a plain hour list — the value arrives from a URL. */
+  const prefillHours = useMemo(
+    () =>
+      (prefillRaw ?? "")
+        .split(",")
+        .map((h) => Number(h.trim()))
+        .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23),
+    [prefillRaw],
+  );
   const navigate = useNavigate({ from: "/venues/$venueId" });
   const openCourt = (id: number | null) =>
     navigate({ search: (prev: { sport?: string; court?: number }) => ({ ...prev, court: id ?? undefined }), replace: !id });
@@ -644,6 +665,8 @@ function VenueDetail() {
         courtId={openCourtId ?? null}
         open={!!openCourtId}
         userId={userQ.data ?? null}
+        initialDate={prefillDate}
+        initialHours={prefillHours}
         onOpenChange={(o) => { if (!o) openCourt(null); }}
       />
     </main>

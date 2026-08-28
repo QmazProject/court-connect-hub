@@ -124,10 +124,15 @@ export function CourtBookingContent({
   courtId,
   onClose,
   userId,
+  initialDate,
+  initialHours,
 }: {
   courtId: number;
   onClose?: () => void;
   userId?: string | null;
+  /** Suggested by the assistant; re-checked against live availability below. */
+  initialDate?: string;
+  initialHours?: number[];
 }) {
   const qc = useQueryClient();
   const [date, setDate] = useState(() => zonedDateISO());
@@ -346,6 +351,37 @@ export function CourtBookingContent({
     () => ownedSlots(ownBookingsQ.data ?? [], dayBounds.start.getTime()),
     [ownBookingsQ.data, dayBounds.start],
   );
+
+  /* The assistant may hand this panel a date and a set of hours. They are a
+     suggestion, never a reservation: between the assistant answering and this panel
+     opening, another player can take one of them. So the hours are re-checked
+     against live availability here, and only the ones still bookable are selected.
+     The booking mutation below remains the only thing that decides. */
+  const prefillKey = `${courtId}:${initialDate ?? ""}:${(initialHours ?? []).join(",")}`;
+  const prefilledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialDate || !initialHours || initialHours.length === 0) return;
+    if (prefilledFor.current === prefillKey) return;
+    if (date !== initialDate) {
+      setDate(initialDate);
+      return;
+    }
+    const avail = availQ.data;
+    const c = courtQ.data;
+    if (!avail || !c) return;
+    const cap = Math.max(1, c.capacity ?? 1);
+    const dowKey = DAY_KEYS[zonedDayOfWeek(initialDate)];
+    const override = c.blocked_dates?.[initialDate];
+    const shut = new Set<number>(override ?? c.blocked_hours?.[dowKey] ?? []);
+    const stillFree = initialHours.filter((h) => {
+      if (shut.has(h)) return false;
+      if (zonedHourToUtc(initialDate, h).getTime() < Date.now()) return false;
+      const info = avail.get(h) ?? { remaining: cap, blockedByOther: false, heldForPayment: false };
+      return info.remaining > 0 && !info.blockedByOther && !info.heldForPayment;
+    });
+    prefilledFor.current = prefillKey;
+    setSelected(stillFree);
+  }, [prefillKey, initialDate, initialHours, availQ.data, courtQ.data, date]);
 
   if (courtQ.isLoading) {
     return (
@@ -1138,11 +1174,16 @@ export function CourtBookingPanel({
   open,
   onOpenChange,
   userId,
+  initialDate,
+  initialHours,
 }: {
   courtId: number | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId?: string | null;
+  /** Suggested by the assistant. Re-checked here before anything is selected. */
+  initialDate?: string;
+  initialHours?: number[];
 }) {
   const isMobile = useIsMobile();
 
@@ -1172,6 +1213,8 @@ export function CourtBookingPanel({
           <CourtBookingContent
             courtId={renderedId}
             userId={userId}
+            initialDate={initialDate}
+            initialHours={initialHours}
             onClose={() => onOpenChange(false)}
           />
         </DrawerContent>
@@ -1196,6 +1239,8 @@ export function CourtBookingPanel({
         <CourtBookingContent
           courtId={renderedId}
           userId={userId}
+          initialDate={initialDate}
+          initialHours={initialHours}
           onClose={() => onOpenChange(false)}
         />
       </SheetContent>

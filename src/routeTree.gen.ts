@@ -11,12 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminLoginRouteImport } from './routes/admin_.login'
 import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
 import { Route as ExploreGuestRouteImport } from './routes/explore_.guest'
 import { Route as PaymentReturnRouteImport } from './routes/payment.return'
@@ -31,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRouteRoute = AdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExploreRoute = ExploreRouteImport.update({
@@ -62,6 +70,16 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin_/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CourtsCourtIdRoute = CourtsCourtIdRouteImport.update({
   id: '/courts/$courtId',
@@ -98,16 +116,19 @@ const ApiPublicPaymongoWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/explore': typeof ExploreRoute
   '/landing': typeof LandingRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/admin/': typeof AdminIndexRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -119,10 +140,12 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/admin': typeof AdminIndexRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -130,16 +153,19 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/admin': typeof AdminRouteRouteWithChildren
   '/explore': typeof ExploreRoute
   '/landing': typeof LandingRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin_/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore_/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
+  '/admin/': typeof AdminIndexRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -147,16 +173,19 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/explore'
     | '/landing'
     | '/privacy'
     | '/reset-password'
     | '/terms'
     | '/dashboard'
+    | '/admin/login'
     | '/courts/$courtId'
     | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
+    | '/admin/'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -168,26 +197,31 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/terms'
     | '/dashboard'
+    | '/admin/login'
     | '/courts/$courtId'
     | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
+    | '/admin'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/admin'
     | '/explore'
     | '/landing'
     | '/privacy'
     | '/reset-password'
     | '/terms'
     | '/_authenticated/dashboard'
+    | '/admin_/login'
     | '/courts/$courtId'
     | '/explore_/guest'
     | '/payment/return'
     | '/venues/$venueId'
+    | '/admin/'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesById: FileRoutesById
@@ -195,11 +229,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
   ExploreRoute: typeof ExploreRoute
   LandingRoute: typeof LandingRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   TermsRoute: typeof TermsRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   CourtsCourtIdRoute: typeof CourtsCourtIdRoute
   ExploreGuestRoute: typeof ExploreGuestRoute
   PaymentReturnRoute: typeof PaymentReturnRoute
@@ -222,6 +258,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/explore': {
@@ -265,6 +308,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin_/login': {
+      id: '/admin_/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/courts/$courtId': {
       id: '/courts/$courtId'
@@ -322,14 +379,28 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AdminRouteRouteChildren {
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
   ExploreRoute: ExploreRoute,
   LandingRoute: LandingRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   TermsRoute: TermsRoute,
+  AdminLoginRoute: AdminLoginRoute,
   CourtsCourtIdRoute: CourtsCourtIdRoute,
   ExploreGuestRoute: ExploreGuestRoute,
   PaymentReturnRoute: PaymentReturnRoute,

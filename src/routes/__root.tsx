@@ -11,6 +11,7 @@ import {
 
 import { useEffect, type ReactNode } from "react";
 
+import { AssistantWidget } from "@/components/assistant/AssistantWidget";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
@@ -102,6 +103,15 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isVenuePage = pathname.startsWith("/venues/");
   const isCourtPage = pathname.startsWith("/courts/");
+  /* Legal, auth and the payment hand-back are single-purpose pages — a chat bubble
+     floating over a receipt or a consent form is noise, not help. */
+  const quietPage = [
+    "/landing",
+    "/terms",
+    "/privacy",
+    "/reset-password",
+    "/payment",
+  ].some((p) => pathname.startsWith(p));
   /* The legacy header is gone, so these two detail pages have no chrome of their own —
      without a Back control a visitor who opened one from the map has no way out but the
      browser button. */
@@ -146,6 +156,8 @@ function RootComponent() {
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <Outlet />
         </main>
+        {/* Renders nothing until it knows who is signed in, so it is safe on every route. */}
+        {!quietPage && <AssistantWidget />}
       </div>
     </QueryClientProvider>
   );

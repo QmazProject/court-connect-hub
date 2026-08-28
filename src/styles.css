@@ -218,8 +218,6 @@
   animation: sport-fade-in-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-
-
 @keyframes landing-overlay-in {
   from {
     opacity: 0;
@@ -687,7 +685,6 @@
   }
 }
 
-
 /* One swing per half-cycle, because each player is struck at twice per rally. 0% is the
    moment of contact, which is why the wind-up lives at the *end* of the keyframes: it is
    the approach to the next strike, not the recovery from the last one. */
@@ -979,8 +976,6 @@
    closes. The spark itself no longer animates — it is a steady point, lit by its own
    box-shadow, with the motion carried entirely by the embers falling off it. */
 
-
-
 /* Firework shower. Each dot gets its own dx/dy computed in JS, which is what lets the y
    component carry a downward bias — a rotate()-based radial burst can only ever make an
    even ring, and an even ring is the pulse this replaced. Holding opacity to 65% keeps the
@@ -1055,5 +1050,103 @@
   to {
     opacity: 0;
     transform: scale(1.9);
+  }
+}
+
+/* ── CourtHub Assistant nudge ─────────────────────────────────────────────
+   A small speech bubble that points down at the floating assistant button.
+   It arrives from below the panel it points at, so the eye travels from the
+   button up into the words rather than the other way round. */
+
+@keyframes assistant-nudge-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes assistant-nudge-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+/* Two quick waves, then rest — a hand that never stops waving reads as a loading
+   spinner rather than a greeting. */
+@keyframes assistant-wave {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+  10%,
+  30% {
+    transform: rotate(16deg);
+  }
+  20%,
+  40% {
+    transform: rotate(-12deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+/* A halo on the button itself while the nudge is up, so the pointer has something
+   to point at. Mixed from --foreground rather than a fixed colour, so it stays the
+   button's own colour whichever theme is in force. */
+@keyframes assistant-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--foreground) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 12px color-mix(in oklab, var(--foreground) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--foreground) 0%, transparent);
+  }
+}
+
+@utility assistant-nudge-enter {
+  animation: assistant-nudge-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility assistant-nudge-leave {
+  animation: assistant-nudge-out 0.28s ease-in both;
+}
+
+@utility assistant-wave-hand {
+  display: inline-block;
+  transform-origin: 70% 80%;
+  animation: assistant-wave 2.2s ease-in-out 0.25s infinite;
+}
+
+@utility assistant-pulse-ring {
+  animation: assistant-ring 1.9s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-nudge-enter,
+  .assistant-nudge-leave {
+    animation: none;
+  }
+  .assistant-wave-hand {
+    animation: none;
+  }
+  .assistant-pulse-ring {
+    animation: none;
   }
 }

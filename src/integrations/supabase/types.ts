@@ -826,6 +826,34 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          user_id: string
+          role: string
+          granted_by: string | null
+          granted_at: string
+          revoked_at: string | null
+          revoked_by: string | null
+          note: string | null
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      admin_audit_log: {
+        Row: {
+          id: number
+          actor_id: string | null
+          action: string
+          target_type: string | null
+          target_id: string | null
+          metadata: Json
+          created_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       user_preferences: {
         Row: {
           prefs: Json
@@ -1095,6 +1123,118 @@ export type Database = {
       court_price_for_hours: {
         Args: { _court_id: number; _hours: string[] }
         Returns: number
+      }
+      is_courthub_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_courthub_super_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      claim_initial_role: {
+        Args: { _role: string }
+        Returns: string
+      }
+      grant_courthub_admin: {
+        Args: { _user_id: string; _role?: string; _note?: string | null }
+        Returns: undefined
+      }
+      revoke_courthub_admin: {
+        Args: { _user_id: string; _role?: string }
+        Returns: undefined
+      }
+      list_courthub_admins: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          email: string
+          full_name: string | null
+          role: string
+          granted_at: string
+          revoked_at: string | null
+          last_sign_in_at: string | null
+        }[]
+      }
+      tenant_court_day: {
+        Args: { _date: string; _hours?: number[] | null; _now?: string | null }
+        Returns: {
+          venue_id: number
+          venue_name: string
+          court_id: number
+          court_name: string
+          sport: string
+          open_hours: number
+          booked_hours: number
+          held_hours: number
+          blocked_hours_count: number
+          past_hours: number
+          free_hours: number
+          free_hour_list: number[]
+          booked_hour_list: number[]
+          occupancy_pct: number | null
+        }[]
+      }
+      tenant_activity: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          venue_id: number
+          venue_name: string
+          bookings_created: number
+          bookings_starting: number
+          cancelled_count: number
+          confirmed_count: number
+          pending_payment_count: number
+          unpaid_count: number
+          refund_pending_count: number
+          refund_settled_count: number
+          paid_amount: number
+          pending_amount: number
+          refunded_amount: number
+        }[]
+      }
+      courts_availability: {
+        Args: { _court_ids: number[]; _from: string; _to: string }
+        Returns: {
+          court_id: number
+          hour_start: string
+          remaining: number
+          blocked_by_other_sport: boolean
+          held_for_payment: boolean
+        }[]
+      }
+      search_available_courts: {
+        Args: {
+          _date: string
+          _hours?: number[] | null
+          _min_duration?: number | null
+          _sport_slug?: string | null
+          _venue_ids?: number[] | null
+          _tenant_scope?: boolean | null
+          _lat?: number | null
+          _lng?: number | null
+          _max_km?: number | null
+          _min_price?: number | null
+          _max_price?: number | null
+          _payment?: string | null
+          _amenities?: string[] | null
+          _order?: string | null
+          _now?: string | null
+          _limit?: number | null
+          _offset?: number | null
+        }
+        Returns: {
+          court_id: number
+          venue_id: number
+          free_hours: number[]
+          free_hour_count: number
+          run_start: number
+          run_length: number
+          period_total: number
+          period_rate: number
+          distance_km: number | null
+          total_matches: number
+        }[]
       }
       court_rate_for_hour: {
         Args: { _court_id: number; _ts: string }

@@ -83,17 +83,7 @@ import { PaymentRally } from "@/components/PaymentRally";
 import { PRIVACY, TERMS, LEGAL_VERSION } from "@/lib/legal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { searchPhPlaces, type PhPlace } from "@/lib/ph-places";
-
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
+import { haversineKm } from "@/lib/geo";
 
 /* Google's four-color "G" mark, inlined rather than fetched — the auth sheet has no other
    dependency on an icon CDN and this keeps the button recognizable at a glance. */
@@ -1589,8 +1579,17 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         // Deliberate "Continue with Google" from the role step — apply the role picked
         // before the redirect now that there is a user to attach it to.
         sessionStorage.removeItem(GOOGLE_PENDING_ROLE_KEY);
-        await supabase.from("profiles").update({ role: pendingRole }).eq("id", user.id);
-        await supabase.auth.updateUser({ data: { role: pendingRole } });
+        /* Not a direct write to profiles.role any more: that column is no longer
+           settable by its owner, because being able to set it let any player make
+           themselves a tenant. `claim_initial_role` is the one legitimate case —
+           it applies the role picked before the Google redirect, works only while
+           the profile is still on its default, and only just after sign-up. */
+        const { error: roleError } = await supabase.rpc("claim_initial_role", {
+          _role: pendingRole,
+        });
+        if (!roleError) {
+          await supabase.auth.updateUser({ data: { role: pendingRole } });
+        }
       } else if (isFreshGoogleAccount(user)) {
         await supabase.auth.signOut();
         if (mounted) {

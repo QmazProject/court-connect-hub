@@ -1,3 +1,4 @@
+
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,20 +8,45 @@ import { useServerFn } from "@tanstack/react-start";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel } from "@/lib/booking-groups";
 import { canCancel, canSettleRefund, describeRefund } from "@/lib/booking-actions";
 
-import { CourtBlockRulesEditor, allPairsEnabled, ruleKey, type RuleCourt } from "@/components/CourtBlockRulesEditor";
+import {
+  CourtBlockRulesEditor,
+  allPairsEnabled,
+  ruleKey,
+  type RuleCourt,
+} from "@/components/CourtBlockRulesEditor";
 import { RateRulesEditor } from "@/components/RateRulesEditor";
 import { normalizeRules, type RateRule } from "@/lib/court-pricing";
 import { OperatingHoursEditor, CourtHoursEditor } from "@/components/OperatingHoursEditor";
-import { normalizeHours, openHoursForDay, openHoursForDate, effectiveHours, fullWeek, describeWindow, HOUR_DAY_KEYS, type DayKey, type HoursMap } from "@/lib/operating-hours";
+import {
+  normalizeHours,
+  openHoursForDay,
+  openHoursForDate,
+  effectiveHours,
+  fullWeek,
+  describeWindow,
+  HOUR_DAY_KEYS,
+  type DayKey,
+  type HoursMap,
+} from "@/lib/operating-hours";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MapInfoButton } from "@/components/MapInfoButton";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MasterSearch } from "@/components/MasterSearch";
+import { VenuePicker } from "@/components/VenuePicker";
 import { NotificationSettingsCard } from "@/components/NotificationSettingsCard";
 import { ProfileSettingsCard } from "@/components/ProfileSettingsCard";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -34,27 +60,61 @@ import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
 
 const chLogo = { url: "/CHicon.png" };
 import {
-  LayoutDashboard, CalendarDays, BookOpen, LandPlot, Users, UserCog,
-  Receipt, Settings as SettingsIcon, Menu, X, Layers, MapPin, Pencil, Trash2, Clock, AlertTriangle, History as HistoryIcon,
-  TableProperties, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Search as SearchIcon, Save, Bookmark, TicketPercent, LogOut,
-  TrendingUp, TrendingDown, Wallet, Flame, Trophy, Timer, Sparkles, CreditCard
+  LayoutDashboard,
+  CalendarDays,
+  BookOpen,
+  LandPlot,
+  Users,
+  UserCog,
+  Receipt,
+  Settings as SettingsIcon,
+  Menu,
+  X,
+  Layers,
+  MapPin,
+  Pencil,
+  Trash2,
+  Clock,
+  AlertTriangle,
+  History as HistoryIcon,
+  TableProperties,
+  ChevronRight,
+  ChevronLeft,
+  ChevronUp,
+  ChevronDown,
+  Search as SearchIcon,
+  Save,
+  Bookmark,
+  TicketPercent,
+  LogOut,
+  Filter,
+  Check,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Flame,
+  Trophy,
+  Timer,
+  Sparkles,
+  CreditCard,
 } from "lucide-react";
 
 type SectionKey =
   | "dashboard" | "calendar" | "bookings" | "courts"
   | "customers" | "team" | "transactions" | "vouchers" | "settings";
 
-const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "calendar", label: "Calendar", icon: CalendarDays },
-  { key: "bookings", label: "Bookings", icon: BookOpen },
-  { key: "courts", label: "Venues & Courts", icon: LandPlot },
-  { key: "customers", label: "Customers", icon: Users },
-  { key: "team", label: "Team", icon: UserCog },
-  { key: "transactions", label: "Transactions", icon: Receipt },
-  { key: "vouchers", label: "Vouchers", icon: TicketPercent },
-  { key: "settings", label: "Settings", icon: SettingsIcon },
-];
+const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] =
+  [
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
+    { key: "bookings", label: "Bookings", icon: BookOpen },
+    { key: "courts", label: "Venues & Courts", icon: LandPlot },
+    { key: "customers", label: "Customers", icon: Users },
+    { key: "team", label: "Team", icon: UserCog },
+    { key: "transactions", label: "Transactions", icon: Receipt },
+    { key: "vouchers", label: "Vouchers", icon: TicketPercent },
+    { key: "settings", label: "Settings", icon: SettingsIcon },
+  ];
 
 /** `view` picks which player pane is showing. A search param rather than a separate route so
  *  the whole dashboard — including the tenant side, which ignores it — stays one route with
@@ -96,22 +156,95 @@ const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "UTC", label: "UTC" },
 ];
 
-const TZ_BOUNDS: { tz: string; country: string; minLat: number; maxLat: number; minLng: number; maxLng: number }[] = [
-  { tz: "Asia/Manila", country: "Philippines", minLat: 4.5, maxLat: 21.5, minLng: 116, maxLng: 127 },
-  { tz: "Asia/Singapore", country: "Singapore", minLat: 1.15, maxLat: 1.5, minLng: 103.6, maxLng: 104.05 },
-  { tz: "Asia/Hong_Kong", country: "Hong Kong", minLat: 22.15, maxLat: 22.58, minLng: 113.83, maxLng: 114.44 },
-  { tz: "Asia/Kuala_Lumpur", country: "Malaysia", minLat: 0.85, maxLat: 7.4, minLng: 99.6, maxLng: 119.3 },
-  { tz: "Asia/Jakarta", country: "Indonesia (WIB)", minLat: -8.8, maxLat: 6.1, minLng: 95, maxLng: 141 },
-  { tz: "Asia/Bangkok", country: "Thailand", minLat: 5.6, maxLat: 20.5, minLng: 97.3, maxLng: 105.7 },
+const TZ_BOUNDS: {
+  tz: string;
+  country: string;
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}[] = [
+  {
+    tz: "Asia/Manila",
+    country: "Philippines",
+    minLat: 4.5,
+    maxLat: 21.5,
+    minLng: 116,
+    maxLng: 127,
+  },
+  {
+    tz: "Asia/Singapore",
+    country: "Singapore",
+    minLat: 1.15,
+    maxLat: 1.5,
+    minLng: 103.6,
+    maxLng: 104.05,
+  },
+  {
+    tz: "Asia/Hong_Kong",
+    country: "Hong Kong",
+    minLat: 22.15,
+    maxLat: 22.58,
+    minLng: 113.83,
+    maxLng: 114.44,
+  },
+  {
+    tz: "Asia/Kuala_Lumpur",
+    country: "Malaysia",
+    minLat: 0.85,
+    maxLat: 7.4,
+    minLng: 99.6,
+    maxLng: 119.3,
+  },
+  {
+    tz: "Asia/Jakarta",
+    country: "Indonesia (WIB)",
+    minLat: -8.8,
+    maxLat: 6.1,
+    minLng: 95,
+    maxLng: 141,
+  },
+  {
+    tz: "Asia/Bangkok",
+    country: "Thailand",
+    minLat: 5.6,
+    maxLat: 20.5,
+    minLng: 97.3,
+    maxLng: 105.7,
+  },
   { tz: "Asia/Tokyo", country: "Japan", minLat: 24, maxLat: 45.6, minLng: 122.9, maxLng: 146 },
-  { tz: "Asia/Seoul", country: "South Korea", minLat: 33, maxLat: 38.7, minLng: 124.5, maxLng: 131 },
-  { tz: "Asia/Taipei", country: "Taiwan", minLat: 21.8, maxLat: 25.4, minLng: 119.3, maxLng: 122.1 },
-  { tz: "Australia/Sydney", country: "Australia", minLat: -44, maxLat: -10, minLng: 112, maxLng: 154 },
+  {
+    tz: "Asia/Seoul",
+    country: "South Korea",
+    minLat: 33,
+    maxLat: 38.7,
+    minLng: 124.5,
+    maxLng: 131,
+  },
+  {
+    tz: "Asia/Taipei",
+    country: "Taiwan",
+    minLat: 21.8,
+    maxLat: 25.4,
+    minLng: 119.3,
+    maxLng: 122.1,
+  },
+  {
+    tz: "Australia/Sydney",
+    country: "Australia",
+    minLat: -44,
+    maxLat: -10,
+    minLng: 112,
+    maxLng: 154,
+  },
 ];
 
 const PH_BOUNDS = TZ_BOUNDS[0];
 
-function suggestTimezone(lat: number | null, lng: number | null): { tz: string; country: string } | null {
+function suggestTimezone(
+  lat: number | null,
+  lng: number | null,
+): { tz: string; country: string } | null {
   if (lat == null || lng == null) return null;
   for (const b of TZ_BOUNDS) {
     if (lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng) {
@@ -123,13 +256,43 @@ function suggestTimezone(lat: number | null, lng: number | null): { tz: string; 
 
 function isInPhilippines(lat: number | null, lng: number | null): boolean {
   if (lat == null || lng == null) return false;
-  return lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lng >= PH_BOUNDS.minLng && lng <= PH_BOUNDS.maxLng;
+  return (
+    lat >= PH_BOUNDS.minLat &&
+    lat <= PH_BOUNDS.maxLat &&
+    lng >= PH_BOUNDS.minLng &&
+    lng <= PH_BOUNDS.maxLng
+  );
 }
 
 export type FeeItem = { label: string; amount: number };
-type Venue = { id: number; name: string; address: string; timezone: string; latitude: number | null; longitude: number | null; description: string | null; images: string[] | null; map_emoji: string | null; created_at?: string | null; is_active?: boolean; amenities?: string[] | null; food_beverages?: string[] | null; facility_services?: string[] | null; fees?: FeeItem[] | null; fees_notes?: string | null; contact_phone?: string | null; contact_email?: string | null; operating_hours?: unknown; operating_hours_text?: string | null; refund_cutoff_hours?: number | null; cancellation_notes?: string | null; rules?: string | null };
+type Venue = {
+  id: number;
+  name: string;
+  address: string;
+  timezone: string;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  images: string[] | null;
+  map_emoji: string | null;
+  created_at?: string | null;
+  is_active?: boolean;
+  amenities?: string[] | null;
+  food_beverages?: string[] | null;
+  facility_services?: string[] | null;
+  fees?: FeeItem[] | null;
+  fees_notes?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  operating_hours?: unknown;
+  operating_hours_text?: string | null;
+  refund_cutoff_hours?: number | null;
+  cancellation_notes?: string | null;
+  rules?: string | null;
+};
 
-const ACTIVE_INFO_TEXT = "A venue can only be set inactive when none of its courts have upcoming or in-progress confirmed bookings. If bookings exist, wait until their end time passes. Any pending (awaiting-payment) bookings will be automatically cancelled and those players will be notified to pick another venue. Inactive venues are hidden from the landing page map and list.";
+const ACTIVE_INFO_TEXT =
+  "A venue can only be set inactive when none of its courts have upcoming or in-progress confirmed bookings. If bookings exist, wait until their end time passes. Any pending (awaiting-payment) bookings will be automatically cancelled and those players will be notified to pick another venue. Inactive venues are hidden from the landing page map and list.";
 type Sport = { id: number; name: string; slug?: string };
 type Court = {
   id: number; name: string; hourly_rate: number; is_indoor: boolean;
@@ -153,7 +316,13 @@ type Court = {
   rate_rules?: unknown;
   sports: { name: string; slug?: string } | null;
 };
-type PhysicalCourt = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null };
+type PhysicalCourt = {
+  id: number;
+  venue_id: number;
+  name: string;
+  map_emoji: string | null;
+  description: string | null;
+};
 
 function CourtStatusField({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -217,7 +386,11 @@ function Dashboard() {
   const profileQ = useQuery({
     queryKey: ["profile", user.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -226,11 +399,18 @@ function Dashboard() {
   const venuesQ = useQuery({
     queryKey: ["my-venues", user.id],
     queryFn: async () => {
-      const { data: staffRows, error: se } = await supabase.from("staff").select("venue_id").eq("user_id", user.id);
+      const { data: staffRows, error: se } = await supabase
+        .from("staff")
+        .select("venue_id")
+        .eq("user_id", user.id);
       if (se) throw se;
       const ids = (staffRows ?? []).map((r) => r.venue_id);
       if (ids.length === 0) return [] as Venue[];
-      const { data, error } = await supabase.from("venues").select("*").in("id", ids).order("id", { ascending: false });
+      const { data, error } = await supabase
+        .from("venues")
+        .select("*")
+        .in("id", ids)
+        .order("id", { ascending: false });
       if (error) throw error;
       return data as Venue[];
     },
@@ -239,7 +419,8 @@ function Dashboard() {
   // Read from metadata up front — it's on the route context synchronously, before
   // profileQ resolves, so the sidebar shows a name on the very first paint instead of
   // popping in once the query settles.
-  const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
+  const metadataName =
+    typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
   const fullName = profileQ.data?.full_name ?? metadataName;
   /* Read before the loading gate below narrows `profileQ.data` away. */
   const avatarUrl = profileQ.data?.avatar_url ?? null;
@@ -257,7 +438,9 @@ function Dashboard() {
       openCreateVenue: () => setCreateVenueOpen(true),
       openAddCourt: () => setAddCourtOpen(true),
       openCreateGroup: () => setCreateGroupOpen(true),
-      onSignOut: () => { void signOut(); },
+      onSignOut: () => {
+        void signOut();
+      },
     }),
     [signOut],
   );
@@ -275,7 +458,19 @@ function Dashboard() {
 
   if (profileQ.isLoading) {
     return (
-      <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} avatarUrl={avatarUrl} search={shellSearch}>
+      <TenantShell
+        userId={user.id}
+        section={section}
+        setSection={setSection}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        fullName={fullName}
+        avatarUrl={avatarUrl}
+        onSignOut={signOut}
+        search={shellSearch}
+      >
         <Skeleton />
       </TenantShell>
     );
@@ -287,14 +482,36 @@ function Dashboard() {
   const role = profileQ.data?.role === "tenant" ? "tenant" : metadataRole;
 
   if (role !== "tenant") {
-    return <PlayerWorkspace userId={user.id} fullName={fullName} email={user.email ?? ""} avatarUrl={profileQ.data?.avatar_url ?? null} view={search.view ?? "bookings"} focusBookingId={search.booking} openChatOnArrival={search.chat} />;
+    return (
+      <PlayerWorkspace
+        userId={user.id}
+        fullName={fullName}
+        email={user.email ?? ""}
+        avatarUrl={profileQ.data?.avatar_url ?? null}
+        view={search.view ?? "bookings"}
+        focusBookingId={search.booking}
+        openChatOnArrival={search.chat}
+      />
+    );
   }
 
   const venues = venuesQ.data ?? [];
   const loadingVenues = venuesQ.isLoading;
 
   return (
-    <TenantShell userId={user.id} section={section} setSection={setSection} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={collapsed} setCollapsed={setCollapsed} fullName={fullName} avatarUrl={avatarUrl} search={shellSearch}>
+    <TenantShell
+      userId={user.id}
+      section={section}
+      setSection={setSection}
+      mobileOpen={mobileOpen}
+      setMobileOpen={setMobileOpen}
+      collapsed={collapsed}
+      setCollapsed={setCollapsed}
+      fullName={fullName}
+      avatarUrl={avatarUrl}
+      onSignOut={signOut}
+      search={shellSearch}
+    >
       {section === "dashboard" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
@@ -303,10 +520,17 @@ function Dashboard() {
       {section === "courts" && (
         <div className="flex min-h-0 flex-1 flex-col">
           <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
-          <VenuesCourtsActions hasVenues={venues.length > 0} onCreateVenue={() => setCreateVenueOpen(true)} onAddCourt={() => setAddCourtOpen(true)} onCreateGroup={() => setCreateGroupOpen(true)} />
+          <VenuesCourtsActions
+            hasVenues={venues.length > 0}
+            onCreateVenue={() => setCreateVenueOpen(true)}
+            onAddCourt={() => setAddCourtOpen(true)}
+            onCreateGroup={() => setCreateGroupOpen(true)}
+          />
           <VenuesCourtsGlance venues={venues} />
 
-          {loadingVenues ? <Skeleton /> : venues.length === 0 ? (
+          {loadingVenues ? (
+            <Skeleton />
+          ) : venues.length === 0 ? (
             <EmptyState
               title="No venues yet"
               body="Create your first venue to start adding courts and taking bookings."
@@ -320,25 +544,55 @@ function Dashboard() {
               }
             />
           ) : (
-            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col"><VenuesCourtsTabs venues={venues} tab={courtsTab} setTab={setCourtsTab} /></div>
+            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col">
+              <VenuesCourtsTabs venues={venues} tab={courtsTab} setTab={setCourtsTab} />
+            </div>
           )}
 
           <CreateVenueDrawer
             open={createVenueOpen}
             onClose={() => setCreateVenueOpen(false)}
-            onCreated={() => { qc.invalidateQueries({ queryKey: ["my-venues"] }); setCreateVenueOpen(false); }}
+            onCreated={() => {
+              qc.invalidateQueries({ queryKey: ["my-venues"] });
+              setCreateVenueOpen(false);
+            }}
           />
           <AddCourtDrawer
             open={addCourtOpen}
             onClose={() => setAddCourtOpen(false)}
             venues={venues}
-            onCreated={() => { ["my-venues", "venues-courts-glance", "venues-court-counts", "all-tenant-courts", "venues-courts-table", "courts", "group-eligible-courts", "physical-courts-full", "physical-courts", "venues-group-counts"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); setAddCourtOpen(false); }}
+            onCreated={() => {
+              [
+                "my-venues",
+                "venues-courts-glance",
+                "venues-court-counts",
+                "all-tenant-courts",
+                "venues-courts-table",
+                "courts",
+                "group-eligible-courts",
+                "physical-courts-full",
+                "physical-courts",
+                "venues-group-counts",
+              ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+              setAddCourtOpen(false);
+            }}
           />
           <CreateGroupDrawer
             open={createGroupOpen}
             onClose={() => setCreateGroupOpen(false)}
             venues={venues}
-            onCreated={() => { ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); setCreateGroupOpen(false); }}
+            onCreated={() => {
+              [
+                "physical-courts-full",
+                "physical-courts",
+                "tenant-venues-full",
+                "venues-group-counts",
+                "group-eligible-courts",
+                "all-tenant-courts",
+                "court-block-rules",
+              ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+              setCreateGroupOpen(false);
+            }}
           />
         </div>
       )}
@@ -362,7 +616,14 @@ function Dashboard() {
           <CustomersSection venues={venues} />
         </div>
       )}
-      {section === "team" && <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1"><ComingSoon title="Team" body="Invite staff, assign roles and manage permissions per venue." /></div>}
+      {section === "team" && (
+        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <ComingSoon
+            title="Team"
+            body="Invite staff, assign roles and manage permissions per venue."
+          />
+        </div>
+      )}
       {section === "transactions" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <TransactionsSection venues={venues} />
@@ -389,9 +650,19 @@ function Dashboard() {
   );
 }
 
-
 function TenantShell({
-  children, section, setSection, mobileOpen, setMobileOpen, collapsed, setCollapsed, userId, fullName, avatarUrl, search,
+  children,
+  section,
+  setSection,
+  mobileOpen,
+  setMobileOpen,
+  collapsed,
+  setCollapsed,
+  userId,
+  fullName,
+  avatarUrl,
+  onSignOut,
+  search,
 }: {
   children: React.ReactNode;
   section: SectionKey;
@@ -403,6 +674,7 @@ function TenantShell({
   userId?: string;
   fullName?: string;
   avatarUrl?: string | null;
+  onSignOut?: () => void;
   /* Built by Dashboard, which owns the state a result has to act on. */
   search: {
     query: string;
@@ -411,7 +683,6 @@ function TenantShell({
     loading: boolean;
   };
 }) {
-
   const current = NAV.find((n) => n.key === section);
   /* Both bars share one query; only one of them is ever on screen. */
   const searchField = (compact: boolean) => (
@@ -441,22 +712,31 @@ function TenantShell({
           setCollapsed={setCollapsed}
           fullName={fullName}
           avatarUrl={avatarUrl}
+          onSignOut={onSignOut}
         />
       </aside>
 
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-1200 md:hidden">
-          <button aria-label="Close menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/40" />
+          <button
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+            className="absolute inset-0 bg-black/40"
+          />
           <aside className="absolute inset-y-0 left-0 flex w-62.5 flex-col border-r-2 border-[#b8f05a]/40 bg-linear-to-b from-[#0f4a40] to-[#09231f] text-white shadow-xl">
             <SidebarBody
               section={section}
-              setSection={(s) => { setSection(s); setMobileOpen(false); }}
+              setSection={(s) => {
+                setSection(s);
+                setMobileOpen(false);
+              }}
               collapsed={false}
-              setCollapsed={() => { }}
+              setCollapsed={() => {}}
               onClose={() => setMobileOpen(false)}
               fullName={fullName}
               avatarUrl={avatarUrl}
+              onSignOut={onSignOut}
             />
           </aside>
         </div>
@@ -465,7 +745,10 @@ function TenantShell({
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div className="relative flex items-center justify-between gap-2 border-b border-border bg-background px-4 py-2 md:hidden">
-          <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium"
+          >
             <Menu className="h-4 w-4" /> Menu
           </button>
           <span className="truncate text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
@@ -484,13 +767,19 @@ function TenantShell({
           {children}
         </div>
       </div>
-
     </div>
   );
 }
 
 function SidebarBody({
-  section, setSection, collapsed, setCollapsed, onClose, fullName, avatarUrl,
+  section,
+  setSection,
+  collapsed,
+  setCollapsed,
+  onClose,
+  fullName,
+  avatarUrl,
+  onSignOut,
 }: {
   section: SectionKey;
   setSection: (s: SectionKey) => void;
@@ -499,6 +788,7 @@ function SidebarBody({
   onClose?: () => void;
   fullName?: string;
   avatarUrl?: string | null;
+  onSignOut?: () => void;
 }) {
   return (
     <>
@@ -507,7 +797,11 @@ function SidebarBody({
           {/* The rail collapses to 64px, where a 4:1 wordmark would sit ~15px tall and
               stop being readable — the circle icon stands in for it at that width. */}
           {collapsed ? (
-            <img src={chLogo.url} alt="CourtHub" className="h-7 w-7 shrink-0 rounded-full object-contain" />
+            <img
+              src={chLogo.url}
+              alt="CourtHub"
+              className="h-7 w-7 shrink-0 rounded-full object-contain"
+            />
           ) : (
             <span className="logo-glaze shrink-0">
               <img
@@ -521,7 +815,11 @@ function SidebarBody({
           )}
         </div>
         {onClose ? (
-          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-[#b8f05a]">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-[#b8f05a]"
+          >
             <X className="h-4 w-4" />
           </button>
         ) : (
@@ -558,6 +856,19 @@ function SidebarBody({
           })}
         </ul>
       </nav>
+      {/* Sitting in the rail's footer, this is the same affordance the player rail
+          offers — signing out should not cost a trip through Settings. */}
+      <div className="mt-auto border-t border-white/10 p-2">
+        <button
+          onClick={onSignOut}
+          title={collapsed ? "Sign out" : undefined}
+          aria-label="Sign out"
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/15 hover:text-red-200"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span className="truncate">Sign out</span>}
+        </button>
+      </div>
       {!collapsed ? (
         <div className="border-t border-white/10 px-3 py-3.5">
           <span
@@ -569,7 +880,12 @@ function SidebarBody({
           {/* Picture before the name — the same shape the player rail uses. This is
               the signed-in staff member, not the venue. */}
           <div className="mt-2 flex items-center gap-2.5">
-            <UserAvatar avatarUrl={avatarUrl} fullName={fullName} className="h-8 w-8" fallback="V" />
+            <UserAvatar
+              avatarUrl={avatarUrl}
+              fullName={fullName}
+              className="h-8 w-8"
+              fallback="V"
+            />
             <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-tight text-white">
               {fullName || "Venue manager"}
             </span>
@@ -607,19 +923,32 @@ function ComingSoon({ title, body }: { title: string; body: string }) {
       <SectionHeader title={title} />
       <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
         <p className="text-sm text-muted-foreground">{body}</p>
-        <p className="mt-3 text-xs font-medium uppercase tracking-wider text-primary">Coming soon</p>
+        <p className="mt-3 text-xs font-medium uppercase tracking-wider text-primary">
+          Coming soon
+        </p>
       </div>
     </>
   );
 }
 
-function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; loading: boolean; setSection: (s: SectionKey) => void }) {
+function DashboardOverview({
+  venues,
+  loading,
+  setSection,
+}: {
+  venues: Venue[];
+  loading: boolean;
+  setSection: (s: SectionKey) => void;
+}) {
   const venueIds = venues.map((v) => v.id);
   const statsQ = useQuery({
     queryKey: ["tenant-stats", venueIds.join(",")],
     enabled: venueIds.length > 0,
     queryFn: async () => {
-      const { data: courts } = await supabase.from("courts").select("id, venue_id").in("venue_id", venueIds);
+      const { data: courts } = await supabase
+        .from("courts")
+        .select("id, venue_id")
+        .in("venue_id", venueIds);
       const courtIds = (courts ?? []).map((c) => c.id);
       let upcoming = 0;
       if (courtIds.length) {
@@ -637,7 +966,9 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   return (
     <>
       <SectionHeader title="Dashboard" subtitle="Your workspace at a glance." />
-      {loading ? <Skeleton /> : (
+      {loading ? (
+        <Skeleton />
+      ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard label="Venues" value={venues.length} />
           <StatCard label="Courts" value={statsQ.data?.courts ?? 0} />
@@ -648,7 +979,17 @@ function DashboardOverview({ venues, loading, setSection }: { venues: Venue[]; l
   );
 }
 
-function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt, onCreateGroup }: { hasVenues: boolean; onCreateVenue: () => void; onAddCourt: () => void; onCreateGroup: () => void }) {
+function VenuesCourtsActions({
+  hasVenues,
+  onCreateVenue,
+  onAddCourt,
+  onCreateGroup,
+}: {
+  hasVenues: boolean;
+  onCreateVenue: () => void;
+  onAddCourt: () => void;
+  onCreateGroup: () => void;
+}) {
   const handleAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
@@ -689,20 +1030,38 @@ function VenuesCourtsActions({ hasVenues, onCreateVenue, onAddCourt, onCreateGro
   );
 }
 
-function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+function CreateVenueDrawer({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
   return (
-    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div
+      className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}
+    >
       <div
         onClick={onClose}
-        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+        className={
+          "absolute inset-0 bg-black/40 transition-opacity duration-300 " +
+          (open ? "opacity-100" : "opacity-0")
+        }
       />
       <aside
         className={
@@ -715,7 +1074,11 @@ function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClos
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
           <h2 className="text-lg font-bold">Create venue</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary"
+          >
             ✕
           </button>
         </div>
@@ -727,20 +1090,40 @@ function CreateVenueDrawer({ open, onClose, onCreated }: { open: boolean; onClos
   );
 }
 
-function CreateGroupDrawer({ open, onClose, venues, onCreated }: { open: boolean; onClose: () => void; venues: Venue[]; onCreated: () => void }) {
+function CreateGroupDrawer({
+  open,
+  onClose,
+  venues,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  venues: Venue[];
+  onCreated: () => void;
+}) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
   return (
-    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div
+      className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}
+    >
       <div
         onClick={onClose}
-        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+        className={
+          "absolute inset-0 bg-black/40 transition-opacity duration-300 " +
+          (open ? "opacity-100" : "opacity-0")
+        }
       />
       <aside
         className={
@@ -753,7 +1136,13 @@ function CreateGroupDrawer({ open, onClose, venues, onCreated }: { open: boolean
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
           <h2 className="text-lg font-bold">Create court group</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary"
+          >
+            ✕
+          </button>
         </div>
         <div className="p-4 sm:p-6">
           {open && <CreateGroupForm venues={venues} onCreated={onCreated} onCancel={onClose} />}
@@ -763,7 +1152,15 @@ function CreateGroupDrawer({ open, onClose, venues, onCreated }: { open: boolean
   );
 }
 
-function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onCreated: () => void; onCancel: () => void }) {
+function CreateGroupForm({
+  venues,
+  onCreated,
+  onCancel,
+}: {
+  venues: Venue[];
+  onCreated: () => void;
+  onCancel: () => void;
+}) {
   const [venueId, setVenueId] = useState<number>(venues[0]?.id ?? 0);
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState<string | null>(null);
@@ -775,11 +1172,19 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
     queryKey: ["group-eligible-courts", venueId],
     enabled: !!venueId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("courts")
+      const { data, error } = await supabase
+        .from("courts")
         .select("id, name, hourly_rate, physical_court_id, sports(name)")
-        .eq("venue_id", venueId).order("id");
+        .eq("venue_id", venueId)
+        .order("id");
       if (error) throw error;
-      return data as unknown as Array<{ id: number; name: string; hourly_rate: number; physical_court_id: number; sports: { name: string } | null }>;
+      return data as unknown as Array<{
+        id: number;
+        name: string;
+        hourly_rate: number;
+        physical_court_id: number;
+        sports: { name: string } | null;
+      }>;
     },
   });
 
@@ -804,17 +1209,29 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
     mutationFn: async () => {
       if (!venueId) throw new Error("Pick a venue");
       if (!name.trim()) throw new Error("Group name is required");
-      const { data: pc, error } = await supabase.from("physical_courts").insert({
-        venue_id: venueId, name: name.trim(), map_emoji: emoji, description: description.trim() || null,
-      }).select("id").single();
+      const { data: pc, error } = await supabase
+        .from("physical_courts")
+        .insert({
+          venue_id: venueId,
+          name: name.trim(),
+          map_emoji: emoji,
+          description: description.trim() || null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
       const ids = Array.from(selected);
       if (ids.length > 0) {
-        const { error: upErr } = await supabase.from("courts")
-          .update({ physical_court_id: pc.id }).in("id", ids);
+        const { error: upErr } = await supabase
+          .from("courts")
+          .update({ physical_court_id: pc.id })
+          .in("id", ids);
         if (upErr) throw upErr;
         // Replace pairwise blocking rules for the selected courts
-        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        const { error: delErr } = await supabase
+          .from("court_block_rules")
+          .delete()
+          .in("court_id", ids);
         if (delErr) throw delErr;
         const rows = Array.from(rules)
           .map((k) => k.split(">").map(Number))
@@ -830,50 +1247,94 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
     onError: (e: Error) => setErr(e.message),
   });
 
-
   return (
-    <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        mut.mutate();
+      }}
+      className="grid gap-4"
+    >
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
         <div className="font-semibold text-primary">What is a court group?</div>
         <p className="mt-1 text-muted-foreground">
-          A group represents one <b>shared space</b> that can be set up for different sports (e.g. 1 basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically block each other.
+          A group represents one <b>shared space</b> that can be set up for different sports (e.g. 1
+          basketball ↔ 3 badminton ↔ 4 pickleball). Bookings across grouped courts automatically
+          block each other.
         </p>
       </div>
 
       <label className="block">
         <span className="text-xs font-medium text-muted-foreground">Venue</span>
-        <select value={venueId} onChange={(e) => setVenueId(Number(e.target.value))}
-          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
-          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        <select
+          value={venueId}
+          onChange={(e) => setVenueId(Number(e.target.value))}
+          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+        >
+          {venues.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
         </select>
       </label>
 
-      <Input label='Group name (e.g. "Court 1 — Main Slab")' value={name} onChange={setName} required />
+      <Input
+        label='Group name (e.g. "Court 1 — Main Slab")'
+        value={name}
+        onChange={setName}
+        required
+      />
 
       <div className="rounded-xl border border-border bg-background p-3">
-        <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
+        <EmojiPicker
+          label="Group emoji"
+          value={emoji}
+          fallback="🏟️"
+          onChange={setEmoji}
+          hint="Shown on the map and in the courts table."
+        />
       </div>
 
-      <Textarea label="About this Group" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+      <Textarea
+        label="About this Group"
+        value={description}
+        onChange={setDescription}
+        placeholder="Court size, surface, lighting, house rules…"
+      />
 
       <div className="rounded-xl border border-dashed border-border p-3">
         <div className="text-sm font-semibold">Assign existing courts to this group</div>
-        <p className="mt-1 text-xs text-muted-foreground">Tick every court that lives on this same shared space (e.g. 3 badminton + 4 pickleball courts painted on one hall).</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Tick every court that lives on this same shared space (e.g. 3 badminton + 4 pickleball
+          courts painted on one hall).
+        </p>
         <div className="mt-3 max-h-64 overflow-y-auto nice-scroll">
           {courtsQ.isLoading ? (
             <div className="h-16 animate-pulse rounded-lg bg-muted" />
           ) : (courtsQ.data ?? []).length === 0 ? (
-            <div className="text-xs text-muted-foreground">No courts in this venue yet. You can create the group now and assign courts later from Add / Edit court.</div>
+            <div className="text-xs text-muted-foreground">
+              No courts in this venue yet. You can create the group now and assign courts later from
+              Add / Edit court.
+            </div>
           ) : (
             <ul className="grid gap-2">
               {(courtsQ.data ?? []).map((c) => {
                 const checked = selected.has(c.id);
                 return (
-                  <li key={c.id} className={"flex items-center gap-3 rounded-lg border p-2 text-sm " + (checked ? "border-primary bg-primary/5" : "border-border")}>
+                  <li
+                    key={c.id}
+                    className={
+                      "flex items-center gap-3 rounded-lg border p-2 text-sm " +
+                      (checked ? "border-primary bg-primary/5" : "border-border")
+                    }
+                  >
                     <input type="checkbox" checked={checked} onChange={() => toggle(c.id)} />
                     <div className="flex-1">
                       <div className="font-medium">{c.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"} · ₱{Number(c.hourly_rate).toFixed(0)}/hr</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {c.sports?.name ?? "—"} · ₱{Number(c.hourly_rate).toFixed(0)}/hr
+                      </div>
                     </div>
                   </li>
                 );
@@ -885,13 +1346,22 @@ function CreateGroupForm({ venues, onCreated, onCancel }: { venues: Venue[]; onC
 
       <CourtBlockRulesEditor courts={selectedCourts} rules={rules} onChange={setRules} />
 
-
-
-      {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      {err && (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>
+      )}
 
       <div className="flex items-center justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
-        <button disabled={mut.isPending || !name.trim() || !venueId} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary"
+        >
+          Cancel
+        </button>
+        <button
+          disabled={mut.isPending || !name.trim() || !venueId}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
           {mut.isPending ? "Creating…" : "Create group"}
         </button>
       </div>
@@ -905,7 +1375,10 @@ function VenuesCourtsGlance({ venues }: { venues: Venue[] }) {
     queryKey: ["venues-courts-glance", venueIds.join(",")],
     enabled: venueIds.length > 0,
     queryFn: async () => {
-      const { data } = await supabase.from("courts").select("id, is_indoor").in("venue_id", venueIds);
+      const { data } = await supabase
+        .from("courts")
+        .select("id, is_indoor")
+        .in("venue_id", venueIds);
       const rows = data ?? [];
       const indoor = rows.filter((c) => c.is_indoor).length;
       return { total: rows.length, indoor, outdoor: rows.length - indoor };
@@ -935,7 +1408,15 @@ function VenuesCourtsTable({ venues }: { venues: Venue[] }) {
         .select("id, name, hourly_rate, is_indoor, coming_soon, venue_id, sports(name)")
         .in("venue_id", venueIds)
         .order("id", { ascending: true });
-      return (data ?? []) as Array<{ id: number; name: string; hourly_rate: number; is_indoor: boolean; coming_soon: boolean | null; venue_id: number; sports: { name: string } | null }>;
+      return (data ?? []) as Array<{
+        id: number;
+        name: string;
+        hourly_rate: number;
+        is_indoor: boolean;
+        coming_soon: boolean | null;
+        venue_id: number;
+        sports: { name: string } | null;
+      }>;
     },
   });
   const courts = q.data ?? [];
@@ -945,7 +1426,10 @@ function VenuesCourtsTable({ venues }: { venues: Venue[] }) {
     <div className="mb-8 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="font-semibold">Venues & courts</div>
-        <div className="text-xs text-muted-foreground">{venues.length} venue{venues.length === 1 ? "" : "s"} · {courts.length} court{courts.length === 1 ? "" : "s"}</div>
+        <div className="text-xs text-muted-foreground">
+          {venues.length} venue{venues.length === 1 ? "" : "s"} · {courts.length} court
+          {courts.length === 1 ? "" : "s"}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -966,26 +1450,38 @@ function VenuesCourtsTable({ venues }: { venues: Venue[] }) {
                 return (
                   <tr key={`v-${v.id}`}>
                     <td className="px-4 py-3 font-medium">{v.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground" colSpan={5}>No courts yet</td>
+                    <td className="px-4 py-3 text-muted-foreground" colSpan={5}>
+                      No courts yet
+                    </td>
                   </tr>
                 );
               }
               return rows.map((c, i) => (
                 <tr key={c.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-medium align-top">{i === 0 ? v.name : <span className="text-muted-foreground/60">↳</span>}</td>
+                  <td className="px-4 py-3 font-medium align-top">
+                    {i === 0 ? v.name : <span className="text-muted-foreground/60">↳</span>}
+                  </td>
                   <td className="px-4 py-3">{c.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${c.is_indoor ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${c.is_indoor ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}
+                    >
                       {c.is_indoor ? "Indoor" : "Outdoor"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold">₱{Number(c.hourly_rate).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-semibold">
+                    ₱{Number(c.hourly_rate).toLocaleString()}
+                  </td>
                   <td className="px-4 py-3">
                     {c.coming_soon ? (
-                      <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Coming soon</span>
+                      <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        Coming soon
+                      </span>
                     ) : (
-                      <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">Live</span>
+                      <span className="inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+                        Live
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -998,25 +1494,39 @@ function VenuesCourtsTable({ venues }: { venues: Venue[] }) {
   );
 }
 
-
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-1 font-display text-3xl font-semibold">{value}</div>
     </div>
   );
 }
 
-function QuickAction({ title, body, onClick }: { title: string; body: string; onClick: () => void }) {
+function QuickAction({
+  title,
+  body,
+  onClick,
+}: {
+  title: string;
+  body: string;
+  onClick: () => void;
+}) {
   return (
-    <button onClick={onClick} className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary">
+    <button
+      onClick={onClick}
+      className="rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:border-primary"
+    >
       <div className="font-semibold">{title}</div>
       <div className="mt-1 text-sm text-muted-foreground">{body}</div>
     </button>
   );
 }
-function Skeleton() { return <div className="h-40 animate-pulse rounded-2xl bg-muted" />; }
+function Skeleton() {
+  return <div className="h-40 animate-pulse rounded-2xl bg-muted" />;
+}
 function EmptyState({ title, body, cta }: { title: string; body: string; cta?: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-dashed border-border p-12 text-center">
@@ -1027,12 +1537,27 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta?: R
   );
 }
 
-function TagInput({ label, placeholder, values, onChange, hint }: { label: string; placeholder?: string; values: string[]; onChange: (v: string[]) => void; hint?: string }) {
+function TagInput({
+  label,
+  placeholder,
+  values,
+  onChange,
+  hint,
+}: {
+  label: string;
+  placeholder?: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  hint?: string;
+}) {
   const [draft, setDraft] = useState("");
   const add = () => {
     const t = draft.trim();
     if (!t) return;
-    if (values.some((v) => v.toLowerCase() === t.toLowerCase())) { setDraft(""); return; }
+    if (values.some((v) => v.toLowerCase() === t.toLowerCase())) {
+      setDraft("");
+      return;
+    }
     onChange([...values, t]);
     setDraft("");
   };
@@ -1041,20 +1566,34 @@ function TagInput({ label, placeholder, values, onChange, hint }: { label: strin
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-2 focus-within:ring-2 focus-within:ring-ring">
         {values.map((v) => (
-          <span key={v} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+          <span
+            key={v}
+            className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+          >
             {v}
-            <button type="button" aria-label={`Remove ${v}`} onClick={() => onChange(values.filter((x) => x !== v))} className="rounded-full text-primary/70 hover:text-primary">×</button>
+            <button
+              type="button"
+              aria-label={`Remove ${v}`}
+              onClick={() => onChange(values.filter((x) => x !== v))}
+              className="rounded-full text-primary/70 hover:text-primary"
+            >
+              ×
+            </button>
           </span>
         ))}
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
-            else if (e.key === "Backspace" && !draft && values.length) { onChange(values.slice(0, -1)); }
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              add();
+            } else if (e.key === "Backspace" && !draft && values.length) {
+              onChange(values.slice(0, -1));
+            }
           }}
           onBlur={add}
-          placeholder={values.length ? "" : placeholder ?? "Type and press Enter"}
+          placeholder={values.length ? "" : (placeholder ?? "Type and press Enter")}
           className="min-w-[8ch] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
         />
       </div>
@@ -1063,30 +1602,78 @@ function TagInput({ label, placeholder, values, onChange, hint }: { label: strin
   );
 }
 
-function FeesEditor({ items, onChange, notes, onNotesChange }: { items: FeeItem[]; onChange: (v: FeeItem[]) => void; notes: string; onNotesChange: (s: string) => void }) {
-  const update = (i: number, patch: Partial<FeeItem>) => onChange(items.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+function FeesEditor({
+  items,
+  onChange,
+  notes,
+  onNotesChange,
+}: {
+  items: FeeItem[];
+  onChange: (v: FeeItem[]) => void;
+  notes: string;
+  onNotesChange: (s: string) => void;
+}) {
+  const update = (i: number, patch: Partial<FeeItem>) =>
+    onChange(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   return (
     <div className="space-y-2 rounded-xl border border-border bg-background p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fees & Charges</span>
-        <button type="button" onClick={() => onChange([...items, { label: "", amount: 0 }])} className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary">+ Add fee</button>
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Fees & Charges
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange([...items, { label: "", amount: 0 }])}
+          className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium hover:border-primary hover:text-primary"
+        >
+          + Add fee
+        </button>
       </div>
-      {items.length === 0 && <p className="text-[11px] text-muted-foreground">No line-item fees yet. Add things like racket rental, shuttlecock, guest fee, etc.</p>}
+      {items.length === 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          No line-item fees yet. Add things like racket rental, shuttlecock, guest fee, etc.
+        </p>
+      )}
       <div className="space-y-1.5">
         {items.map((it, i) => (
           <div key={i} className="grid grid-cols-[1fr,110px,auto] items-center gap-2">
-            <input value={it.label} onChange={(e) => update(i, { label: e.target.value })} placeholder="e.g. Racket rental" className="rounded-lg border border-input bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <input
+              value={it.label}
+              onChange={(e) => update(i, { label: e.target.value })}
+              placeholder="e.g. Racket rental"
+              className="rounded-lg border border-input bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
             <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-2">
               <span className="text-xs text-muted-foreground">₱</span>
-              <input type="number" min={0} step="0.01" value={Number.isFinite(it.amount) ? it.amount : 0} onChange={(e) => update(i, { amount: Number(e.target.value) })} className="w-full bg-transparent py-1.5 text-sm outline-none" />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={Number.isFinite(it.amount) ? it.amount : 0}
+                onChange={(e) => update(i, { amount: Number(e.target.value) })}
+                className="w-full bg-transparent py-1.5 text-sm outline-none"
+              />
             </div>
-            <button type="button" aria-label="Remove fee" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:border-destructive hover:text-destructive">Remove</button>
+            <button
+              type="button"
+              aria-label="Remove fee"
+              onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+              className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:border-destructive hover:text-destructive"
+            >
+              Remove
+            </button>
           </div>
         ))}
       </div>
       <label className="block pt-1">
         <span className="text-[11px] font-medium text-muted-foreground">Notes (optional)</span>
-        <textarea value={notes} onChange={(e) => onNotesChange(e.target.value)} rows={2} placeholder="Any extra pricing notes, discounts, or conditions." className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+        <textarea
+          value={notes}
+          onChange={(e) => onNotesChange(e.target.value)}
+          rows={2}
+          placeholder="Any extra pricing notes, discounts, or conditions."
+          className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
       </label>
     </div>
   );
@@ -1097,7 +1684,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [address, setAddress] = useState("");
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [timezone, setTimezone] = useState(
-    TIMEZONE_OPTIONS.some((t) => t.value === detectedTz) ? detectedTz : "Asia/Manila"
+    TIMEZONE_OPTIONS.some((t) => t.value === detectedTz) ? detectedTz : "Asia/Manila",
   );
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
@@ -1120,7 +1707,9 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
   const [cancellationHours, setCancellationHours] = useState<number>(24);
   const [cancellationNotes, setCancellationNotes] = useState("");
   const [rules, setRules] = useState("");
-  const uploadPrefix = useRef(`venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).current;
+  const uploadPrefix = useRef(
+    `venues/new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  ).current;
 
   const suggested = suggestTimezone(lat, lng);
   const pinInPH = isInPhilippines(lat, lng);
@@ -1129,14 +1718,72 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
 
   const mut = useMutation({
     mutationFn: async () => {
-      if (lat == null || lng == null) throw new Error("Please pin your venue on the map before creating.");
-      if (!pinInPH) throw new Error("CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.");
-      if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
-      const cleanFees = fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) }));
-      const { error } = await supabase.from("venues").insert({ name, address, timezone, latitude: lat, longitude: lng, map_emoji: mapEmoji, description: description.trim() || null, images, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: cleanFees, fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, operating_hours: openHours, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null });
+      if (lat == null || lng == null)
+        throw new Error("Please pin your venue on the map before creating.");
+      if (!pinInPH)
+        throw new Error(
+          "CourtHub currently supports venues in the Philippines only. Please pin a location within the Philippines.",
+        );
+      if (tzMismatch && !tzConfirmed)
+        throw new Error(
+          `Timezone doesn't match your pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`,
+        );
+      const cleanFees = fees
+        .filter((f) => f.label.trim() && Number.isFinite(f.amount))
+        .map((f) => ({ label: f.label.trim(), amount: Number(f.amount) }));
+      const { error } = await supabase
+        .from("venues")
+        .insert({
+          name,
+          address,
+          timezone,
+          latitude: lat,
+          longitude: lng,
+          map_emoji: mapEmoji,
+          description: description.trim() || null,
+          images,
+          is_active: isActive,
+          amenities,
+          food_beverages: foodBeverages,
+          facility_services: facilityServices,
+          fees: cleanFees,
+          fees_notes: feesNotes.trim() || null,
+          contact_phone: contactPhone.trim() || null,
+          contact_email: contactEmail.trim() || null,
+          operating_hours_text: operatingHoursText.trim() || null,
+          operating_hours: openHours,
+          refund_cutoff_hours: Number.isFinite(cancellationHours)
+            ? Math.max(0, Math.floor(cancellationHours))
+            : 24,
+          cancellation_notes: cancellationNotes.trim() || null,
+          rules: rules.trim() || null,
+        });
       if (error) throw error;
     },
-    onSuccess: () => { setName(""); setAddress(""); setLat(null); setLng(null); setMapEmoji(null); setDescription(""); setImages([]); setErr(null); setTzConfirmed(false); setIsActive(true); setAmenities([]); setFoodBeverages([]); setFacilityServices([]); setFees([]); setFeesNotes(""); setContactPhone(""); setContactEmail(""); setOperatingHoursText(""); setCancellationHours(24); setCancellationNotes(""); setRules(""); onCreated(); },
+    onSuccess: () => {
+      setName("");
+      setAddress("");
+      setLat(null);
+      setLng(null);
+      setMapEmoji(null);
+      setDescription("");
+      setImages([]);
+      setErr(null);
+      setTzConfirmed(false);
+      setIsActive(true);
+      setAmenities([]);
+      setFoodBeverages([]);
+      setFacilityServices([]);
+      setFees([]);
+      setFeesNotes("");
+      setContactPhone("");
+      setContactEmail("");
+      setOperatingHoursText("");
+      setCancellationHours(24);
+      setCancellationNotes("");
+      setRules("");
+      onCreated();
+    },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -1144,7 +1791,13 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
       <h2 className="text-xl font-bold">New venue</h2>
       <p className="mt-1 text-sm text-muted-foreground">A venue holds one or more courts.</p>
-      <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="mt-4 grid gap-3 sm:grid-cols-2">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          mut.mutate();
+        }}
+        className="mt-4 grid gap-3 sm:grid-cols-2"
+      >
         <Input label="Venue name" value={name} onChange={setName} required />
         <Input label="Address" value={address} onChange={setAddress} required />
         <label className="block">
@@ -1155,20 +1808,34 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
             {TIMEZONE_OPTIONS.map((tz) => (
-              <option key={tz.value} value={tz.value}>{tz.label}</option>
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
             ))}
           </select>
-          <span className="mt-1 block text-[11px] text-muted-foreground">Used to display court hours and bookings in the venue's local time.</span>
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            Used to display court hours and bookings in the venue's local time.
+          </span>
         </label>
         <div className="sm:col-span-2 rounded-xl border border-dashed border-border bg-secondary/30 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Map location</span>
-            <button type="button" onClick={() => setPickerOpen(true)} className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Map location
+            </span>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary"
+            >
               {lat != null ? "Change pin" : "📍 Pick on map"}
             </button>
           </div>
           {lat != null && lng != null ? (
-            <button type="button" onClick={() => setPickerOpen(true)} className="mt-2 block w-full overflow-hidden rounded-lg border border-border">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="mt-2 block w-full overflow-hidden rounded-lg border border-border"
+            >
               <div className="relative h-28 w-full overflow-hidden">
                 <iframe
                   title="Selected location"
@@ -1180,10 +1847,14 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
                   <span className="h-1.5 w-1.5 rounded-full bg-white" /> Pinned
                 </span>
               </div>
-              <div className="bg-secondary/40 px-3 py-1.5 text-left font-mono text-[11px] text-muted-foreground">{lat.toFixed(6)}, {lng.toFixed(6)}</div>
+              <div className="bg-secondary/40 px-3 py-1.5 text-left font-mono text-[11px] text-muted-foreground">
+                {lat.toFixed(6)}, {lng.toFixed(6)}
+              </div>
             </button>
           ) : (
-            <p className="mt-2 text-[11px] text-muted-foreground">Tap "Pick on map" to drop a pin so players can find your venue.</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Tap "Pick on map" to drop a pin so players can find your venue.
+            </p>
           )}
         </div>
         <MapPicker
@@ -1192,9 +1863,14 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           initialLng={lng}
           onClose={() => setPickerOpen(false)}
           onSave={(la, ln) => {
-            setLat(la); setLng(ln); setPickerOpen(false);
+            setLat(la);
+            setLng(ln);
+            setPickerOpen(false);
             const s = suggestTimezone(la, ln);
-            if (s) { setTimezone(s.tz); setTzConfirmed(false); }
+            if (s) {
+              setTimezone(s.tz);
+              setTzConfirmed(false);
+            }
           }}
           title="Pin your venue"
         />
@@ -1208,64 +1884,153 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           />
         </div>
         <div className="sm:col-span-2">
-          <Textarea label="About this Venue (optional)" value={description} onChange={setDescription} placeholder="Tell players about your venue — parking, amenities, house rules…" />
+          <Textarea
+            label="About this Venue (optional)"
+            value={description}
+            onChange={setDescription}
+            placeholder="Tell players about your venue — parking, amenities, house rules…"
+          />
         </div>
         <div className="sm:col-span-2">
-          <ImageUploader label="Venue photos" pathPrefix={uploadPrefix} images={images} onChange={setImages} />
+          <ImageUploader
+            label="Venue photos"
+            pathPrefix={uploadPrefix}
+            images={images}
+            onChange={setImages}
+          />
         </div>
         <div className="sm:col-span-2">
-          <TagInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Parking, Showers, Wi-Fi" hint="Press Enter or comma to add. Shown to players on the venue page." />
+          <TagInput
+            label="Amenities"
+            values={amenities}
+            onChange={setAmenities}
+            placeholder="e.g. Parking, Showers, Wi-Fi"
+            hint="Press Enter or comma to add. Shown to players on the venue page."
+          />
         </div>
         <div className="sm:col-span-2">
-          <TagInput label="Food & Beverages" values={foodBeverages} onChange={setFoodBeverages} placeholder="e.g. Cafe, Vending machine, Water refill" />
+          <TagInput
+            label="Food & Beverages"
+            values={foodBeverages}
+            onChange={setFoodBeverages}
+            placeholder="e.g. Cafe, Vending machine, Water refill"
+          />
         </div>
         <div className="sm:col-span-2">
-          <TagInput label="Facility Services" values={facilityServices} onChange={setFacilityServices} placeholder="e.g. Racket rental, Coaching, Ball machine" />
+          <TagInput
+            label="Facility Services"
+            values={facilityServices}
+            onChange={setFacilityServices}
+            placeholder="e.g. Racket rental, Coaching, Ball machine"
+          />
         </div>
         <div className="sm:col-span-2">
-          <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
+          <FeesEditor
+            items={fees}
+            onChange={setFees}
+            notes={feesNotes}
+            onNotesChange={setFeesNotes}
+          />
         </div>
-        <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
+        <Input
+          label="Inquiry phone (shown to players)"
+          value={contactPhone}
+          onChange={setContactPhone}
+        />
         <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
         <div className="sm:col-span-2">
-          <OperatingHoursEditor hours={openHours} onChange={setOpenHours} hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere." />
-          <Textarea label="Operating hours note (optional)" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="Extra note shown to players, e.g. Holiday hours may vary" />
+          <OperatingHoursEditor
+            hours={openHours}
+            onChange={setOpenHours}
+            hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere."
+          />
+          <Textarea
+            label="Operating hours note (optional)"
+            value={operatingHoursText}
+            onChange={setOperatingHoursText}
+            placeholder="Extra note shown to players, e.g. Holiday hours may vary"
+          />
         </div>
         <label className="block">
-          <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
-          <input type="number" min={0} step={1} value={cancellationHours} onChange={(e) => setCancellationHours(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-          <span className="mt-1 block text-[11px] text-muted-foreground">Default 24h. Set to 0 to allow last-minute cancellations.</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Cancellation cutoff (hours before start)
+          </span>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={cancellationHours}
+            onChange={(e) => setCancellationHours(Number(e.target.value))}
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            Default 24h. Set to 0 to allow last-minute cancellations.
+          </span>
         </label>
         <div className="sm:col-span-2">
-          <Textarea label="Cancellation policy notes (optional)" value={cancellationNotes} onChange={setCancellationNotes} placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start." />
+          <Textarea
+            label="Cancellation policy notes (optional)"
+            value={cancellationNotes}
+            onChange={setCancellationNotes}
+            placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start."
+          />
         </div>
         <div className="sm:col-span-2">
-          <Textarea label="Venue rules (one per line)" value={rules} onChange={setRules} placeholder={"e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"} />
+          <Textarea
+            label="Venue rules (one per line)"
+            value={rules}
+            onChange={setRules}
+            placeholder={
+              "e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"
+            }
+          />
         </div>
         {pinOutsidePH && (
           <div className="sm:col-span-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            <strong>Location not supported.</strong> CourtHub is currently available for venues in the <strong>Philippines</strong> only. Please move your pin within the Philippines to continue.
+            <strong>Location not supported.</strong> CourtHub is currently available for venues in
+            the <strong>Philippines</strong> only. Please move your pin within the Philippines to
+            continue.
           </div>
         )}
         {tzMismatch && pinInPH && (
           <div className="sm:col-span-2 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <strong>Timezone doesn't match your pin.</strong> Based on your map location this venue looks like it's in <strong>{suggested?.country}</strong> ({suggested?.tz}), but you selected <strong>{timezone}</strong>. Court hours and bookings will display in the wrong local time if this is incorrect.
+                <strong>Timezone doesn't match your pin.</strong> Based on your map location this
+                venue looks like it's in <strong>{suggested?.country}</strong> ({suggested?.tz}),
+                but you selected <strong>{timezone}</strong>. Court hours and bookings will display
+                in the wrong local time if this is incorrect.
               </div>
-              <button type="button" onClick={() => { setTimezone(suggested!.tz); setTzConfirmed(false); }} className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setTimezone(suggested!.tz);
+                  setTzConfirmed(false);
+                }}
+                className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100"
+              >
                 Use {suggested?.tz}
               </button>
             </div>
             <label className="mt-2 flex items-center gap-2 text-[11px]">
-              <input type="checkbox" checked={tzConfirmed} onChange={(e) => setTzConfirmed(e.target.checked)} />
-              I confirm this venue uses <span className="font-mono">{timezone}</span> even though the pin is elsewhere.
+              <input
+                type="checkbox"
+                checked={tzConfirmed}
+                onChange={(e) => setTzConfirmed(e.target.checked)}
+              />
+              I confirm this venue uses <span className="font-mono">{timezone}</span> even though
+              the pin is elsewhere.
             </label>
           </div>
         )}
         <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2">
           <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 accent-primary" />
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
             Active
           </label>
           <span
@@ -1277,16 +2042,32 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           >
             ?
           </span>
-          <span className="ml-auto text-[11px] text-muted-foreground">Ticked by default — the venue will appear on the landing page.</span>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Ticked by default — the venue will appear on the landing page.
+          </span>
         </div>
         <div className="sm:col-span-2 flex flex-wrap gap-2">
-          <button disabled={mut.isPending || pinOutsidePH || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
-
+          <button
+            disabled={mut.isPending || pinOutsidePH || (tzMismatch && !tzConfirmed)}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          >
             {mut.isPending ? "Creating…" : "Create venue"}
           </button>
-          {onCancel && <button type="button" onClick={onCancel} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>}
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-lg border border-border px-4 py-2 text-sm"
+            >
+              Cancel
+            </button>
+          )}
         </div>
-        {err && <p className="sm:col-span-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        {err && (
+          <p className="sm:col-span-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {err}
+          </p>
+        )}
       </form>
     </section>
   );
@@ -1298,7 +2079,10 @@ function VenueSection({ venue }: { venue: Venue }) {
     queryKey: ["courts", venue.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("courts").select("*, sports(name)").eq("venue_id", venue.id).order("id");
+        .from("courts")
+        .select("*, sports(name)")
+        .eq("venue_id", venue.id)
+        .order("id");
       if (error) throw error;
       return data as unknown as Court[];
     },
@@ -1325,7 +2109,13 @@ function VenueSection({ venue }: { venue: Venue }) {
       }
       const { data, error } = await q;
       if (error) throw error;
-      return data as { id: number; court_id: number; start_time: string; end_time: string; status: string }[];
+      return data as {
+        id: number;
+        court_id: number;
+        start_time: string;
+        end_time: string;
+        status: string;
+      }[];
     },
   });
 
@@ -1338,22 +2128,43 @@ function VenueSection({ venue }: { venue: Venue }) {
           <div className="min-w-0 flex-1">
             <VenueEditor venue={venue} courtsCount={courtsQ.data?.length ?? 0} />
           </div>
-          <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
+          <VenueLocation
+            venue={venue}
+            onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })}
+          />
         </div>
       </header>
       <div className="p-4 sm:p-6">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(courtsQ.data ?? []).map((c) => (
-            <CourtCard key={c.id} court={c} venueEmoji={venue.map_emoji} onChanged={() => { qc.invalidateQueries({ queryKey: ["courts", venue.id] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); }} />
+            <CourtCard
+              key={c.id}
+              court={c}
+              venueEmoji={venue.map_emoji}
+              onChanged={() => {
+                qc.invalidateQueries({ queryKey: ["courts", venue.id] });
+                qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+                qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+              }}
+            />
           ))}
-          <AddCourt venueId={venue.id} venueEmoji={venue.map_emoji} onCreated={() => { qc.invalidateQueries({ queryKey: ["courts", venue.id] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); }} />
+          <AddCourt
+            venueId={venue.id}
+            venueEmoji={venue.map_emoji}
+            onCreated={() => {
+              qc.invalidateQueries({ queryKey: ["courts", venue.id] });
+              qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+              qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+            }}
+          />
         </div>
-
 
         <div className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {bookingDate ? `Bookings on ${new Date(`${bookingDate}T00:00:00`).toLocaleDateString()}` : "Upcoming bookings"}
+              {bookingDate
+                ? `Bookings on ${new Date(`${bookingDate}T00:00:00`).toLocaleDateString()}`
+                : "Upcoming bookings"}
             </h3>
             <div className="flex items-center gap-2">
               <input
@@ -1363,7 +2174,10 @@ function VenueSection({ venue }: { venue: Venue }) {
                 className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs"
               />
               {bookingDate && (
-                <button onClick={() => setBookingDate("")} className="rounded-lg border border-border px-2.5 py-1.5 text-xs hover:border-primary hover:text-primary">
+                <button
+                  onClick={() => setBookingDate("")}
+                  className="rounded-lg border border-border px-2.5 py-1.5 text-xs hover:border-primary hover:text-primary"
+                >
                   Show upcoming
                 </button>
               )}
@@ -1372,7 +2186,9 @@ function VenueSection({ venue }: { venue: Venue }) {
           {courtIds.length === 0 ? null : bookingsQ.isLoading ? (
             <div className="mt-3 h-16 animate-pulse rounded-lg bg-muted" />
           ) : (bookingsQ.data?.length ?? 0) === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">{bookingDate ? "No bookings on this date." : "No upcoming bookings yet."}</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              {bookingDate ? "No bookings on this date." : "No upcoming bookings yet."}
+            </p>
           ) : (
             <ul className="mt-3 divide-y divide-border rounded-xl border border-border">
               {bookingsQ.data!.map((b) => {
@@ -1383,10 +2199,14 @@ function VenueSection({ venue }: { venue: Venue }) {
                     <div>
                       <div className="font-medium">{courtName(b.court_id)}</div>
                       <div className="text-xs text-muted-foreground">
-                        {s.toLocaleDateString()} · {s.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – {e.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {s.toLocaleDateString()} ·{" "}
+                        {s.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
+                        {e.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </div>
                     </div>
-                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary capitalize">{b.status}</span>
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary capitalize">
+                      {b.status}
+                    </span>
                   </li>
                 );
               })}
@@ -1398,17 +2218,47 @@ function VenueSection({ venue }: { venue: Venue }) {
   );
 }
 
-function CourtCard({ court, venueEmoji, onChanged }: { court: Court; venueEmoji: string | null; onChanged: () => void }) {
+function CourtCard({
+  court,
+  venueEmoji,
+  onChanged,
+}: {
+  court: Court;
+  venueEmoji: string | null;
+  onChanged: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [managingHours, setManagingHours] = useState(false);
   if (editing) {
-    return <EditCourt court={court} venueEmoji={venueEmoji} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />;
+    return (
+      <EditCourt
+        court={court}
+        venueEmoji={venueEmoji}
+        onDone={() => {
+          setEditing(false);
+          onChanged();
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    );
   }
   if (managingHours) {
-    return <AvailabilityEditor court={court} onDone={() => { setManagingHours(false); onChanged(); }} onCancel={() => setManagingHours(false)} />;
+    return (
+      <AvailabilityEditor
+        court={court}
+        onDone={() => {
+          setManagingHours(false);
+          onChanged();
+        }}
+        onCancel={() => setManagingHours(false)}
+      />
+    );
   }
   const cover = court.images?.[0];
-  const totalBlocked = Object.values(court.blocked_hours ?? {}).reduce((s, arr) => s + (arr?.length ?? 0), 0);
+  const totalBlocked = Object.values(court.blocked_hours ?? {}).reduce(
+    (s, arr) => s + (arr?.length ?? 0),
+    0,
+  );
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       {cover ? (
@@ -1418,7 +2268,9 @@ function CourtCard({ court, venueEmoji, onChanged }: { court: Court; venueEmoji:
       )}
       <div className="p-4">
         <div className="flex items-center justify-between text-xs">
-          <span className="rounded-full bg-secondary px-2 py-1 font-medium">{court.sports?.name}</span>
+          <span className="rounded-full bg-secondary px-2 py-1 font-medium">
+            {court.sports?.name}
+          </span>
           <span className="text-muted-foreground">{court.is_indoor ? "Indoor" : "Outdoor"}</span>
         </div>
         {court.coming_soon && (
@@ -1427,26 +2279,46 @@ function CourtCard({ court, venueEmoji, onChanged }: { court: Court; venueEmoji:
           </span>
         )}
         <h3 className="mt-2 font-semibold">{court.name}</h3>
-        {court.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{court.description}</p>}
+        {court.description && (
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{court.description}</p>
+        )}
         {(court.amenities?.length ?? 0) > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {court.amenities!.slice(0, 4).map((a) => (
-              <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">{a}</span>
+              <span key={a} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">
+                {a}
+              </span>
             ))}
-            {(court.amenities!.length > 4) && <span className="text-[10px] text-muted-foreground">+{court.amenities!.length - 4} more</span>}
+            {court.amenities!.length > 4 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{court.amenities!.length - 4} more
+              </span>
+            )}
           </div>
         )}
         <div className="mt-3 flex items-center justify-between">
-          <div className="text-primary"><span className="text-lg font-bold">₱{Number(court.hourly_rate).toFixed(0)}</span> <span className="text-xs text-muted-foreground">/hr</span></div>
+          <div className="text-primary">
+            <span className="text-lg font-bold">₱{Number(court.hourly_rate).toFixed(0)}</span>{" "}
+            <span className="text-xs text-muted-foreground">/hr</span>
+          </div>
         </div>
         <div className="mt-2 text-[11px] text-muted-foreground">
-          Open 24/7 · <span className="font-medium text-foreground">{totalBlocked}</span> hr{totalBlocked === 1 ? "" : "s"} blocked / week
+          Open 24/7 · <span className="font-medium text-foreground">{totalBlocked}</span> hr
+          {totalBlocked === 1 ? "" : "s"} blocked / week
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => setManagingHours(true)} className="flex-1 rounded-md bg-primary/10 px-2 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20">
+          <button
+            onClick={() => setManagingHours(true)}
+            className="flex-1 rounded-md bg-primary/10 px-2 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20"
+          >
             Manage availability
           </button>
-          <button onClick={() => setEditing(true)} className="rounded-md border border-border px-2 py-1.5 text-xs font-medium hover:border-primary hover:text-primary">Edit details</button>
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-md border border-border px-2 py-1.5 text-xs font-medium hover:border-primary hover:text-primary"
+          >
+            Edit details
+          </button>
         </div>
       </div>
     </div>
@@ -1490,7 +2362,11 @@ export function datesToPayload(dateBlocks: Record<string, Set<number>>): Blocked
 }
 
 function AvailabilityGrid({
-  weekly, setWeekly, dateBlocks, setDateBlocks, hours,
+  weekly,
+  setWeekly,
+  dateBlocks,
+  setDateBlocks,
+  hours,
 }: {
   weekly: Record<string, Set<number>>;
   setWeekly: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
@@ -1503,28 +2379,41 @@ function AvailabilityGrid({
   const toggleWeekly = (day: string, hour: number) => {
     setWeekly((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
-      if (next[day].has(hour)) next[day].delete(hour); else next[day].add(hour);
+      if (next[day].has(hour)) next[day].delete(hour);
+      else next[day].add(hour);
       return next;
     });
   };
   const setAllDayWeekly = (day: string, block: boolean) => {
-    setWeekly((prev) => ({ ...prev, [day]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
+    setWeekly((prev) => ({
+      ...prev,
+      [day]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []),
+    }));
   };
 
-  const localISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const shiftDate = (iso: string, days: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + days); return localISO(d); };
+  const localISO = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const shiftDate = (iso: string, days: number) => {
+    const d = new Date(`${iso}T00:00:00`);
+    d.setDate(d.getDate() + days);
+    return localISO(d);
+  };
   const [selectedDate, setSelectedDate] = useState<string>(localISO(new Date()));
   const hasOverride = Object.prototype.hasOwnProperty.call(dateBlocks, selectedDate);
   const currentDateSet = dateBlocks[selectedDate] ?? new Set<number>();
   const toggleDate = (hour: number) => {
     setDateBlocks((prev) => {
       const set = new Set(prev[selectedDate] ?? []);
-      if (set.has(hour)) set.delete(hour); else set.add(hour);
+      if (set.has(hour)) set.delete(hour);
+      else set.add(hour);
       return { ...prev, [selectedDate]: set };
     });
   };
   const setAllForDate = (block: boolean) => {
-    setDateBlocks((prev) => ({ ...prev, [selectedDate]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []) }));
+    setDateBlocks((prev) => ({
+      ...prev,
+      [selectedDate]: new Set(block ? Array.from({ length: 24 }, (_, i) => i) : []),
+    }));
   };
   const clearOverride = () => {
     setDateBlocks((prev) => {
@@ -1537,11 +2426,31 @@ function AvailabilityGrid({
   return (
     <div>
       <div className="inline-flex rounded-lg border border-border bg-background p-0.5 text-xs">
-        <button type="button" onClick={() => setMode("weekly")} className={"rounded-md px-3 py-1.5 font-semibold " + (mode === "weekly" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Weekly pattern</button>
-        <button type="button" onClick={() => setMode("date")} className={"rounded-md px-3 py-1.5 font-semibold " + (mode === "date" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Specific date</button>
+        <button
+          type="button"
+          onClick={() => setMode("weekly")}
+          className={
+            "rounded-md px-3 py-1.5 font-semibold " +
+            (mode === "weekly" ? "bg-primary text-primary-foreground" : "text-muted-foreground")
+          }
+        >
+          Weekly pattern
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("date")}
+          className={
+            "rounded-md px-3 py-1.5 font-semibold " +
+            (mode === "date" ? "bg-primary text-primary-foreground" : "text-muted-foreground")
+          }
+        >
+          Specific date
+        </button>
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Tap an hour to block it (red = closed to players). Weekly rules repeat every week. Specific-date overrides apply only to that date and do NOT inherit weekly blocks. Past hours and hours already booked by players are also unavailable automatically.
+        Tap an hour to block it (red = closed to players). Weekly rules repeat every week.
+        Specific-date overrides apply only to that date and do NOT inherit weekly blocks. Past hours
+        and hours already booked by players are also unavailable automatically.
       </p>
 
       {mode === "weekly" ? (
@@ -1551,8 +2460,20 @@ function AvailabilityGrid({
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold">{d.label}</span>
                 <div className="flex gap-1 text-[10px]">
-                  <button type="button" onClick={() => setAllDayWeekly(d.key, false)} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Open all</button>
-                  <button type="button" onClick={() => setAllDayWeekly(d.key, true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all</button>
+                  <button
+                    type="button"
+                    onClick={() => setAllDayWeekly(d.key, false)}
+                    className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary"
+                  >
+                    Open all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAllDayWeekly(d.key, true)}
+                    className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive"
+                  >
+                    Close all
+                  </button>
                 </div>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -1561,9 +2482,21 @@ function AvailabilityGrid({
                   const closed = !!open && !open.has(h);
                   const isBlocked = weekly[d.key]?.has(h);
                   return (
-                    <button key={h} type="button" disabled={closed} onClick={() => toggleWeekly(d.key, h)}
+                    <button
+                      key={h}
+                      type="button"
+                      disabled={closed}
+                      onClick={() => toggleWeekly(d.key, h)}
                       title={closed ? "Outside operating hours" : undefined}
-                      className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (closed ? "cursor-not-allowed bg-muted text-muted-foreground/60 line-through" : isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
+                      className={
+                        "rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " +
+                        (closed
+                          ? "cursor-not-allowed bg-muted text-muted-foreground/60 line-through"
+                          : isBlocked
+                            ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30"
+                            : "bg-primary/10 text-foreground hover:bg-primary/20")
+                      }
+                    >
                       {fmtHour(h)} – {fmtHour((h + 1) % 24)}
                     </button>
                   );
@@ -1576,19 +2509,59 @@ function AvailabilityGrid({
         <div className="mt-3 rounded-lg border border-border bg-background p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground">Date:</span>
-            <button type="button" onClick={() => setSelectedDate(shiftDate(selectedDate, -1))} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">←</button>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="rounded border border-input bg-background px-2 py-1" />
-            <button type="button" onClick={() => setSelectedDate(shiftDate(selectedDate, 1))} className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary">→</button>
-            <span className={"ml-2 rounded-full px-2 py-0.5 " + (hasOverride ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(shiftDate(selectedDate, -1))}
+              className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary"
+            >
+              ←
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded border border-input bg-background px-2 py-1"
+            />
+            <button
+              type="button"
+              onClick={() => setSelectedDate(shiftDate(selectedDate, 1))}
+              className="rounded border border-border px-2 py-1 hover:border-primary hover:text-primary"
+            >
+              →
+            </button>
+            <span
+              className={
+                "ml-2 rounded-full px-2 py-0.5 " +
+                (hasOverride ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")
+              }
+            >
               {hasOverride ? "Override active (weekly ignored)" : "No override · weekly applies"}
             </span>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-1 text-[10px]">
-            <button type="button" onClick={() => setAllForDate(false)} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Open all day</button>
-            <button type="button" onClick={() => setAllForDate(true)} className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive">Close all day</button>
+            <button
+              type="button"
+              onClick={() => setAllForDate(false)}
+              className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary"
+            >
+              Open all day
+            </button>
+            <button
+              type="button"
+              onClick={() => setAllForDate(true)}
+              className="rounded border border-border px-2 py-0.5 hover:border-destructive hover:text-destructive"
+            >
+              Close all day
+            </button>
             {hasOverride && (
-              <button type="button" onClick={clearOverride} className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary">Remove override (use weekly)</button>
+              <button
+                type="button"
+                onClick={clearOverride}
+                className="rounded border border-border px-2 py-0.5 hover:border-primary hover:text-primary"
+              >
+                Remove override (use weekly)
+              </button>
             )}
           </div>
 
@@ -1598,9 +2571,21 @@ function AvailabilityGrid({
               const closed = !!openSet && !openSet.has(h);
               const isBlocked = currentDateSet.has(h);
               return (
-                <button key={h} type="button" disabled={closed} onClick={() => toggleDate(h)}
+                <button
+                  key={h}
+                  type="button"
+                  disabled={closed}
+                  onClick={() => toggleDate(h)}
                   title={closed ? "Outside operating hours" : undefined}
-                  className={"rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " + (closed ? "cursor-not-allowed bg-muted text-muted-foreground/60 line-through" : isBlocked ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30" : "bg-primary/10 text-foreground hover:bg-primary/20")}>
+                  className={
+                    "rounded px-2 py-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap transition " +
+                    (closed
+                      ? "cursor-not-allowed bg-muted text-muted-foreground/60 line-through"
+                      : isBlocked
+                        ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30"
+                        : "bg-primary/10 text-foreground hover:bg-primary/20")
+                  }
+                >
                   {fmtHour(h)} – {fmtHour((h + 1) % 24)}
                 </button>
               );
@@ -1609,15 +2594,29 @@ function AvailabilityGrid({
 
           {Object.keys(dateBlocks).length > 0 && (
             <div className="mt-4 border-t border-border pt-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Existing overrides</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Existing overrides
+              </div>
               <ul className="mt-2 flex flex-wrap gap-1.5">
-                {Object.entries(dateBlocks).sort(([a], [b]) => a.localeCompare(b)).map(([date, set]) => (
-                  <li key={date}>
-                    <button type="button" onClick={() => setSelectedDate(date)} className={"rounded-full border px-2 py-0.5 text-[11px] " + (date === selectedDate ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary hover:text-primary")}>
-                      {new Date(`${date}T00:00:00`).toLocaleDateString()} · {set.size} hr{set.size === 1 ? "" : "s"}
-                    </button>
-                  </li>
-                ))}
+                {Object.entries(dateBlocks)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([date, set]) => (
+                    <li key={date}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDate(date)}
+                        className={
+                          "rounded-full border px-2 py-0.5 text-[11px] " +
+                          (date === selectedDate
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:border-primary hover:text-primary")
+                        }
+                      >
+                        {new Date(`${date}T00:00:00`).toLocaleDateString()} · {set.size} hr
+                        {set.size === 1 ? "" : "s"}
+                      </button>
+                    </li>
+                  ))}
               </ul>
             </div>
           )}
@@ -1632,7 +2631,11 @@ function useVenueHours(venueId: number | undefined) {
     queryKey: ["venue-hours", venueId],
     enabled: !!venueId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("venues").select("operating_hours").eq("id", venueId!).single();
+      const { data, error } = await supabase
+        .from("venues")
+        .select("operating_hours")
+        .eq("id", venueId!)
+        .single();
       if (error) throw error;
       return normalizeHours((data as { operating_hours?: unknown }).operating_hours);
     },
@@ -1640,19 +2643,34 @@ function useVenueHours(venueId: number | undefined) {
   return q.data ?? fullWeek();
 }
 
-function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone: () => void; onCancel: () => void }) {
+function AvailabilityEditor({
+  court,
+  onDone,
+  onCancel,
+}: {
+  court: Court;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const [err, setErr] = useState<string | null>(null);
   const venueHours = useVenueHours(court.venue_id);
   const courtHours = effectiveHours(court, venueHours);
-  const [weekly, setWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(court.blocked_hours));
-  const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
+  const [weekly, setWeekly] = useState<Record<string, Set<number>>>(() =>
+    buildInitialWeekly(court.blocked_hours),
+  );
+  const [dateBlocks, setDateBlocks] = useState<Record<string, Set<number>>>(() =>
+    buildInitialDates(court.blocked_dates),
+  );
 
   const mut = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("courts").update({
-        blocked_hours: weeklyToPayload(weekly),
-        blocked_dates: datesToPayload(dateBlocks),
-      }).eq("id", court.id);
+      const { error } = await supabase
+        .from("courts")
+        .update({
+          blocked_hours: weeklyToPayload(weekly),
+          blocked_dates: datesToPayload(dateBlocks),
+        })
+        .eq("id", court.id);
       if (error) throw error;
     },
     onSuccess: onDone,
@@ -1664,25 +2682,52 @@ function AvailabilityEditor({ court, onDone, onCancel }: { court: Court; onDone:
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold">Availability · {court.name}</h3>
-          <p className="text-xs text-muted-foreground">Hours outside the operating window are greyed out. Use this to block extra hours inside opening hours, or override a specific date.</p>
+          <p className="text-xs text-muted-foreground">
+            Hours outside the operating window are greyed out. Use this to block extra hours inside
+            opening hours, or override a specific date.
+          </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel} type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
-          <button onClick={() => mut.mutate()} disabled={mut.isPending} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+          <button
+            onClick={onCancel}
+            type="button"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+          >
             {mut.isPending ? "Saving…" : "Save"}
           </button>
         </div>
       </div>
       <div className="mt-3">
-        <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} hours={courtHours} />
+        <AvailabilityGrid
+          weekly={weekly}
+          setWeekly={setWeekly}
+          dateBlocks={dateBlocks}
+          setDateBlocks={setDateBlocks}
+          hours={courtHours}
+        />
       </div>
-      {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      {err && (
+        <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {err}
+        </p>
+      )}
     </div>
   );
 }
 
 function InlineAvailability({
-  weekly, setWeekly, dateBlocks, setDateBlocks, hours,
+  weekly,
+  setWeekly,
+  dateBlocks,
+  setDateBlocks,
+  hours,
 }: {
   weekly: Record<string, Set<number>>;
   setWeekly: React.Dispatch<React.SetStateAction<Record<string, Set<number>>>>;
@@ -1702,7 +2747,9 @@ function InlineAvailability({
         aria-expanded={open}
       >
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Manage availability (optional)</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">
+            Manage availability (optional)
+          </div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
             {weeklyBlocked === 0 && dateOverrides === 0
               ? "All hours open by default. Tap to block specific weekly hours or add date overrides."
@@ -1713,14 +2760,18 @@ function InlineAvailability({
       </button>
       {open && (
         <div className="border-t border-primary/20 p-3">
-          <AvailabilityGrid weekly={weekly} setWeekly={setWeekly} dateBlocks={dateBlocks} setDateBlocks={setDateBlocks} hours={hours} />
+          <AvailabilityGrid
+            weekly={weekly}
+            setWeekly={setWeekly}
+            dateBlocks={dateBlocks}
+            setDateBlocks={setDateBlocks}
+            hours={hours}
+          />
         </div>
       )}
     </div>
   );
 }
-
-
 
 function useSportsQuery(enabled: boolean) {
   return useQuery({
@@ -1749,10 +2800,25 @@ export function sportEmoji(slug?: string | null): string {
 }
 
 function parseList(input: string): string[] {
-  return input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+  return input
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
-function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { venueId: number; venueEmoji: string | null; onCreated: () => void; alwaysOpen?: boolean; onCancel?: () => void }) {
+function AddCourt({
+  venueId,
+  venueEmoji,
+  onCreated,
+  alwaysOpen,
+  onCancel,
+}: {
+  venueId: number;
+  venueEmoji: string | null;
+  onCreated: () => void;
+  alwaysOpen?: boolean;
+  onCancel?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("25");
@@ -1765,8 +2831,12 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
   const [mapEmoji, setMapEmoji] = useState<string | null>(null);
   const [surfaceType, setSurfaceType] = useState("");
   const [playerCapacity, setPlayerCapacity] = useState("");
-  const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(null));
-  const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(null));
+  const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() =>
+    buildInitialWeekly(null),
+  );
+  const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() =>
+    buildInitialDates(null),
+  );
   const [voucherEnabled, setVoucherEnabled] = useState(false);
   const [rateRules, setRateRules] = useState<RateRule[]>([]);
   const venueHours = useVenueHours(venueId);
@@ -1784,9 +2854,15 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
     mutationFn: async () => {
       // Every court gets its own physical space row; shared-space blocking is
       // configured separately through court groups.
-      const { data: pcRow, error: pcErr } = await supabase.from("physical_courts").insert({
-        venue_id: venueId, name: `${name.trim() || "Court"} slab`, map_emoji: mapEmoji ?? venueEmoji ?? null,
-      }).select("id").single();
+      const { data: pcRow, error: pcErr } = await supabase
+        .from("physical_courts")
+        .insert({
+          venue_id: venueId,
+          name: `${name.trim() || "Court"} slab`,
+          map_emoji: mapEmoji ?? venueEmoji ?? null,
+        })
+        .select("id")
+        .single();
       if (pcErr) throw pcErr;
       const pcId: number = pcRow.id;
       const createdPcId: number | null = pcRow.id;
@@ -1826,7 +2902,23 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
       }
     },
     onSuccess: () => {
-      setOpen(false); setName(""); setRate("25"); setSportId(""); setIsIndoor(false); setComingSoon(false); setIsActive(true); setDescription(""); setImages([]); setMapEmoji(null); setSurfaceType(""); setPlayerCapacity(""); setAvailWeekly(buildInitialWeekly(null)); setAvailDates(buildInitialDates(null)); setVoucherEnabled(false); setRateRules([]); setErr(null);
+      setOpen(false);
+      setName("");
+      setRate("25");
+      setSportId("");
+      setIsIndoor(false);
+      setComingSoon(false);
+      setIsActive(true);
+      setDescription("");
+      setImages([]);
+      setMapEmoji(null);
+      setSurfaceType("");
+      setPlayerCapacity("");
+      setAvailWeekly(buildInitialWeekly(null));
+      setAvailDates(buildInitialDates(null));
+      setVoucherEnabled(false);
+      setRateRules([]);
+      setErr(null);
       onCreated();
     },
     onError: (e: Error) => setErr(e.message),
@@ -1834,45 +2926,84 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
 
   if (!open && !alwaysOpen) {
     return (
-      <button onClick={() => setOpen(true)} className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary">
+      <button
+        onClick={() => setOpen(true)}
+        className="grid min-h-32 place-items-center rounded-xl border-2 border-dashed border-border p-4 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary"
+      >
         + Add court
       </button>
     );
   }
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (!sportId) { setErr("Pick a sport"); return; } mut.mutate(); }}
-      className="col-span-full rounded-xl border border-border bg-secondary/30 p-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!sportId) {
+          setErr("Pick a sport");
+          return;
+        }
+        mut.mutate();
+      }}
+      className="col-span-full rounded-xl border border-border bg-secondary/30 p-4"
+    >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input label="Court name" value={name} onChange={setName} required />
         <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Sport</span>
-          <select value={sportId} onChange={(e) => setSportId(e.target.value)} required
-            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select
+            value={sportId}
+            onChange={(e) => setSportId(e.target.value)}
+            required
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          >
             <option value="">Select…</option>
-            {(sportsQ.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {(sportsQ.data ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
           </select>
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={isIndoor}
+            onChange={(e) => setIsIndoor(e.target.checked)}
+          />
           Indoor court
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={comingSoon}
+            onChange={(e) => setComingSoon(e.target.checked)}
+          />
           Coming soon
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={voucherEnabled} onChange={(e) => setVoucherEnabled(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={voucherEnabled}
+            onChange={(e) => setVoucherEnabled(e.target.checked)}
+          />
           Accept vouchers
         </label>
         <CourtStatusField value={isActive} onChange={setIsActive} />
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Tick "Coming soon" if this court isn't open yet. Tick "Accept vouchers" to let players redeem discount codes you create in the Vouchers module for this court.
+        Tick "Coming soon" if this court isn't open yet. Tick "Accept vouchers" to let players
+        redeem discount codes you create in the Vouchers module for this court.
       </p>
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
-      <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
+      <CourtHoursEditor
+        inherit={inheritHours}
+        onInheritChange={setInheritHours}
+        hours={ownHours}
+        onHoursChange={setOwnHours}
+        venueHours={venueHours}
+      />
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
@@ -1895,11 +3026,26 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
             <option value="Vinyl flooring" />
           </datalist>
         </label>
-        <Input label="Player capacity (max players per match)" value={playerCapacity} onChange={setPlayerCapacity} type="number" />
+        <Input
+          label="Player capacity (max players per match)"
+          value={playerCapacity}
+          onChange={setPlayerCapacity}
+          type="number"
+        />
       </div>
       <div className="mt-3 grid gap-3">
-        <Textarea label="About this Court" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, rules, etc." />
-        <ImageUploader label="Court photos" pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`} images={images} onChange={setImages} />
+        <Textarea
+          label="About this Court"
+          value={description}
+          onChange={setDescription}
+          placeholder="Court size, surface, lighting, rules, etc."
+        />
+        <ImageUploader
+          label="Court photos"
+          pathPrefix={`courts/venue-${venueId}/new-${Date.now()}`}
+          images={images}
+          onChange={setImages}
+        />
         <div className="rounded-xl border border-border bg-background p-3">
           <EmojiPicker
             label="Court map emoji"
@@ -1910,35 +3056,77 @@ function AddCourt({ venueId, venueEmoji, onCreated, alwaysOpen, onCancel }: { ve
           />
         </div>
       </div>
-      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} hours={courtHours} />
-      {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <InlineAvailability
+        weekly={availWeekly}
+        setWeekly={setAvailWeekly}
+        dateBlocks={availDates}
+        setDateBlocks={setAvailDates}
+        hours={courtHours}
+      />
+      {err && (
+        <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {err}
+        </p>
+      )}
       <div className="mt-3 flex gap-2">
-        <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+        <button
+          disabled={mut.isPending}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
           {mut.isPending ? "Adding…" : "Add court"}
         </button>
-        <button type="button" onClick={() => { if (onCancel) onCancel(); else setOpen(false); }} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
+        <button
+          type="button"
+          onClick={() => {
+            if (onCancel) onCancel();
+            else setOpen(false);
+          }}
+          className="rounded-lg border border-border px-4 py-2 text-sm"
+        >
+          Cancel
+        </button>
       </div>
     </form>
   );
 }
 
-function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; onClose: () => void; venues: Venue[]; onCreated: () => void }) {
+function AddCourtDrawer({
+  open,
+  onClose,
+  venues,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  venues: Venue[];
+  onCreated: () => void;
+}) {
   const [venueId, setVenueId] = useState<number | null>(null);
   useEffect(() => {
     if (!open) return;
     setVenueId(venues.length === 1 ? venues[0].id : null);
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose, venues]);
   const selectedVenue = venues.find((v) => v.id === venueId) ?? null;
   return (
-    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
+    <div
+      className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}
+    >
       <div
         onClick={onClose}
-        className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")}
+        className={
+          "absolute inset-0 bg-black/40 transition-opacity duration-300 " +
+          (open ? "opacity-100" : "opacity-0")
+        }
       />
       <aside
         className={
@@ -1951,7 +3139,11 @@ function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; o
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
           <h2 className="text-lg font-bold">Add court</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary"
+          >
             ✕
           </button>
         </div>
@@ -1965,10 +3157,14 @@ function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; o
             >
               <option value="">Select a venue…</option>
               {venues.map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-muted-foreground">Choose which venue this court belongs to.</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Choose which venue this court belongs to.
+            </p>
           </label>
           {selectedVenue ? (
             <AddCourt
@@ -1990,7 +3186,17 @@ function AddCourtDrawer({ open, onClose, venues, onCreated }: { open: boolean; o
   );
 }
 
-function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venueEmoji: string | null; onDone: () => void; onCancel: () => void }) {
+function EditCourt({
+  court,
+  venueEmoji,
+  onDone,
+  onCancel,
+}: {
+  court: Court;
+  venueEmoji: string | null;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const [name, setName] = useState(court.name);
   const [rate, setRate] = useState(String(court.hourly_rate));
   const [sportId, setSportId] = useState<string>(String(court.sport_id ?? ""));
@@ -2001,14 +3207,20 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   const [description, setDescription] = useState(court.description ?? "");
   const [images, setImages] = useState<string[]>(court.images ?? []);
   const [mapEmoji, setMapEmoji] = useState<string | null>(court.map_emoji ?? null);
-  const [surfaceType, setSurfaceType] = useState<string>(((court as unknown as { surface_type?: string | null }).surface_type) ?? "");
+  const [surfaceType, setSurfaceType] = useState<string>(
+    (court as unknown as { surface_type?: string | null }).surface_type ?? "",
+  );
   const [playerCapacity, setPlayerCapacity] = useState<string>(
     ((court as unknown as { player_capacity?: number | null }).player_capacity ?? "") === null
       ? ""
-      : String((court as unknown as { player_capacity?: number | null }).player_capacity ?? "")
+      : String((court as unknown as { player_capacity?: number | null }).player_capacity ?? ""),
   );
-  const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() => buildInitialWeekly(court.blocked_hours));
-  const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() => buildInitialDates(court.blocked_dates));
+  const [availWeekly, setAvailWeekly] = useState<Record<string, Set<number>>>(() =>
+    buildInitialWeekly(court.blocked_hours),
+  );
+  const [availDates, setAvailDates] = useState<Record<string, Set<number>>>(() =>
+    buildInitialDates(court.blocked_dates),
+  );
   const [voucherEnabled, setVoucherEnabled] = useState<boolean>(!!court.voucher_enabled);
   const [rateRules, setRateRules] = useState<RateRule[]>(() => normalizeRules(court.rate_rules));
   const venueHours = useVenueHours(court.venue_id);
@@ -2023,21 +3235,39 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
     enabled: !!court.physical_court_id,
     queryFn: async () => {
       const [groupRes, membersRes, rulesRes] = await Promise.all([
-        supabase.from("physical_courts").select("id, name").eq("id", court.physical_court_id).maybeSingle(),
-        supabase.from("courts").select("id, name, sports(name)").eq("physical_court_id", court.physical_court_id).order("id"),
-        supabase.from("court_block_rules").select("court_id, blocked_court_id")
+        supabase
+          .from("physical_courts")
+          .select("id, name")
+          .eq("id", court.physical_court_id)
+          .maybeSingle(),
+        supabase
+          .from("courts")
+          .select("id, name, sports(name)")
+          .eq("physical_court_id", court.physical_court_id)
+          .order("id"),
+        supabase
+          .from("court_block_rules")
+          .select("court_id, blocked_court_id")
           .or(`court_id.eq.${court.id},blocked_court_id.eq.${court.id}`),
       ]);
       if (groupRes.error) throw groupRes.error;
       if (membersRes.error) throw membersRes.error;
       if (rulesRes.error) throw rulesRes.error;
-      const members = (membersRes.data ?? []) as Array<{ id: number; name: string; sports: { name: string } | null }>;
+      const members = (membersRes.data ?? []) as Array<{
+        id: number;
+        name: string;
+        sports: { name: string } | null;
+      }>;
       const names = new Map(members.map((member) => [member.id, member.name]));
       return {
         groupName: groupRes.data?.name ?? "Shared space",
         members,
-        blocks: (rulesRes.data ?? []).filter((rule) => rule.court_id === court.id).map((rule) => names.get(rule.blocked_court_id) ?? `Court #${rule.blocked_court_id}`),
-        blockedBy: (rulesRes.data ?? []).filter((rule) => rule.blocked_court_id === court.id).map((rule) => names.get(rule.court_id) ?? `Court #${rule.court_id}`),
+        blocks: (rulesRes.data ?? [])
+          .filter((rule) => rule.court_id === court.id)
+          .map((rule) => names.get(rule.blocked_court_id) ?? `Court #${rule.blocked_court_id}`),
+        blockedBy: (rulesRes.data ?? [])
+          .filter((rule) => rule.blocked_court_id === court.id)
+          .map((rule) => names.get(rule.court_id) ?? `Court #${rule.court_id}`),
       };
     },
   });
@@ -2048,27 +3278,30 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
 
   const mut = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("courts").update({
-        name,
-        hourly_rate: Number(rate),
-        sport_id: Number(sportId),
+      const { error } = await supabase
+        .from("courts")
+        .update({
+          name,
+          hourly_rate: Number(rate),
+          sport_id: Number(sportId),
 
-        is_indoor: isIndoor,
-        coming_soon: comingSoon,
-        is_active: isActive,
-        description: description || null,
-        images,
-        map_emoji: mapEmoji,
+          is_indoor: isIndoor,
+          coming_soon: comingSoon,
+          is_active: isActive,
+          description: description || null,
+          images,
+          map_emoji: mapEmoji,
 
-        surface_type: surfaceType.trim() || null,
-        player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
-        blocked_hours: weeklyToPayload(availWeekly),
-        blocked_dates: datesToPayload(availDates),
-        voucher_enabled: voucherEnabled,
-        rate_rules: normalizeRules(rateRules),
-        inherit_venue_hours: inheritHours,
-        operating_hours: inheritHours ? {} : ownHours,
-      }).eq("id", court.id);
+          surface_type: surfaceType.trim() || null,
+          player_capacity: playerCapacity ? Math.max(1, Math.floor(Number(playerCapacity))) : null,
+          blocked_hours: weeklyToPayload(availWeekly),
+          blocked_dates: datesToPayload(availDates),
+          voucher_enabled: voucherEnabled,
+          rate_rules: normalizeRules(rateRules),
+          inherit_venue_hours: inheritHours,
+          operating_hours: inheritHours ? {} : ownHours,
+        })
+        .eq("id", court.id);
       if (error) throw error;
     },
     onSuccess: onDone,
@@ -2076,36 +3309,68 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
   });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); if (!sportId) { setErr("Pick a sport"); return; } mut.mutate(); }} className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!sportId) {
+          setErr("Pick a sport");
+          return;
+        }
+        mut.mutate();
+      }}
+      className="col-span-full rounded-xl border border-primary/40 bg-secondary/30 p-4"
+    >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input label="Court name" value={name} onChange={setName} required />
         <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Sport</span>
-          <select value={sportId} onChange={(e) => setSportId(e.target.value)} required
-            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+          <select
+            value={sportId}
+            onChange={(e) => setSportId(e.target.value)}
+            required
+            className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          >
             <option value="">Select…</option>
-            {(sportsQ.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {(sportsQ.data ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
           </select>
         </label>
 
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={isIndoor} onChange={(e) => setIsIndoor(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={isIndoor}
+            onChange={(e) => setIsIndoor(e.target.checked)}
+          />
           Indoor court
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={comingSoon} onChange={(e) => setComingSoon(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={comingSoon}
+            onChange={(e) => setComingSoon(e.target.checked)}
+          />
           Coming soon
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={voucherEnabled} onChange={(e) => setVoucherEnabled(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={voucherEnabled}
+            onChange={(e) => setVoucherEnabled(e.target.checked)}
+          />
           Accept vouchers
         </label>
         <CourtStatusField value={isActive} onChange={setIsActive} />
       </div>
       {isSharedSpace && (
         <div className="mt-3 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-          <span className="rounded-full border border-primary/30 bg-background px-2 py-1 text-[11px] font-semibold text-primary">Shared space</span>
+          <span className="rounded-full border border-primary/30 bg-background px-2 py-1 text-[11px] font-semibold text-primary">
+            Shared space
+          </span>
           <HoverCard openDelay={150} closeDelay={100}>
             <HoverCardTrigger asChild>
               <button
@@ -2118,19 +3383,40 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
             </HoverCardTrigger>
             <HoverCardContent align="start" className="w-80 text-xs">
               <p className="font-semibold text-foreground">Shared space details</p>
-              <p className="mt-1 text-muted-foreground">This court belongs to <span className="font-medium text-foreground">{sharedSpace!.groupName}</span> with {sharedSpace!.members.filter((member) => member.id !== court.id).length} linked court{sharedSpace!.members.length === 2 ? "" : "s"}.</p>
+              <p className="mt-1 text-muted-foreground">
+                This court belongs to{" "}
+                <span className="font-medium text-foreground">{sharedSpace!.groupName}</span> with{" "}
+                {sharedSpace!.members.filter((member) => member.id !== court.id).length} linked
+                court{sharedSpace!.members.length === 2 ? "" : "s"}.
+              </p>
               <div className="mt-3 space-y-2 rounded-lg border border-border bg-secondary/30 p-2.5">
-                <p><span className="font-semibold text-foreground">Blocks:</span> {sharedSpace!.blocks.length ? sharedSpace!.blocks.join(", ") : "No courts"}</p>
-                <p><span className="font-semibold text-foreground">Blocked by:</span> {sharedSpace!.blockedBy.length ? sharedSpace!.blockedBy.join(", ") : "No courts"}</p>
+                <p>
+                  <span className="font-semibold text-foreground">Blocks:</span>{" "}
+                  {sharedSpace!.blocks.length ? sharedSpace!.blocks.join(", ") : "No courts"}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Blocked by:</span>{" "}
+                  {sharedSpace!.blockedBy.length ? sharedSpace!.blockedBy.join(", ") : "No courts"}
+                </p>
               </div>
-              <p className="mt-3 text-muted-foreground">Manage linked courts and directional rules from the Court Groups tab.</p>
+              <p className="mt-3 text-muted-foreground">
+                Manage linked courts and directional rules from the Court Groups tab.
+              </p>
             </HoverCardContent>
           </HoverCard>
-          <span className="text-xs text-muted-foreground">This court shares a physical playing area.</span>
+          <span className="text-xs text-muted-foreground">
+            This court shares a physical playing area.
+          </span>
         </div>
       )}
       <RateRulesEditor baseRate={Number(rate) || 0} rules={rateRules} onChange={setRateRules} />
-      <CourtHoursEditor inherit={inheritHours} onInheritChange={setInheritHours} hours={ownHours} onHoursChange={setOwnHours} venueHours={venueHours} />
+      <CourtHoursEditor
+        inherit={inheritHours}
+        onInheritChange={setInheritHours}
+        hours={ownHours}
+        onHoursChange={setOwnHours}
+        venueHours={venueHours}
+      />
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
@@ -2153,11 +3439,21 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
             <option value="Vinyl flooring" />
           </datalist>
         </label>
-        <Input label="Player capacity (max players per match)" value={playerCapacity} onChange={setPlayerCapacity} type="number" />
+        <Input
+          label="Player capacity (max players per match)"
+          value={playerCapacity}
+          onChange={setPlayerCapacity}
+          type="number"
+        />
       </div>
       <div className="mt-3 grid gap-3">
         <Textarea label="About this Court" value={description} onChange={setDescription} />
-        <ImageUploader label="Court photos" pathPrefix={`courts/${court.id}`} images={images} onChange={setImages} />
+        <ImageUploader
+          label="Court photos"
+          pathPrefix={`courts/${court.id}`}
+          images={images}
+          onChange={setImages}
+        />
         <div className="rounded-xl border border-border bg-background p-3">
           <EmojiPicker
             label="Court map emoji"
@@ -2168,19 +3464,43 @@ function EditCourt({ court, venueEmoji, onDone, onCancel }: { court: Court; venu
           />
         </div>
       </div>
-      <InlineAvailability weekly={availWeekly} setWeekly={setAvailWeekly} dateBlocks={availDates} setDateBlocks={setAvailDates} hours={courtHours} />
-      {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <InlineAvailability
+        weekly={availWeekly}
+        setWeekly={setAvailWeekly}
+        dateBlocks={availDates}
+        setDateBlocks={setAvailDates}
+        hours={courtHours}
+      />
+      {err && (
+        <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {err}
+        </p>
+      )}
       <div className="mt-3 flex gap-2">
-        <button disabled={mut.isPending} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">
+        <button
+          disabled={mut.isPending}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
           {mut.isPending ? "Saving…" : "Save changes"}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-lg border border-border px-4 py-2 text-sm">Cancel</button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-border px-4 py-2 text-sm"
+        >
+          Cancel
+        </button>
       </div>
     </form>
   );
 }
 
-function Textarea(props: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function Textarea(props: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
@@ -2195,8 +3515,13 @@ function Textarea(props: { label: string; value: string; onChange: (v: string) =
   );
 }
 
-
-function Input(props: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) {
+function Input(props: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+}) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
@@ -2222,18 +3547,25 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
   const [mapView, setMapView] = useState<"internal" | "google">("internal");
   const [internalOpen, setInternalOpen] = useState(false);
 
-
   const mut = useMutation({
     mutationFn: async ({ lat, lng }: { lat: number; lng: number }) => {
-      const { error } = await supabase.from("venues").update({ latitude: lat, longitude: lng }).eq("id", venue.id);
+      const { error } = await supabase
+        .from("venues")
+        .update({ latitude: lat, longitude: lng })
+        .eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { setPickerOpen(false); setErr(null); onSaved(); },
+    onSuccess: () => {
+      setPickerOpen(false);
+      setErr(null);
+      onSaved();
+    },
     onError: (e: Error) => setErr(e.message),
   });
 
   const hasLoc = venue.latitude != null && venue.longitude != null;
-  const googleEmbedUrl = (lat: number, lng: number) => `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
+  const googleEmbedUrl = (lat: number, lng: number) =>
+    `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
 
   return (
     <div className="w-full sm:w-72">
@@ -2299,16 +3631,27 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
           )}
 
           <div className="flex items-center justify-end gap-2 bg-secondary/40 px-3 py-2 text-xs">
-            <button onClick={() => setPickerOpen(true)} className="rounded-md border border-border bg-background px-2 py-1 font-medium hover:border-primary hover:text-primary">Edit pin</button>
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="rounded-md border border-border bg-background px-2 py-1 font-medium hover:border-primary hover:text-primary"
+            >
+              Edit pin
+            </button>
           </div>
         </div>
       ) : (
-
-        <button onClick={() => setPickerOpen(true)} className="w-full rounded-xl border-2 border-dashed border-border px-3 py-4 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary">
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="w-full rounded-xl border-2 border-dashed border-border px-3 py-4 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary"
+        >
           📍 Add map location
         </button>
       )}
-      {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+      {err && (
+        <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+          {err}
+        </p>
+      )}
       <MapPicker
         open={pickerOpen}
         initialLat={venue.latitude}
@@ -2319,12 +3662,21 @@ function VenueLocation({ venue, onSaved }: { venue: Venue; onSaved: () => void }
         title={`Pin ${venue.name}`}
       />
       <MapViewModal venue={internalOpen ? venue : null} onClose={() => setInternalOpen(false)} />
-
     </div>
   );
 }
 
-function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing }: { venue: Venue; courtsCount: number; initialEditing?: boolean; onDoneEditing?: () => void }) {
+function VenueEditor({
+  venue,
+  courtsCount,
+  initialEditing = false,
+  onDoneEditing,
+}: {
+  venue: Venue;
+  courtsCount: number;
+  initialEditing?: boolean;
+  onDoneEditing?: () => void;
+}) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(initialEditing);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -2351,19 +3703,24 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
   const [conflictBusy, setConflictBusy] = useState(false);
   const cancelConflictsFn = useServerFn(cancelBookingsWithRefund);
 
-
-  const [cancellationHours, setCancellationHours] = useState<number>(venue.refund_cutoff_hours ?? 24);
+  const [cancellationHours, setCancellationHours] = useState<number>(
+    venue.refund_cutoff_hours ?? 24,
+  );
   const [cancellationNotes, setCancellationNotes] = useState(venue.cancellation_notes ?? "");
   const [rules, setRules] = useState(venue.rules ?? "");
 
   const suggested = suggestTimezone(venue.latitude, venue.longitude);
   const tzMismatch = !!(suggested && suggested.tz !== timezone);
 
-  const hoursChanged = JSON.stringify(openHours) !== JSON.stringify(normalizeHours(venue.operating_hours));
+  const hoursChanged =
+    JSON.stringify(openHours) !== JSON.stringify(normalizeHours(venue.operating_hours));
 
   const save = useMutation({
     mutationFn: async (opts?: { force?: boolean }) => {
-      if (tzMismatch && !tzConfirmed) throw new Error(`Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`);
+      if (tzMismatch && !tzConfirmed)
+        throw new Error(
+          `Timezone doesn't match this venue's pin (${suggested?.country}). Confirm the override or switch to ${suggested?.tz}.`,
+        );
       if (!opts?.force && hoursChanged) {
         const found = await findHoursConflicts({ venueId: venue.id, newVenueHours: openHours });
         if (found.length > 0) {
@@ -2373,7 +3730,31 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       }
       const { error } = await supabase
         .from("venues")
-        .update({ name, address, description: description || null, images, timezone, map_emoji: mapEmoji, is_active: isActive, amenities, food_beverages: foodBeverages, facility_services: facilityServices, fees: fees.filter((f) => f.label.trim() && Number.isFinite(f.amount)).map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })), fees_notes: feesNotes.trim() || null, contact_phone: contactPhone.trim() || null, contact_email: contactEmail.trim() || null, operating_hours_text: operatingHoursText.trim() || null, operating_hours: openHours, refund_cutoff_hours: Number.isFinite(cancellationHours) ? Math.max(0, Math.floor(cancellationHours)) : 24, cancellation_notes: cancellationNotes.trim() || null, rules: rules.trim() || null })
+        .update({
+          name,
+          address,
+          description: description || null,
+          images,
+          timezone,
+          map_emoji: mapEmoji,
+          is_active: isActive,
+          amenities,
+          food_beverages: foodBeverages,
+          facility_services: facilityServices,
+          fees: fees
+            .filter((f) => f.label.trim() && Number.isFinite(f.amount))
+            .map((f) => ({ label: f.label.trim(), amount: Number(f.amount) })),
+          fees_notes: feesNotes.trim() || null,
+          contact_phone: contactPhone.trim() || null,
+          contact_email: contactEmail.trim() || null,
+          operating_hours_text: operatingHoursText.trim() || null,
+          operating_hours: openHours,
+          refund_cutoff_hours: Number.isFinite(cancellationHours)
+            ? Math.max(0, Math.floor(cancellationHours))
+            : 24,
+          cancellation_notes: cancellationNotes.trim() || null,
+          rules: rules.trim() || null,
+        })
         .eq("id", venue.id);
       if (error) throw error;
       return "saved" as const;
@@ -2381,16 +3762,22 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
     onSuccess: (res) => {
       if (res === "blocked") return;
       setConflicts(null);
-      setEditing(false); setErr(null); setTzConfirmed(false); qc.invalidateQueries({ queryKey: ["my-venues"] }); onDoneEditing?.();
+      setEditing(false);
+      setErr(null);
+      setTzConfirmed(false);
+      qc.invalidateQueries({ queryKey: ["my-venues"] });
+      onDoneEditing?.();
     },
     onError: (e: Error) => setErr(e.message),
   });
 
-
   const del = useMutation({
     mutationFn: async () => {
       // Guard: block delete if any booking exists on any court of this venue
-      const { data: courts, error: cErr } = await supabase.from("courts").select("id").eq("venue_id", venue.id);
+      const { data: courts, error: cErr } = await supabase
+        .from("courts")
+        .select("id")
+        .eq("venue_id", venue.id);
       if (cErr) throw cErr;
       const courtIds = (courts ?? []).map((c) => c.id);
       if (courtIds.length > 0) {
@@ -2408,7 +3795,11 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
       const { error } = await supabase.from("venues").delete().eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-venues"] });
+      qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+      qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+    },
     onError: (e: Error) => setDelErr(e.message),
   });
 
@@ -2422,28 +3813,47 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
             <span className="text-xs font-medium text-muted-foreground">Timezone</span>
             <select
               value={timezone}
-              onChange={(e) => { setTimezone(e.target.value); setTzConfirmed(false); }}
+              onChange={(e) => {
+                setTimezone(e.target.value);
+                setTzConfirmed(false);
+              }}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             >
               {TIMEZONE_OPTIONS.some((t) => t.value === timezone) ? null : (
                 <option value={timezone}>{timezone} (current)</option>
               )}
               {TIMEZONE_OPTIONS.map((tz) => (
-                <option key={tz.value} value={tz.value}>{tz.label}</option>
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
               ))}
             </select>
             {tzMismatch && (
               <div className="mt-2 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <strong>Timezone doesn't match the pin.</strong> This venue's map pin is in <strong>{suggested?.country}</strong> ({suggested?.tz}). Changing it away from the suggested zone means court hours and bookings will display in a different local time.
+                    <strong>Timezone doesn't match the pin.</strong> This venue's map pin is in{" "}
+                    <strong>{suggested?.country}</strong> ({suggested?.tz}). Changing it away from
+                    the suggested zone means court hours and bookings will display in a different
+                    local time.
                   </div>
-                  <button type="button" onClick={() => { setTimezone(suggested!.tz); setTzConfirmed(false); }} className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimezone(suggested!.tz);
+                      setTzConfirmed(false);
+                    }}
+                    className="shrink-0 rounded-md border border-amber-500/60 bg-background px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:text-amber-100"
+                  >
                     Use {suggested?.tz}
                   </button>
                 </div>
                 <label className="mt-2 flex items-center gap-2 text-[11px]">
-                  <input type="checkbox" checked={tzConfirmed} onChange={(e) => setTzConfirmed(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={tzConfirmed}
+                    onChange={(e) => setTzConfirmed(e.target.checked)}
+                  />
                   I confirm this venue uses <span className="font-mono">{timezone}</span>.
                 </label>
               </div>
@@ -2460,36 +3870,98 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
             />
           </label>
           <div className="sm:col-span-2">
-            <ImageUploader label="Venue photos" pathPrefix={`venues/${venue.id}`} images={images} onChange={setImages} />
+            <ImageUploader
+              label="Venue photos"
+              pathPrefix={`venues/${venue.id}`}
+              images={images}
+              onChange={setImages}
+            />
           </div>
           <div className="sm:col-span-2">
-            <TagInput label="Amenities" values={amenities} onChange={setAmenities} placeholder="e.g. Parking, Showers, Wi-Fi" hint="Press Enter or comma to add." />
+            <TagInput
+              label="Amenities"
+              values={amenities}
+              onChange={setAmenities}
+              placeholder="e.g. Parking, Showers, Wi-Fi"
+              hint="Press Enter or comma to add."
+            />
           </div>
           <div className="sm:col-span-2">
-            <TagInput label="Food & Beverages" values={foodBeverages} onChange={setFoodBeverages} placeholder="e.g. Cafe, Vending machine, Water refill" />
+            <TagInput
+              label="Food & Beverages"
+              values={foodBeverages}
+              onChange={setFoodBeverages}
+              placeholder="e.g. Cafe, Vending machine, Water refill"
+            />
           </div>
           <div className="sm:col-span-2">
-            <TagInput label="Facility Services" values={facilityServices} onChange={setFacilityServices} placeholder="e.g. Racket rental, Coaching, Ball machine" />
+            <TagInput
+              label="Facility Services"
+              values={facilityServices}
+              onChange={setFacilityServices}
+              placeholder="e.g. Racket rental, Coaching, Ball machine"
+            />
           </div>
           <div className="sm:col-span-2">
-            <FeesEditor items={fees} onChange={setFees} notes={feesNotes} onNotesChange={setFeesNotes} />
+            <FeesEditor
+              items={fees}
+              onChange={setFees}
+              notes={feesNotes}
+              onNotesChange={setFeesNotes}
+            />
           </div>
-          <Input label="Inquiry phone (shown to players)" value={contactPhone} onChange={setContactPhone} />
+          <Input
+            label="Inquiry phone (shown to players)"
+            value={contactPhone}
+            onChange={setContactPhone}
+          />
           <Input label="Inquiry email (optional)" value={contactEmail} onChange={setContactEmail} />
           <div className="sm:col-span-2">
-            <OperatingHoursEditor hours={openHours} onChange={setOpenHours} hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere." />
-            <Textarea label="Operating hours note (optional)" value={operatingHoursText} onChange={setOperatingHoursText} placeholder="Extra note shown to players, e.g. Holiday hours may vary" />
+            <OperatingHoursEditor
+              hours={openHours}
+              onChange={setOpenHours}
+              hint="Courts follow these hours by default. Players can only book inside this window, and closed hours are hidden everywhere."
+            />
+            <Textarea
+              label="Operating hours note (optional)"
+              value={operatingHoursText}
+              onChange={setOperatingHoursText}
+              placeholder="Extra note shown to players, e.g. Holiday hours may vary"
+            />
           </div>
           <label className="block">
-            <span className="text-xs font-medium text-muted-foreground">Cancellation cutoff (hours before start)</span>
-            <input type="number" min={0} step={1} value={cancellationHours} onChange={(e) => setCancellationHours(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-            <span className="mt-1 block text-[11px] text-muted-foreground">Default 24h. Set to 0 to allow last-minute cancellations.</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Cancellation cutoff (hours before start)
+            </span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={cancellationHours}
+              onChange={(e) => setCancellationHours(Number(e.target.value))}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              Default 24h. Set to 0 to allow last-minute cancellations.
+            </span>
           </label>
           <div className="sm:col-span-2">
-            <Textarea label="Cancellation policy notes (optional)" value={cancellationNotes} onChange={setCancellationNotes} placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start." />
+            <Textarea
+              label="Cancellation policy notes (optional)"
+              value={cancellationNotes}
+              onChange={setCancellationNotes}
+              placeholder="e.g. Full refund up to 24h before. 50% within 24h. No refund after start."
+            />
           </div>
           <div className="sm:col-span-2">
-            <Textarea label="Venue rules (one per line)" value={rules} onChange={setRules} placeholder={"e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"} />
+            <Textarea
+              label="Venue rules (one per line)"
+              value={rules}
+              onChange={setRules}
+              placeholder={
+                "e.g.\n- Wear non-marking shoes\n- No outside food or drinks\n- Arrive 10 minutes early"
+              }
+            />
           </div>
           <div className="sm:col-span-2 rounded-xl border border-border bg-background p-3">
             <EmojiPicker
@@ -2502,7 +3974,12 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
           </div>
           <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 accent-primary" />
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
               Active
             </label>
             <span
@@ -2514,15 +3991,52 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
             >
               ?
             </span>
-            <span className="ml-auto text-[11px] text-muted-foreground">Untick to hide this venue from players.</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              Untick to hide this venue from players.
+            </span>
           </div>
         </div>
-        {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+        {err && (
+          <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+            {err}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => save.mutate({})} disabled={save.isPending || (tzMismatch && !tzConfirmed)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60">
+          <button
+            onClick={() => save.mutate({})}
+            disabled={save.isPending || (tzMismatch && !tzConfirmed)}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+          >
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
-          <button onClick={() => { setEditing(false); setName(venue.name); setAddress(venue.address); setDescription(venue.description ?? ""); setImages(venue.images ?? []); setTimezone(venue.timezone || "Asia/Manila"); setMapEmoji(venue.map_emoji ?? null); setTzConfirmed(false); setIsActive(venue.is_active !== false); setAmenities(venue.amenities ?? []); setFoodBeverages(venue.food_beverages ?? []); setFacilityServices(venue.facility_services ?? []); setFees(Array.isArray(venue.fees) ? venue.fees : []); setFeesNotes(venue.fees_notes ?? ""); setContactPhone(venue.contact_phone ?? ""); setContactEmail(venue.contact_email ?? ""); setOperatingHoursText(venue.operating_hours_text ?? ""); setCancellationHours(venue.refund_cutoff_hours ?? 24); setCancellationNotes(venue.cancellation_notes ?? ""); setRules(venue.rules ?? ""); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
+          <button
+            onClick={() => {
+              setEditing(false);
+              setName(venue.name);
+              setAddress(venue.address);
+              setDescription(venue.description ?? "");
+              setImages(venue.images ?? []);
+              setTimezone(venue.timezone || "Asia/Manila");
+              setMapEmoji(venue.map_emoji ?? null);
+              setTzConfirmed(false);
+              setIsActive(venue.is_active !== false);
+              setAmenities(venue.amenities ?? []);
+              setFoodBeverages(venue.food_beverages ?? []);
+              setFacilityServices(venue.facility_services ?? []);
+              setFees(Array.isArray(venue.fees) ? venue.fees : []);
+              setFeesNotes(venue.fees_notes ?? "");
+              setContactPhone(venue.contact_phone ?? "");
+              setContactEmail(venue.contact_email ?? "");
+              setOperatingHoursText(venue.operating_hours_text ?? "");
+              setCancellationHours(venue.refund_cutoff_hours ?? 24);
+              setCancellationNotes(venue.cancellation_notes ?? "");
+              setRules(venue.rules ?? "");
+              setErr(null);
+            }}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs"
+          >
+            Cancel
+          </button>
         </div>
 
         {conflicts && conflicts.length > 0 && (
@@ -2537,7 +4051,8 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
                 await cancelConflictsFn({
                   data: {
                     bookingIds: conflicts.flatMap((c) => c.bookingIds),
-                    reason: "The venue's operating hours changed and this slot is no longer available.",
+                    reason:
+                      "The venue's operating hours changed and this slot is no longer available.",
                     refundMode: "auto",
                   },
                 });
@@ -2551,49 +4066,90 @@ function VenueEditor({ venue, courtsCount, initialEditing = false, onDoneEditing
             }}
           />
         )}
-
       </div>
-
     );
   }
 
   return (
     <div className="min-w-0">
       <h2 className="text-xl font-bold">{venue.name}</h2>
-      <p className="text-sm text-muted-foreground">{venue.address} · {venue.timezone}</p>
-      {venue.description && <p className="mt-1 text-sm text-muted-foreground">{venue.description}</p>}
+      <p className="text-sm text-muted-foreground">
+        {venue.address} · {venue.timezone}
+      </p>
+      {venue.description && (
+        <p className="mt-1 text-sm text-muted-foreground">{venue.description}</p>
+      )}
       {(venue.images?.length ?? 0) > 0 && (
         <div className="mt-2 flex gap-2 overflow-x-auto">
           {venue.images!.slice(0, 4).map((src, i) => (
-            <img key={i} src={src} alt={`${venue.name} ${i + 1}`} className="h-16 w-24 flex-none rounded-md object-cover" loading="lazy" />
+            <img
+              key={i}
+              src={src}
+              alt={`${venue.name} ${i + 1}`}
+              className="h-16 w-24 flex-none rounded-md object-cover"
+              loading="lazy"
+            />
           ))}
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => setEditing(true)} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary">
+        <button
+          onClick={() => setEditing(true)}
+          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-primary hover:text-primary"
+        >
           ✎ Edit venue
         </button>
         {!confirmDel ? (
-          <button onClick={() => { setConfirmDel(true); setDelErr(null); }} className="rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10">
+          <button
+            onClick={() => {
+              setConfirmDel(true);
+              setDelErr(null);
+            }}
+            className="rounded-md border border-destructive/40 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+          >
             Delete venue
           </button>
         ) : (
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1">
-            <span className="text-xs">Delete "{venue.name}"{courtsCount > 0 ? ` and its ${courtsCount} court${courtsCount === 1 ? "" : "s"}` : ""}?</span>
-            <button onClick={() => del.mutate()} disabled={del.isPending} className="rounded-md bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+            <span className="text-xs">
+              Delete "{venue.name}"
+              {courtsCount > 0
+                ? ` and its ${courtsCount} court${courtsCount === 1 ? "" : "s"}`
+                : ""}
+              ?
+            </span>
+            <button
+              onClick={() => del.mutate()}
+              disabled={del.isPending}
+              className="rounded-md bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60"
+            >
               {del.isPending ? "Deleting…" : "Confirm"}
             </button>
-            <button onClick={() => setConfirmDel(false)} className="rounded-md border border-border bg-background px-2 py-0.5 text-xs">Cancel</button>
+            <button
+              onClick={() => setConfirmDel(false)}
+              className="rounded-md border border-border bg-background px-2 py-0.5 text-xs"
+            >
+              Cancel
+            </button>
           </div>
         )}
       </div>
-      {delErr && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{delErr}</p>}
+      {delErr && (
+        <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+          {delErr}
+        </p>
+      )}
     </div>
   );
 }
 
 function SettingsSection({
-  fullName, email, role, userId, avatarUrl, onSaved,
+  fullName,
+  email,
+  role,
+  userId,
+  avatarUrl,
+  onSaved,
 }: {
   fullName: string;
   email: string;
@@ -2613,9 +4169,21 @@ function SettingsSection({
     queryKey: ["venue-payment-settings"],
     enabled: role === "tenant",
     queryFn: async () => {
-      const { data, error } = await supabase.from("venues").select("id, name, payment_mode, refund_cutoff_hours");
+      /* Newest venue first. A tenant who has just added one comes straight here to
+         set its payment mode, so it should be the row they land on rather than the
+         one they page to the end to find. Ordered in SQL, not in the component, so
+         paging cannot disagree with sorting. */
+      const { data, error } = await supabase
+        .from("venues")
+        .select("id, name, payment_mode, refund_cutoff_hours")
+        .order("id", { ascending: false });
       if (error) throw error;
-      return data as { id: number; name: string; payment_mode: string; refund_cutoff_hours: number }[];
+      return data as {
+        id: number;
+        name: string;
+        payment_mode: string;
+        refund_cutoff_hours: number;
+      }[];
     },
   });
 
@@ -2629,11 +4197,20 @@ function SettingsSection({
   };
 
   const save = async () => {
-    setSaving(true); setMsg(null); setErr(null);
-    const { error } = await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", userId);
+    setSaving(true);
+    setMsg(null);
+    setErr(null);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: name.trim() })
+      .eq("id", userId);
     setSaving(false);
-    if (error) { setErr(error.message); return; }
-    setMsg("Saved."); onSaved();
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+    setMsg("Saved.");
+    onSaved();
   };
 
   const signOut = async () => {
@@ -2641,7 +4218,6 @@ function SettingsSection({
     await supabase.auth.signOut();
     window.location.href = "/";
   };
-
 
   return (
     <div className="space-y-6">
@@ -2664,7 +4240,10 @@ function SettingsSection({
         </>
       )}
 
-      <div id={TENANT_ANCHORS.account} className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+      <div
+        id={TENANT_ANCHORS.account}
+        className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+      >
         <h3 className="text-base font-semibold">Account</h3>
         <p className="mt-1 text-xs text-muted-foreground">Your profile information.</p>
 
@@ -2710,32 +4289,36 @@ function SettingsSection({
       </div>
 
       {role === "tenant" && (
-        <div id={TENANT_ANCHORS.payments} className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <div
+          id={TENANT_ANCHORS.payments}
+          className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Payment configuration</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Settle at venue keeps payment offline. Choose <b>Full payment</b> to collect the whole amount online through GCash, Maya, GrabPay and QR Ph. Refund cutoff blocks player-initiated refunds inside the window before the booking.
+                Settle at venue keeps payment offline. Choose <b>Full payment</b> to collect the
+                whole amount online through GCash, Maya, GrabPay and QR Ph. Refund cutoff blocks
+                player-initiated refunds inside the window before the booking.
               </p>
             </div>
-            <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold">PayMongo · Test mode</span>
+            <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold">
+              PayMongo · Test mode
+            </span>
           </div>
-          <div className="mt-4 space-y-3">
-            {paySettingsQ.isLoading && <p className="text-sm text-muted-foreground">Loading venues…</p>}
-            {!paySettingsQ.isLoading && (paySettingsQ.data ?? []).map((v) => (
-              <VenuePaymentRow key={v.id} venue={v} onSave={savePaymentSettings} />
-            ))}
-            {!paySettingsQ.isLoading && (paySettingsQ.data?.length ?? 0) === 0 && (
-              <p className="text-sm text-muted-foreground">Create a venue first to configure payment settings.</p>
-            )}
-          </div>
+          <PaymentSettingsTable
+            venues={paySettingsQ.data ?? []}
+            loading={paySettingsQ.isLoading}
+            onSave={savePaymentSettings}
+          />
         </div>
       )}
 
       <div className="rounded-2xl border border-destructive/30 bg-card p-5 sm:p-6">
-
         <h3 className="text-base font-semibold">Session</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Sign out of your CourtHub account on this device.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Sign out of your CourtHub account on this device.
+        </p>
         <button
           onClick={signOut}
           disabled={signingOut}
@@ -2750,7 +4333,11 @@ function SettingsSection({
 
 // ================= Venues & Courts tabs =================
 
-function VenuesCourtsTabs({ venues, tab, setTab }: {
+function VenuesCourtsTabs({
+  venues,
+  tab,
+  setTab,
+}: {
   venues: Venue[];
   tab: TenantCourtsTab;
   setTab: (t: TenantCourtsTab) => void;
@@ -2760,10 +4347,15 @@ function VenuesCourtsTabs({ venues, tab, setTab }: {
     queryKey: ["venues-court-counts", venueIds],
     enabled: venueIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.from("courts").select("venue_id").in("venue_id", venueIds);
+      const { data, error } = await supabase
+        .from("courts")
+        .select("venue_id")
+        .in("venue_id", venueIds);
       if (error) throw error;
       const map: Record<number, number> = {};
-      (data ?? []).forEach((c: any) => { map[c.venue_id] = (map[c.venue_id] ?? 0) + 1; });
+      (data ?? []).forEach((c: any) => {
+        map[c.venue_id] = (map[c.venue_id] ?? 0) + 1;
+      });
       return map;
     },
   });
@@ -2785,7 +4377,9 @@ function VenuesCourtsTabs({ venues, tab, setTab }: {
         .in("physical_court_id", pcIds);
       if (cErr) throw cErr;
       const counts = new Map<number, number>();
-      (cs ?? []).forEach((c: any) => counts.set(c.physical_court_id, (counts.get(c.physical_court_id) ?? 0) + 1));
+      (cs ?? []).forEach((c: any) =>
+        counts.set(c.physical_court_id, (counts.get(c.physical_court_id) ?? 0) + 1),
+      );
       // Mirror the Court Groups table: only surfaces shared by 2+ courts are real groups
       return pcIds.filter((id) => (counts.get(id) ?? 0) >= 2).length;
     },
@@ -2795,25 +4389,41 @@ function VenuesCourtsTabs({ venues, tab, setTab }: {
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex border-b border-border bg-secondary/30">
         <TabBtn active={tab === "venues"} onClick={() => setTab("venues")}>
-          Venues <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{venues.length}</span>
+          Venues{" "}
+          <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">
+            {venues.length}
+          </span>
         </TabBtn>
         <TabBtn active={tab === "courts"} onClick={() => setTab("courts")}>
-          Courts <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{courtsTotal}</span>
+          Courts{" "}
+          <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">
+            {courtsTotal}
+          </span>
         </TabBtn>
 
         <TabBtn active={tab === "groups"} onClick={() => setTab("groups")}>
-          Court Groups <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">{groupsTotal}</span>
+          Court Groups{" "}
+          <span className="ml-1.5 inline-flex min-w-5.5 items-center justify-center rounded-full bg-linear-to-br from-primary via-cyan-400 to-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.6)] ring-1 ring-white/40">
+            {groupsTotal}
+          </span>
           <span className="group relative ml-1 inline-flex">
-            <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">?</span>
+            <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-current text-[10px] font-bold leading-none opacity-70">
+              ?
+            </span>
             <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-border bg-popover p-3 text-left text-xs font-normal normal-case text-popover-foreground shadow-lg group-hover:block">
-              <span className="block font-semibold text-primary">What is a Court Group / Physical Surface?</span>
-              <span className="mt-1 block text-muted-foreground">One shared space can host different sports — e.g. <b>1 basketball</b> ↔ <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on one automatically blocks the conflicting slots on the others.</span>
+              <span className="block font-semibold text-primary">
+                What is a Court Group / Physical Surface?
+              </span>
+              <span className="mt-1 block text-muted-foreground">
+                One shared space can host different sports — e.g. <b>1 basketball</b> ↔{" "}
+                <b>3 badminton</b> ↔ <b>4 pickleball</b>. Group those courts here so a booking on
+                one automatically blocks the conflicting slots on the others.
+              </span>
             </span>
           </span>
         </TabBtn>
       </div>
       <div className="nice-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto">
-
         {tab === "venues" && <VenuesTab venues={venues} />}
         {tab === "courts" && <CourtsTab venues={venues} />}
         {tab === "groups" && <CourtGroupsTab venues={venues} />}
@@ -2822,7 +4432,15 @@ function VenuesCourtsTabs({ venues, tab, setTab }: {
   );
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function TabBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       onClick={onClick}
@@ -2837,28 +4455,29 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean; defaultOn?: boolean }> = [
-  { id: "emoji", label: "Emoji", defaultOn: true },
-  { id: "name", label: "Venue", required: true, defaultOn: true },
-  { id: "location", label: "Location", defaultOn: true },
-  { id: "description", label: "About this Venue", defaultOn: true },
-  { id: "created_at", label: "Created At", defaultOn: true },
-  { id: "map", label: "Map", defaultOn: true },
-  { id: "courts", label: "Courts", defaultOn: true },
-  { id: "status", label: "Venue Status", defaultOn: true },
-  { id: "actions", label: "Actions", required: true, defaultOn: true },
-  { id: "history", label: "History", defaultOn: true },
-  // Optional (off by default) — surfaced from create/edit venue panels
-  { id: "amenities", label: "Amenities" },
-  { id: "food_beverages", label: "Food & Beverages" },
-  { id: "facility_services", label: "Facility Services" },
-  { id: "fees", label: "Fees & Charges" },
-  { id: "contact_phone", label: "Inquiry Phone" },
-  { id: "contact_email", label: "Inquiry Email" },
-  { id: "operating_hours", label: "Operating Hours" },
-  { id: "cancellation", label: "Cancellation Policy" },
-  { id: "rules", label: "Venue Rules" },
-];
+const VENUE_COLUMNS: Array<{ id: string; label: string; required?: boolean; defaultOn?: boolean }> =
+  [
+    { id: "emoji", label: "Emoji", defaultOn: true },
+    { id: "name", label: "Venue", required: true, defaultOn: true },
+    { id: "location", label: "Location", defaultOn: true },
+    { id: "description", label: "About this Venue", defaultOn: true },
+    { id: "created_at", label: "Created At", defaultOn: true },
+    { id: "map", label: "Map", defaultOn: true },
+    { id: "courts", label: "Courts", defaultOn: true },
+    { id: "status", label: "Venue Status", defaultOn: true },
+    { id: "actions", label: "Actions", required: true, defaultOn: true },
+    { id: "history", label: "History", defaultOn: true },
+    // Optional (off by default) — surfaced from create/edit venue panels
+    { id: "amenities", label: "Amenities" },
+    { id: "food_beverages", label: "Food & Beverages" },
+    { id: "facility_services", label: "Facility Services" },
+    { id: "fees", label: "Fees & Charges" },
+    { id: "contact_phone", label: "Inquiry Phone" },
+    { id: "contact_email", label: "Inquiry Email" },
+    { id: "operating_hours", label: "Operating Hours" },
+    { id: "cancellation", label: "Cancellation Policy" },
+    { id: "rules", label: "Venue Rules" },
+  ];
 const VENUE_COLS_STORAGE_KEY = "venues-tab-columns-v1";
 const DEFAULT_VENUE_COLS = VENUE_COLUMNS.filter((c) => c.defaultOn || c.required).map((c) => c.id);
 
@@ -2899,7 +4518,12 @@ const DEFAULT_GROUP_COLS = GROUP_COLUMNS.filter((c) => c.defaultOn || c.required
 
 
 
-function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: string, prefKey: string) {
+function useColumnPrefs(
+  columns: ColumnDef[],
+  defaults: string[],
+  storageKey: string,
+  prefKey: string,
+) {
   const [selected, setSelected] = useState<string[]>(defaults);
   const sanitize = (arr: string[]) => {
     const valid = arr.filter((id) => columns.some((c) => c.id === id));
@@ -2911,7 +4535,7 @@ function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: st
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) setSelected(sanitize(JSON.parse(raw) as string[]));
-    } catch { }
+    } catch {}
     // 2) authoritative load from Supabase (per-user, follows sign-in)
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -2926,14 +4550,18 @@ function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: st
       if (Array.isArray(cols) && cols.length) {
         const merged = sanitize(cols);
         setSelected(merged);
-        try { localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { }
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(merged));
+        } catch {}
       }
     })();
   }, []);
   const save = (next: string[]) => {
     const clean = sanitize(next);
     setSelected(clean);
-    try { localStorage.setItem(storageKey, JSON.stringify(clean)); } catch { }
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(clean));
+    } catch {}
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
@@ -2943,18 +4571,24 @@ function useColumnPrefs(columns: ColumnDef[], defaults: string[], storageKey: st
         .select("prefs")
         .eq("user_id", uid)
         .maybeSingle();
-      const merged = { ...(existing?.prefs as any ?? {}), [prefKey]: clean };
+      const merged = { ...((existing?.prefs as any) ?? {}), [prefKey]: clean };
       await supabase
         .from("user_preferences")
-        .upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+        .upsert(
+          { user_id: uid, prefs: merged, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" },
+        );
     })();
   };
   return { selected, save };
 }
 
-const useVenueColumns = () => useColumnPrefs(VENUE_COLUMNS, DEFAULT_VENUE_COLS, VENUE_COLS_STORAGE_KEY, "venues_columns");
-const useCourtColumns = () => useColumnPrefs(COURT_COLUMNS, DEFAULT_COURT_COLS, COURT_COLS_STORAGE_KEY, "courts_columns");
-const useGroupColumns = () => useColumnPrefs(GROUP_COLUMNS, DEFAULT_GROUP_COLS, GROUP_COLS_STORAGE_KEY, "groups_columns");
+const useVenueColumns = () =>
+  useColumnPrefs(VENUE_COLUMNS, DEFAULT_VENUE_COLS, VENUE_COLS_STORAGE_KEY, "venues_columns");
+const useCourtColumns = () =>
+  useColumnPrefs(COURT_COLUMNS, DEFAULT_COURT_COLS, COURT_COLS_STORAGE_KEY, "courts_columns");
+const useGroupColumns = () =>
+  useColumnPrefs(GROUP_COLUMNS, DEFAULT_GROUP_COLS, GROUP_COLS_STORAGE_KEY, "groups_columns");
 
 type ColumnPreset = { name: string; columns: string[] };
 
@@ -2965,7 +4599,11 @@ function useColumnPresets(prefKey: string) {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) return;
-      const { data } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
+      const { data } = await supabase
+        .from("user_preferences")
+        .select("prefs")
+        .eq("user_id", uid)
+        .maybeSingle();
       const list = (data?.prefs as any)?.[prefKey] as ColumnPreset[] | undefined;
       if (Array.isArray(list)) setPresets(list);
     })();
@@ -2975,15 +4613,39 @@ function useColumnPresets(prefKey: string) {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) return;
-    const { data: existing } = await supabase.from("user_preferences").select("prefs").eq("user_id", uid).maybeSingle();
-    const merged = { ...(existing?.prefs as any ?? {}), [prefKey]: next };
-    await supabase.from("user_preferences").upsert({ user_id: uid, prefs: merged, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    const { data: existing } = await supabase
+      .from("user_preferences")
+      .select("prefs")
+      .eq("user_id", uid)
+      .maybeSingle();
+    const merged = { ...((existing?.prefs as any) ?? {}), [prefKey]: next };
+    await supabase
+      .from("user_preferences")
+      .upsert(
+        { user_id: uid, prefs: merged, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
   };
   return { presets, persist };
 }
 
-
-function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_COLUMNS, defaults = DEFAULT_VENUE_COLS, presetKey = "venues_column_presets" }: { open: boolean; onClose: () => void; selected: string[]; onApply: (next: string[]) => void; columns?: ColumnDef[]; defaults?: string[]; presetKey?: string }) {
+function ColumnConfigModal({
+  open,
+  onClose,
+  selected,
+  onApply,
+  columns = VENUE_COLUMNS,
+  defaults = DEFAULT_VENUE_COLS,
+  presetKey = "venues_column_presets",
+}: {
+  open: boolean;
+  onClose: () => void;
+  selected: string[];
+  onApply: (next: string[]) => void;
+  columns?: ColumnDef[];
+  defaults?: string[];
+  presetKey?: string;
+}) {
   const [localSelected, setLocalSelected] = useState<string[]>(selected);
   const [availActive, setAvailActive] = useState<string | null>(null);
   const [selActive, setSelActive] = useState<string | null>(null);
@@ -2993,13 +4655,30 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const { presets, persist } = useColumnPresets(presetKey);
-  useEffect(() => { if (open) { setLocalSelected(selected); setAvailActive(null); setSelActive(null); setAvailQuery(""); setSelQuery(""); setPresetName(""); setShowSaveForm(false); setDeleteTarget(null); } }, [open, selected]);
+  useEffect(() => {
+    if (open) {
+      setLocalSelected(selected);
+      setAvailActive(null);
+      setSelActive(null);
+      setAvailQuery("");
+      setSelQuery("");
+      setPresetName("");
+      setShowSaveForm(false);
+      setDeleteTarget(null);
+    }
+  }, [open, selected]);
   if (!open) return null;
 
   const availableCols = columns.filter((c) => !localSelected.includes(c.id));
-  const selectedCols = localSelected.map((id) => columns.find((c) => c.id === id)).filter(Boolean) as ColumnDef[];
-  const filteredAvail = availableCols.filter((c) => c.label.toLowerCase().includes(availQuery.toLowerCase()));
-  const filteredSel = selectedCols.filter((c) => c.label.toLowerCase().includes(selQuery.toLowerCase()));
+  const selectedCols = localSelected
+    .map((id) => columns.find((c) => c.id === id))
+    .filter(Boolean) as ColumnDef[];
+  const filteredAvail = availableCols.filter((c) =>
+    c.label.toLowerCase().includes(availQuery.toLowerCase()),
+  );
+  const filteredSel = selectedCols.filter((c) =>
+    c.label.toLowerCase().includes(selQuery.toLowerCase()),
+  );
   const moveToSelected = () => {
     if (!availActive) return;
     setLocalSelected([...localSelected, availActive]);
@@ -3029,14 +4708,32 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
     setLocalSelected(next);
   };
   const resetDefault = () => setLocalSelected(defaults);
-  const apply = () => { onApply(localSelected); onClose(); };
+  const apply = () => {
+    onApply(localSelected);
+    onClose();
+  };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="dialog" aria-modal="true">
-
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-2xl overflow-hidden rounded-2xl bg-background shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-base font-semibold">Column Configuration</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary" aria-label="Close"><X className="h-4 w-4" /></button>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-secondary"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
         {/* Presets bar */}
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-secondary/20 px-5 py-2.5">
@@ -3045,20 +4742,37 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
           </div>
           <select
             value=""
-            onChange={(e) => { const p = presets.find((x) => x.name === e.target.value); if (p) setLocalSelected(p.columns); e.currentTarget.value = ""; }}
+            onChange={(e) => {
+              const p = presets.find((x) => x.name === e.target.value);
+              if (p) setLocalSelected(p.columns);
+              e.currentTarget.value = "";
+            }}
             className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
           >
             <option value="">{presets.length ? "Load preset…" : "No presets yet"}</option>
-            {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+            {presets.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+              </option>
+            ))}
           </select>
           {presets.length > 0 && (
             <select
               value=""
-              onChange={(e) => { const name = e.target.value; if (!name) return; setDeleteTarget(name); e.currentTarget.value = ""; }}
+              onChange={(e) => {
+                const name = e.target.value;
+                if (!name) return;
+                setDeleteTarget(name);
+                e.currentTarget.value = "";
+              }}
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-destructive outline-none focus:border-destructive"
             >
               <option value="">Delete…</option>
-              {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+              {presets.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
             </select>
           )}
           <div className="ml-auto flex items-center gap-2">
@@ -3070,14 +4784,51 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
                   onChange={(e) => setPresetName(e.target.value)}
                   placeholder="Preset name"
                   className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
-                  onKeyDown={(e) => { if (e.key === "Enter") { const n = presetName.trim(); if (!n) return; const next = presets.some((p) => p.name === n) ? presets.map((p) => p.name === n ? { name: n, columns: localSelected } : p) : [...presets, { name: n, columns: localSelected }]; persist(next); setPresetName(""); setShowSaveForm(false); } if (e.key === "Escape") { setShowSaveForm(false); setPresetName(""); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const n = presetName.trim();
+                      if (!n) return;
+                      const next = presets.some((p) => p.name === n)
+                        ? presets.map((p) =>
+                            p.name === n ? { name: n, columns: localSelected } : p,
+                          )
+                        : [...presets, { name: n, columns: localSelected }];
+                      persist(next);
+                      setPresetName("");
+                      setShowSaveForm(false);
+                    }
+                    if (e.key === "Escape") {
+                      setShowSaveForm(false);
+                      setPresetName("");
+                    }
+                  }}
                 />
                 <button
                   type="button"
-                  onClick={() => { const n = presetName.trim(); if (!n) return; const next = presets.some((p) => p.name === n) ? presets.map((p) => p.name === n ? { name: n, columns: localSelected } : p) : [...presets, { name: n, columns: localSelected }]; persist(next); setPresetName(""); setShowSaveForm(false); }}
+                  onClick={() => {
+                    const n = presetName.trim();
+                    if (!n) return;
+                    const next = presets.some((p) => p.name === n)
+                      ? presets.map((p) => (p.name === n ? { name: n, columns: localSelected } : p))
+                      : [...presets, { name: n, columns: localSelected }];
+                    persist(next);
+                    setPresetName("");
+                    setShowSaveForm(false);
+                  }}
                   className="rounded-md bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                >Save</button>
-                <button type="button" onClick={() => { setShowSaveForm(false); setPresetName(""); }} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary">Cancel</button>
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSaveForm(false);
+                    setPresetName("");
+                  }}
+                  className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary"
+                >
+                  Cancel
+                </button>
               </>
             ) : (
               <button
@@ -3097,17 +4848,32 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
             <div className="mb-1 text-xs font-medium text-muted-foreground">Available Columns</div>
             <div className="relative mb-2">
               <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input value={availQuery} onChange={(e) => setAvailQuery(e.target.value)} placeholder="Search…" className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:border-primary" />
+              <input
+                value={availQuery}
+                onChange={(e) => setAvailQuery(e.target.value)}
+                placeholder="Search…"
+                className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:border-primary"
+              />
             </div>
             <ul className="h-56 overflow-y-auto rounded-md border border-border bg-secondary/20">
-              {filteredAvail.length === 0 && <li className="p-3 text-center text-xs italic text-muted-foreground">No columns</li>}
+              {filteredAvail.length === 0 && (
+                <li className="p-3 text-center text-xs italic text-muted-foreground">No columns</li>
+              )}
               {filteredAvail.map((c) => (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => setAvailActive(c.id)}
-                    onDoubleClick={() => { setLocalSelected([...localSelected, c.id]); setAvailActive(null); }}
-                    className={"block w-full px-3 py-1.5 text-left text-xs transition " + (availActive === c.id ? "bg-primary/15 text-foreground" : "text-foreground/80 hover:bg-secondary")}
+                    onDoubleClick={() => {
+                      setLocalSelected([...localSelected, c.id]);
+                      setAvailActive(null);
+                    }}
+                    className={
+                      "block w-full px-3 py-1.5 text-left text-xs transition " +
+                      (availActive === c.id
+                        ? "bg-primary/15 text-foreground"
+                        : "text-foreground/80 hover:bg-secondary")
+                    }
                   >
                     {c.label}
                   </button>
@@ -3117,8 +4883,24 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
           </div>
           {/* Arrows */}
           <div className="flex flex-row items-center justify-center gap-2 sm:flex-col">
-            <button type="button" onClick={moveToSelected} disabled={!availActive} title="Add" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronRight className="h-4 w-4" /></button>
-            <button type="button" onClick={moveToAvailable} disabled={!selActive || columns.find((c) => c.id === selActive)?.required} title="Remove" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"><ChevronLeft className="h-4 w-4" /></button>
+            <button
+              type="button"
+              onClick={moveToSelected}
+              disabled={!availActive}
+              title="Add"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={moveToAvailable}
+              disabled={!selActive || columns.find((c) => c.id === selActive)?.required}
+              title="Remove"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
           </div>
           {/* Selected */}
           <div className="flex min-h-0 flex-col">
@@ -3126,23 +4908,60 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
             <div className="relative mb-2 flex items-center gap-2">
               <div className="relative flex-1">
                 <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input value={selQuery} onChange={(e) => setSelQuery(e.target.value)} placeholder="Search…" className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:border-primary" />
+                <input
+                  value={selQuery}
+                  onChange={(e) => setSelQuery(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs outline-none focus:border-primary"
+                />
               </div>
-              <button type="button" onClick={moveUp} disabled={!selActive} title="Move up" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40"><ChevronUp className="h-3.5 w-3.5" /></button>
-              <button type="button" onClick={moveDown} disabled={!selActive} title="Move down" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40"><ChevronDown className="h-3.5 w-3.5" /></button>
+              <button
+                type="button"
+                onClick={moveUp}
+                disabled={!selActive}
+                title="Move up"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={moveDown}
+                disabled={!selActive}
+                title="Move down"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
             </div>
             <ul className="h-56 overflow-y-auto rounded-md border border-border bg-secondary/20">
-              {filteredSel.length === 0 && <li className="p-3 text-center text-xs italic text-muted-foreground">No columns</li>}
+              {filteredSel.length === 0 && (
+                <li className="p-3 text-center text-xs italic text-muted-foreground">No columns</li>
+              )}
               {filteredSel.map((c) => (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => setSelActive(c.id)}
-                    onDoubleClick={() => { if (!c.required) { setLocalSelected(localSelected.filter((id) => id !== c.id)); setSelActive(null); } }}
-                    className={"flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition " + (selActive === c.id ? "bg-primary/15 text-foreground" : "text-foreground/80 hover:bg-secondary")}
+                    onDoubleClick={() => {
+                      if (!c.required) {
+                        setLocalSelected(localSelected.filter((id) => id !== c.id));
+                        setSelActive(null);
+                      }
+                    }}
+                    className={
+                      "flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition " +
+                      (selActive === c.id
+                        ? "bg-primary/15 text-foreground"
+                        : "text-foreground/80 hover:bg-secondary")
+                    }
                   >
                     <span>{c.label}</span>
-                    {c.required && <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Required</span>}
+                    {c.required && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Required
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -3150,25 +4969,53 @@ function ColumnConfigModal({ open, onClose, selected, onApply, columns = VENUE_C
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
-          <button type="button" onClick={resetDefault} className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide hover:bg-secondary">Reset to Default</button>
+          <button
+            type="button"
+            onClick={resetDefault}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide hover:bg-secondary"
+          >
+            Reset to Default
+          </button>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide hover:bg-secondary">Cancel</button>
-            <button type="button" onClick={apply} className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground hover:bg-primary/90">OK</button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-border px-4 py-1.5 text-xs font-semibold uppercase tracking-wide hover:bg-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={apply}
+              className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground hover:bg-primary/90"
+            >
+              OK
+            </button>
           </div>
         </div>
       </div>
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete preset?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the preset <span className="font-semibold text-foreground">"{deleteTarget}"</span>. This action cannot be undone.
+              This will permanently remove the preset{" "}
+              <span className="font-semibold text-foreground">"{deleteTarget}"</span>. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (deleteTarget) persist(presets.filter((p) => p.name !== deleteTarget)); setDeleteTarget(null); }}
+              onClick={() => {
+                if (deleteTarget) persist(presets.filter((p) => p.name !== deleteTarget));
+                setDeleteTarget(null);
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
@@ -3193,10 +5040,15 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
     queryKey: ["venues-court-counts", venueIds],
     enabled: venueIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.from("courts").select("venue_id").in("venue_id", venueIds);
+      const { data, error } = await supabase
+        .from("courts")
+        .select("venue_id")
+        .in("venue_id", venueIds);
       if (error) throw error;
       const map: Record<number, number> = {};
-      (data ?? []).forEach((c: any) => { map[c.venue_id] = (map[c.venue_id] ?? 0) + 1; });
+      (data ?? []).forEach((c: any) => {
+        map[c.venue_id] = (map[c.venue_id] ?? 0) + 1;
+      });
       return map;
     },
   });
@@ -3204,59 +5056,162 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
 
   const renderHeader = (id: string) => {
     switch (id) {
-      case "emoji": return (
-        <th key={id} className="px-2 py-2 w-10">
-          <button
-            type="button"
-            onClick={() => setColCfgOpen(true)}
-            title="Configure columns"
-            aria-label="Configure columns"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-          >
-            <TableProperties className="h-4 w-4" />
-          </button>
-        </th>
-      );
-      case "name": return <th key={id} className="px-3 py-2.5">Venue</th>;
-      case "location": return <th key={id} className="px-3 py-2.5">Location</th>;
-      case "description": return <th key={id} className="px-3 py-2.5">ABOUT THIS VENUE</th>;
-      case "created_at": return <th key={id} className="px-3 py-2.5 w-32">CREATED AT</th>;
-      case "map": return <th key={id} className="px-3 py-2.5 w-20 text-center">Map</th>;
-      case "courts": return <th key={id} className="px-3 py-2.5 w-24 text-center">Courts</th>;
-      case "status": return <th key={id} className="px-3 py-2.5 w-28 text-center">Status</th>;
-      case "actions": return <th key={id} className="px-3 py-2.5 w-40 text-right">Actions</th>;
-      case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
-      case "amenities": return <th key={id} className="px-3 py-2.5 w-50">Amenities</th>;
-      case "food_beverages": return <th key={id} className="px-3 py-2.5 w-50">Food & Beverages</th>;
-      case "facility_services": return <th key={id} className="px-3 py-2.5 w-50">Facility Services</th>;
-      case "fees": return <th key={id} className="px-3 py-2.5 w-24 text-center">Fees</th>;
-      case "contact_phone": return <th key={id} className="px-3 py-2.5 w-36">Inquiry Phone</th>;
-      case "contact_email": return <th key={id} className="px-3 py-2.5 w-48">Inquiry Email</th>;
-      case "operating_hours": return <th key={id} className="px-3 py-2.5 w-50">Operating Hours</th>;
-      case "cancellation": return <th key={id} className="px-3 py-2.5 w-50">Cancellation</th>;
-      case "rules": return <th key={id} className="px-3 py-2.5 w-50">Rules</th>;
-      default: return null;
+      case "emoji":
+        return (
+          <th key={id} className="px-2 py-2 w-10">
+            <button
+              type="button"
+              onClick={() => setColCfgOpen(true)}
+              title="Configure columns"
+              aria-label="Configure columns"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+            >
+              <TableProperties className="h-4 w-4" />
+            </button>
+          </th>
+        );
+      case "name":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Venue
+          </th>
+        );
+      case "location":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Location
+          </th>
+        );
+      case "description":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            ABOUT THIS VENUE
+          </th>
+        );
+      case "created_at":
+        return (
+          <th key={id} className="px-3 py-2.5 w-32">
+            CREATED AT
+          </th>
+        );
+      case "map":
+        return (
+          <th key={id} className="px-3 py-2.5 w-20 text-center">
+            Map
+          </th>
+        );
+      case "courts":
+        return (
+          <th key={id} className="px-3 py-2.5 w-24 text-center">
+            Courts
+          </th>
+        );
+      case "status":
+        return (
+          <th key={id} className="px-3 py-2.5 w-28 text-center">
+            Status
+          </th>
+        );
+      case "actions":
+        return (
+          <th key={id} className="px-3 py-2.5 w-40 text-right">
+            Actions
+          </th>
+        );
+      case "history":
+        return (
+          <th key={id} className="px-3 py-2.5 w-24 text-center">
+            History
+          </th>
+        );
+      case "amenities":
+        return (
+          <th key={id} className="px-3 py-2.5 w-50">
+            Amenities
+          </th>
+        );
+      case "food_beverages":
+        return (
+          <th key={id} className="px-3 py-2.5 w-50">
+            Food & Beverages
+          </th>
+        );
+      case "facility_services":
+        return (
+          <th key={id} className="px-3 py-2.5 w-50">
+            Facility Services
+          </th>
+        );
+      case "fees":
+        return (
+          <th key={id} className="px-3 py-2.5 w-24 text-center">
+            Fees
+          </th>
+        );
+      case "contact_phone":
+        return (
+          <th key={id} className="px-3 py-2.5 w-36">
+            Inquiry Phone
+          </th>
+        );
+      case "contact_email":
+        return (
+          <th key={id} className="px-3 py-2.5 w-48">
+            Inquiry Email
+          </th>
+        );
+      case "operating_hours":
+        return (
+          <th key={id} className="px-3 py-2.5 w-50">
+            Operating Hours
+          </th>
+        );
+      case "cancellation":
+        return (
+          <th key={id} className="px-3 py-2.5 w-50">
+            Cancellation
+          </th>
+        );
+      case "rules":
+        return (
+          <th key={id} className="px-3 py-2.5 w-50">
+            Rules
+          </th>
+        );
+      default:
+        return null;
     }
   };
 
   const renderCell = (id: string, v: Venue, idx: number) => {
     switch (id) {
       case "emoji":
-        return <td key={id} className="px-4 py-3 text-xl leading-none">{v.map_emoji ?? "🎾"}</td>;
+        return (
+          <td key={id} className="px-4 py-3 text-xl leading-none">
+            {v.map_emoji ?? "🎾"}
+          </td>
+        );
       case "name":
         return (
           <td key={id} className="px-3 py-3 whitespace-nowrap">
             <div className="flex items-center gap-2 whitespace-nowrap">
               <span className="font-semibold whitespace-nowrap">{v.name}</span>
               {idx === 0 && venues.length > 1 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />Newest</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-primary via-cyan-400 to-sky-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow-[0_2px_8px_-2px_rgba(9,230,210,0.7)] ring-1 ring-white/40">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                  Newest
+                </span>
               )}
             </div>
             <div className="text-[11px] text-muted-foreground">{v.timezone}</div>
           </td>
         );
       case "location":
-        return <td key={id} className="px-3 py-3 text-muted-foreground min-w-45">{v.address}</td>;
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground min-w-45">
+            {v.address}
+          </td>
+        );
       case "description":
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-60 min-w-60 max-w-60">
@@ -3264,9 +5219,23 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
               v.description.length > 40 ? (
                 <HoverCard openDelay={80} closeDelay={200}>
                   <HoverCardTrigger asChild>
-                    <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">{v.description}</span>
+                    <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40">
+                      {v.description}
+                    </span>
                   </HoverCardTrigger>
-                  <HoverCardContent side="bottom" align="start" sideOffset={6} collisionPadding={16} avoidCollisions className="w-[min(32rem,92vw)] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word", maxHeight: "var(--radix-hover-card-content-available-height)" }}>
+                  <HoverCardContent
+                    side="bottom"
+                    align="start"
+                    sideOffset={6}
+                    collisionPadding={16}
+                    avoidCollisions
+                    className="w-[min(32rem,92vw)] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                      maxHeight: "var(--radix-hover-card-content-available-height)",
+                    }}
+                  >
                     {v.description}
                   </HoverCardContent>
                 </HoverCard>
@@ -3283,8 +5252,19 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap">
             {v.created_at ? (
               <div className="flex flex-col">
-                <span className="text-foreground">{new Date(v.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-                <span className="text-[11px] text-muted-foreground">{new Date(v.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                <span className="text-foreground">
+                  {new Date(v.created_at).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {new Date(v.created_at).toLocaleTimeString(undefined, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
               </div>
             ) : (
               <span className="italic opacity-60">—</span>
@@ -3295,7 +5275,13 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         return (
           <td key={id} className="px-3 py-3 text-center">
             {v.latitude != null && v.longitude != null ? (
-              <button type="button" onClick={() => setViewing(v)} title="View on map" aria-label={`View ${v.name} on map`} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+              <button
+                type="button"
+                onClick={() => setViewing(v)}
+                title="View on map"
+                aria-label={`View ${v.name} on map`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+              >
                 <MapPin className="h-4 w-4" />
               </button>
             ) : (
@@ -3308,9 +5294,26 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         const has = n > 0;
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <button type="button" onClick={() => setCourtsFor(v)} title={has ? `View ${n} court${n === 1 ? "" : "s"} under this venue` : "No courts yet"} aria-label={`View courts under ${v.name}`} className={"relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition " + (has ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/20" : "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary")}>
+            <button
+              type="button"
+              onClick={() => setCourtsFor(v)}
+              title={
+                has ? `View ${n} court${n === 1 ? "" : "s"} under this venue` : "No courts yet"
+              }
+              aria-label={`View courts under ${v.name}`}
+              className={
+                "relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition " +
+                (has
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:border-emerald-500 hover:bg-emerald-500/20"
+                  : "border-border text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary")
+              }
+            >
               <Layers className="h-4 w-4" />
-              {has && (<span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">{n}</span>)}
+              {has && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold leading-4 text-center shadow">
+                  {n}
+                </span>
+              )}
             </button>
           </td>
         );
@@ -3319,8 +5322,20 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         const active = v.is_active !== false;
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <span className={"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold " + (active ? "bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/30" : "bg-red-500/10 text-red-600 ring-1 ring-red-500/30")}>
-              <span className={"h-1.5 w-1.5 rounded-full " + (active ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+            <span
+              className={
+                "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold " +
+                (active
+                  ? "bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/30"
+                  : "bg-red-500/10 text-red-600 ring-1 ring-red-500/30")
+              }
+            >
+              <span
+                className={
+                  "h-1.5 w-1.5 rounded-full " +
+                  (active ? "bg-emerald-500 animate-pulse" : "bg-red-500")
+                }
+              />
               {active ? "Active" : "Inactive"}
             </span>
           </td>
@@ -3330,7 +5345,13 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         return (
           <td key={id} className="px-3 py-3">
             <div className="flex items-center justify-end gap-1">
-              <button type="button" onClick={() => setEditing(v)} title="Edit venue" aria-label={`Edit ${v.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+              <button
+                type="button"
+                onClick={() => setEditing(v)}
+                title="Edit venue"
+                aria-label={`Edit ${v.name}`}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+              >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <DeleteVenueButton venue={v} />
@@ -3340,7 +5361,13 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "history":
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <button type="button" onClick={() => setHistory(v)} title="Audit history" aria-label={`View audit history for ${v.name}`} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
+            <button
+              type="button"
+              onClick={() => setHistory(v)}
+              title="Audit history"
+              aria-label={`View audit history for ${v.name}`}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+            >
               <HistoryIcon className="h-4 w-4" />
             </button>
           </td>
@@ -3348,18 +5375,42 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "amenities":
       case "food_beverages":
       case "facility_services": {
-        const arr = (id === "amenities" ? v.amenities : id === "food_beverages" ? v.food_beverages : v.facility_services) ?? [];
-        if (!arr.length) return <td key={id} className="px-3 py-3 text-muted-foreground"><span className="italic opacity-60">—</span></td>;
+        const arr =
+          (id === "amenities"
+            ? v.amenities
+            : id === "food_beverages"
+              ? v.food_beverages
+              : v.facility_services) ?? [];
+        if (!arr.length)
+          return (
+            <td key={id} className="px-3 py-3 text-muted-foreground">
+              <span className="italic opacity-60">—</span>
+            </td>
+          );
         const text = arr.join(", ");
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-50 min-w-50 max-w-50">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">
+                  {text}
+                </span>
               </HoverCardTrigger>
-              <HoverCardContent side="bottom" align="start" sideOffset={6} collisionPadding={16} avoidCollisions className="w-[min(32rem,92vw)] overflow-y-auto text-xs" style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}>
+              <HoverCardContent
+                side="bottom"
+                align="start"
+                sideOffset={6}
+                collisionPadding={16}
+                avoidCollisions
+                className="w-[min(32rem,92vw)] overflow-y-auto text-xs"
+                style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}
+              >
                 <div className="flex flex-wrap gap-1">
-                  {arr.map((t, i) => <span key={i} className="rounded-full bg-secondary px-2 py-0.5">{t}</span>)}
+                  {arr.map((t, i) => (
+                    <span key={i} className="rounded-full bg-secondary px-2 py-0.5">
+                      {t}
+                    </span>
+                  ))}
                 </div>
               </HoverCardContent>
             </HoverCard>
@@ -3367,39 +5418,92 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         );
       }
       case "fees": {
-        const feesArr = Array.isArray(v.fees) ? v.fees as FeeItem[] : [];
-        if (!feesArr.length && !v.fees_notes) return <td key={id} className="px-3 py-3 text-center text-muted-foreground"><span className="italic opacity-60">—</span></td>;
+        const feesArr = Array.isArray(v.fees) ? (v.fees as FeeItem[]) : [];
+        if (!feesArr.length && !v.fees_notes)
+          return (
+            <td key={id} className="px-3 py-3 text-center text-muted-foreground">
+              <span className="italic opacity-60">—</span>
+            </td>
+          );
         return (
           <td key={id} className="px-3 py-3 text-center">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">{feesArr.length} item{feesArr.length === 1 ? "" : "s"}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary cursor-help">
+                  {feesArr.length} item{feesArr.length === 1 ? "" : "s"}
+                </span>
               </HoverCardTrigger>
-              <HoverCardContent side="bottom" align="center" sideOffset={6} collisionPadding={16} avoidCollisions className="w-[min(28rem,92vw)] overflow-y-auto text-xs" style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}>
+              <HoverCardContent
+                side="bottom"
+                align="center"
+                sideOffset={6}
+                collisionPadding={16}
+                avoidCollisions
+                className="w-[min(28rem,92vw)] overflow-y-auto text-xs"
+                style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}
+              >
                 <ul className="space-y-1">
-                  {feesArr.map((f, i) => <li key={i} className="flex justify-between gap-2"><span>{f.label}</span><span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span></li>)}
+                  {feesArr.map((f, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span>{f.label}</span>
+                      <span className="font-semibold">₱{Number(f.amount).toLocaleString()}</span>
+                    </li>
+                  ))}
                 </ul>
-                {v.fees_notes && <p className="mt-2 border-t border-border pt-2 text-muted-foreground whitespace-pre-wrap">{v.fees_notes}</p>}
+                {v.fees_notes && (
+                  <p className="mt-2 border-t border-border pt-2 text-muted-foreground whitespace-pre-wrap">
+                    {v.fees_notes}
+                  </p>
+                )}
               </HoverCardContent>
             </HoverCard>
           </td>
         );
       }
       case "contact_phone":
-        return <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{v.contact_phone || <span className="italic opacity-60">—</span>}</td>;
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">
+            {v.contact_phone || <span className="italic opacity-60">—</span>}
+          </td>
+        );
       case "contact_email":
-        return <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{v.contact_email || <span className="italic opacity-60">—</span>}</td>;
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">
+            {v.contact_email || <span className="italic opacity-60">—</span>}
+          </td>
+        );
       case "operating_hours":
       case "rules": {
         const text = id === "operating_hours" ? v.operating_hours_text : v.rules;
-        if (!text) return <td key={id} className="px-3 py-3 text-muted-foreground w-50"><span className="italic opacity-60">—</span></td>;
+        if (!text)
+          return (
+            <td key={id} className="px-3 py-3 text-muted-foreground w-50">
+              <span className="italic opacity-60">—</span>
+            </td>
+          );
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-50 min-w-50 max-w-50">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{text}</span>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">
+                  {text}
+                </span>
               </HoverCardTrigger>
-              <HoverCardContent side="bottom" align="start" sideOffset={6} collisionPadding={16} avoidCollisions className="w-[min(32rem,92vw)] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{ overflowWrap: "anywhere", wordBreak: "break-word", maxHeight: "var(--radix-hover-card-content-available-height)" }}>{text}</HoverCardContent>
+              <HoverCardContent
+                side="bottom"
+                align="start"
+                sideOffset={6}
+                collisionPadding={16}
+                avoidCollisions
+                className="w-[min(32rem,92vw)] overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed"
+                style={{
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                  maxHeight: "var(--radix-hover-card-content-available-height)",
+                }}
+              >
+                {text}
+              </HoverCardContent>
             </HoverCard>
           </td>
         );
@@ -3407,15 +5511,31 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
       case "cancellation": {
         const hrs = (v as any).refund_cutoff_hours as number | null | undefined;
         const notes = v.cancellation_notes;
-        if (hrs == null && !notes) return <td key={id} className="px-3 py-3 text-muted-foreground w-50"><span className="italic opacity-60">—</span></td>;
+        if (hrs == null && !notes)
+          return (
+            <td key={id} className="px-3 py-3 text-muted-foreground w-50">
+              <span className="italic opacity-60">—</span>
+            </td>
+          );
         const summary = hrs != null ? `Cancel up to ${hrs}h before` : "See notes";
         return (
           <td key={id} className="px-3 py-3 text-muted-foreground w-50 min-w-50 max-w-50">
             <HoverCard openDelay={80} closeDelay={200}>
               <HoverCardTrigger asChild>
-                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">{summary}{notes ? ` — ${notes}` : ""}</span>
+                <span className="block w-full truncate cursor-help border-b border-dotted border-muted-foreground/40 text-xs">
+                  {summary}
+                  {notes ? ` — ${notes}` : ""}
+                </span>
               </HoverCardTrigger>
-              <HoverCardContent side="bottom" align="start" sideOffset={6} collisionPadding={16} avoidCollisions className="w-[min(32rem,92vw)] overflow-y-auto text-xs" style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}>
+              <HoverCardContent
+                side="bottom"
+                align="start"
+                sideOffset={6}
+                collisionPadding={16}
+                avoidCollisions
+                className="w-[min(32rem,92vw)] overflow-y-auto text-xs"
+                style={{ maxHeight: "var(--radix-hover-card-content-available-height)" }}
+              >
                 <p className="font-semibold text-foreground">{summary}</p>
                 {notes && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{notes}</p>}
               </HoverCardContent>
@@ -3423,7 +5543,8 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           </td>
         );
       }
-      default: return null;
+      default:
+        return null;
     }
   };
 
@@ -3457,7 +5578,12 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
           ))}
         </tbody>
       </table>
-      <ColumnConfigModal open={colCfgOpen} onClose={() => setColCfgOpen(false)} selected={visibleCols} onApply={saveCols} />
+      <ColumnConfigModal
+        open={colCfgOpen}
+        onClose={() => setColCfgOpen(false)}
+        selected={visibleCols}
+        onApply={saveCols}
+      />
 
       <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
       <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
@@ -3466,7 +5592,6 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
     </>
   );
 }
-
 
 function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
   const { data, isLoading } = useQuery({
@@ -3479,20 +5604,42 @@ function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: ()
         .eq("venue_id", venue!.id)
         .order("id");
       if (error) throw error;
-      return data as Array<{ id: number; name: string; hourly_rate: number; is_indoor: boolean; coming_soon: boolean | null; map_emoji: string | null; sports: { name: string } | null }>;
+      return data as Array<{
+        id: number;
+        name: string;
+        hourly_rate: number;
+        is_indoor: boolean;
+        coming_soon: boolean | null;
+        map_emoji: string | null;
+        sports: { name: string } | null;
+      }>;
     },
   });
   if (!venue) return null;
   const courts = data ?? [];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-background shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <h3 className="text-lg font-bold">Courts at {venue.name}</h3>
-            <p className="text-xs text-muted-foreground">View only — {courts.length} court{courts.length === 1 ? "" : "s"}</p>
+            <p className="text-xs text-muted-foreground">
+              View only — {courts.length} court{courts.length === 1 ? "" : "s"}
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Close"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -3500,7 +5647,9 @@ function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: ()
           {isLoading ? (
             <p className="p-6 text-center text-sm text-muted-foreground">Loading…</p>
           ) : courts.length === 0 ? (
-            <p className="p-6 text-center text-sm text-muted-foreground italic">No courts yet under this venue.</p>
+            <p className="p-6 text-center text-sm text-muted-foreground italic">
+              No courts yet under this venue.
+            </p>
           ) : (
             <ul className="divide-y divide-border">
               {courts.map((c) => (
@@ -3510,7 +5659,9 @@ function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: ()
                     <div className="flex items-center gap-2">
                       <span className="truncate font-semibold">{c.name}</span>
                       {c.coming_soon && (
-                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">Coming soon</span>
+                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                          Coming soon
+                        </span>
                       )}
                     </div>
                     <div className="text-[11px] text-muted-foreground">
@@ -3518,7 +5669,8 @@ function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: ()
                     </div>
                   </div>
                   <div className="whitespace-nowrap text-sm font-semibold text-primary">
-                    ₱{Number(c.hourly_rate).toFixed(0)}<span className="text-[10px] font-normal text-muted-foreground"> /hr</span>
+                    ₱{Number(c.hourly_rate).toFixed(0)}
+                    <span className="text-[10px] font-normal text-muted-foreground"> /hr</span>
                   </div>
                 </li>
               ))}
@@ -3530,8 +5682,15 @@ function VenueCourtsModal({ venue, onClose }: { venue: Venue | null; onClose: ()
   );
 }
 
-type AuditEntry = { id: number; venue_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
-
+type AuditEntry = {
+  id: number;
+  venue_id: number;
+  action: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  changes: Record<string, unknown> | null;
+  created_at: string;
+};
 
 function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: () => void }) {
   const { data, isLoading } = useQuery({
@@ -3550,17 +5709,35 @@ function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: (
 
   if (!venue) return null;
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    new Date(iso).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
 
   return (
-    <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-80 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Audit history</div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Audit history
+            </div>
             <div className="font-semibold">{venue.name}</div>
           </div>
-          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+            aria-label="Close"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -3568,14 +5745,20 @@ function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: (
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : !data || data.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground italic">No history yet.</div>
+            <div className="py-8 text-center text-sm text-muted-foreground italic">
+              No history yet.
+            </div>
           ) : (
             <ol className="relative space-y-4 border-l border-border pl-5">
               {data.map((e) => (
                 <li key={e.id} className="relative">
-                  <span className={`absolute -left-6.5 top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
+                  <span
+                    className={`absolute -left-6.5 top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`}
+                  />
                   <div className="flex items-center gap-2">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}
+                    >
                       {e.action === "created" ? "Created" : "Last modified"}
                     </span>
                     <span className="text-xs text-muted-foreground">{fmt(e.created_at)}</span>
@@ -3587,7 +5770,12 @@ function AuditHistoryModal({ venue, onClose }: { venue: Venue | null; onClose: (
                   {e.action === "updated" && e.changes && Object.keys(e.changes).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {Object.keys(e.changes).map((k) => (
-                        <span key={k} className="inline-flex rounded-md bg-secondary/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">{k}</span>
+                        <span
+                          key={k}
+                          className="inline-flex rounded-md bg-secondary/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {k}
+                        </span>
                       ))}
                     </div>
                   )}
@@ -3607,7 +5795,10 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
   const [err, setErr] = useState<string | null>(null);
   const del = useMutation({
     mutationFn: async () => {
-      const { data: courts, error: cErr } = await supabase.from("courts").select("id").eq("venue_id", venue.id);
+      const { data: courts, error: cErr } = await supabase
+        .from("courts")
+        .select("id")
+        .eq("venue_id", venue.id);
       if (cErr) throw cErr;
       const courtIds = (courts ?? []).map((c) => c.id);
       if (courtIds.length > 0) {
@@ -3625,13 +5816,24 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
       const { error } = await supabase.from("venues").delete().eq("id", venue.id);
       if (error) throw error;
     },
-    onSuccess: () => { setConfirming(false); setErr(null); qc.invalidateQueries({ queryKey: ["my-venues"] }); qc.invalidateQueries({ queryKey: ["venues-court-counts"] }); qc.invalidateQueries({ queryKey: ["venues-courts-glance"] }); },
+    onSuccess: () => {
+      setConfirming(false);
+      setErr(null);
+      qc.invalidateQueries({ queryKey: ["my-venues"] });
+      qc.invalidateQueries({ queryKey: ["venues-court-counts"] });
+      qc.invalidateQueries({ queryKey: ["venues-courts-glance"] });
+    },
     onError: (e: Error) => setErr(e.message),
   });
 
   useEffect(() => {
     if (!confirming) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setConfirming(false); setErr(null); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setConfirming(false);
+        setErr(null);
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [confirming]);
@@ -3640,7 +5842,10 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
     <>
       <button
         type="button"
-        onClick={() => { setConfirming(true); setErr(null); }}
+        onClick={() => {
+          setConfirming(true);
+          setErr(null);
+        }}
         title="Delete venue"
         aria-label={`Delete ${venue.name}`}
         className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-destructive/40 text-destructive transition hover:bg-destructive/10"
@@ -3648,16 +5853,45 @@ function DeleteVenueButton({ venue }: { venue: Venue }) {
         <Trash2 className="h-3.5 w-3.5" />
       </button>
       {confirming && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!del.isPending) { setConfirming(false); setErr(null); } }}>
-          <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            if (!del.isPending) {
+              setConfirming(false);
+              setErr(null);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-bold">Delete "{venue.name}"?</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              This permanently removes the venue and all its courts. Venues with existing bookings cannot be deleted.
+              This permanently removes the venue and all its courts. Venues with existing bookings
+              cannot be deleted.
             </p>
-            {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+            {err && (
+              <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                {err}
+              </p>
+            )}
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => { setConfirming(false); setErr(null); }} disabled={del.isPending} className="rounded-lg border border-border px-3 py-1.5 text-xs">Cancel</button>
-              <button onClick={() => del.mutate()} disabled={del.isPending} className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+              <button
+                onClick={() => {
+                  setConfirming(false);
+                  setErr(null);
+                }}
+                disabled={del.isPending}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => del.mutate()}
+                disabled={del.isPending}
+                className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60"
+              >
                 {del.isPending ? "Deleting…" : "Delete venue"}
               </button>
             </div>
@@ -3674,11 +5908,16 @@ function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => 
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
 
   useEffect(() => {
@@ -3697,7 +5936,7 @@ function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => 
       if (cancelled || !elRef.current) return;
       map = L.map(elRef.current, { zoomControl: true, attributionControl: false }).setView(
         [venue.latitude!, venue.longitude!],
-        16
+        16,
       );
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
       const icon = L.divIcon({
@@ -3719,7 +5958,11 @@ function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => 
   return (
     <div className="fixed inset-0 z-1300 flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-black/60" />
-      <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl bg-background shadow-2xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl bg-background shadow-2xl"
+      >
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -3728,17 +5971,29 @@ function MapViewModal({ venue, onClose }: { venue: Venue | null; onClose: () => 
             </div>
             <div className="mt-0.5 truncate text-xs text-muted-foreground">{venue.address}</div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary"
+          >
+            ✕
+          </button>
         </div>
         <div className="relative">
           <div ref={elRef} className="h-[60vh] w-full" />
           <MapInfoButton
-            getCenter={() => (venue.latitude != null && venue.longitude != null ? { lat: venue.latitude, lng: venue.longitude } : null)}
+            getCenter={() =>
+              venue.latitude != null && venue.longitude != null
+                ? { lat: venue.latitude, lng: venue.longitude }
+                : null
+            }
             className="bottom-3 right-3"
           />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-xs sm:px-5">
-          <span className="text-muted-foreground">View only · edits are made from the Edit action.</span>
+          <span className="text-muted-foreground">
+            View only · edits are made from the Edit action.
+          </span>
           <a
             href={`https://www.google.com/maps?q=${venue.latitude},${venue.longitude}`}
             target="_blank"
@@ -3758,25 +6013,41 @@ function EditVenueDrawer({ venue, onClose }: { venue: Venue | null; onClose: () 
   const open = venue !== null;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
 
   const courtsQ = useQuery({
     queryKey: ["courts-count", venue?.id],
     enabled: open,
     queryFn: async () => {
-      const { count } = await supabase.from("courts").select("id", { count: "exact", head: true }).eq("venue_id", venue!.id);
+      const { count } = await supabase
+        .from("courts")
+        .select("id", { count: "exact", head: true })
+        .eq("venue_id", venue!.id);
       return count ?? 0;
     },
   });
 
   return (
-    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
-      <div onClick={onClose} className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")} />
+    <div
+      className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}
+    >
+      <div
+        onClick={onClose}
+        className={
+          "absolute inset-0 bg-black/40 transition-opacity duration-300 " +
+          (open ? "opacity-100" : "opacity-0")
+        }
+      />
       <aside
         className={
           "absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
@@ -3787,7 +6058,13 @@ function EditVenueDrawer({ venue, onClose }: { venue: Venue | null; onClose: () 
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
           <h2 className="text-lg font-bold">Edit venue</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary"
+          >
+            ✕
+          </button>
         </div>
         {open && venue && (
           <div className="space-y-4 p-4 sm:p-6">
@@ -3798,8 +6075,13 @@ function EditVenueDrawer({ venue, onClose }: { venue: Venue | null; onClose: () 
               onDoneEditing={onClose}
             />
             <div className="rounded-xl border border-border p-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Map location</div>
-              <VenueLocation venue={venue} onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })} />
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Map location
+              </div>
+              <VenueLocation
+                venue={venue}
+                onSaved={() => qc.invalidateQueries({ queryKey: ["my-venues"] })}
+              />
             </div>
           </div>
         )}
@@ -3822,9 +6104,21 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
     queryFn: async () => {
       const nowIso = new Date().toISOString();
       const [all, upcoming, paid] = await Promise.all([
-        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("court_id", court.id),
-        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("court_id", court.id).eq("status", "confirmed").gte("start_time", nowIso),
-        supabase.from("bookings").select("id", { count: "exact", head: true }).eq("court_id", court.id).eq("payment_status", "paid"),
+        supabase
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("court_id", court.id),
+        supabase
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("court_id", court.id)
+          .eq("status", "confirmed")
+          .gte("start_time", nowIso),
+        supabase
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("court_id", court.id)
+          .eq("payment_status", "paid"),
       ]);
       if (all.error) throw all.error;
       if (upcoming.error) throw upcoming.error;
@@ -3839,13 +6133,21 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
   const del = useMutation({
     mutationFn: async () => {
       // Re-check right before deleting so nothing slips through.
-      const { count, error: cErr } = await supabase.from("bookings").select("id", { count: "exact", head: true }).eq("court_id", court.id);
+      const { count, error: cErr } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("court_id", court.id);
       if (cErr) throw cErr;
-      if ((count ?? 0) > 0) throw new Error("This court has booking history and cannot be deleted.");
+      if ((count ?? 0) > 0)
+        throw new Error("This court has booking history and cannot be deleted.");
       const { error } = await supabase.from("courts").delete().eq("id", court.id);
       if (error) throw error;
     },
-    onSuccess: () => { setOpen(false); setErr(null); onDeleted(); },
+    onSuccess: () => {
+      setOpen(false);
+      setErr(null);
+      onDeleted();
+    },
     onError: (e: Error) => setErr(e.message),
   });
 
@@ -3853,7 +6155,10 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
     <>
       <button
         type="button"
-        onClick={() => { setOpen(true); setErr(null); }}
+        onClick={() => {
+          setOpen(true);
+          setErr(null);
+        }}
         title="Delete court"
         aria-label={`Delete ${court.name}`}
         className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-destructive/40 text-destructive align-middle transition hover:bg-destructive/10"
@@ -3861,8 +6166,16 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
         <Trash2 className="h-3.5 w-3.5" />
       </button>
       {open && (
-        <div className="fixed inset-0 z-1300 flex items-center justify-center whitespace-normal bg-black/50 p-4 text-left" onClick={() => { if (!del.isPending) setOpen(false); }}>
-          <div className="w-full max-w-md whitespace-normal wrap-break-word rounded-2xl border border-border bg-background p-5 text-left shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-1300 flex items-center justify-center whitespace-normal bg-black/50 p-4 text-left"
+          onClick={() => {
+            if (!del.isPending) setOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md whitespace-normal wrap-break-word rounded-2xl border border-border bg-background p-5 text-left shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-base font-bold">Delete "{court.name}"?</h3>
             {usageQ.isLoading ? (
               <p className="mt-2 text-sm text-muted-foreground">Checking bookings…</p>
@@ -3873,26 +6186,53 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
                   <div className="text-xs">
                     <p className="font-semibold">This court can't be deleted.</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                      {usage!.upcoming > 0 && <li>{usage!.upcoming} upcoming confirmed booking{usage!.upcoming === 1 ? "" : "s"}</li>}
-                      {usage!.paid > 0 && <li>{usage!.paid} paid transaction{usage!.paid === 1 ? "" : "s"} on record</li>}
-                      <li>{usage!.total} booking record{usage!.total === 1 ? "" : "s"} in total</li>
+                      {usage!.upcoming > 0 && (
+                        <li>
+                          {usage!.upcoming} upcoming confirmed booking
+                          {usage!.upcoming === 1 ? "" : "s"}
+                        </li>
+                      )}
+                      {usage!.paid > 0 && (
+                        <li>
+                          {usage!.paid} paid transaction{usage!.paid === 1 ? "" : "s"} on record
+                        </li>
+                      )}
+                      <li>
+                        {usage!.total} booking record{usage!.total === 1 ? "" : "s"} in total
+                      </li>
                     </ul>
                     <p className="mt-2 text-muted-foreground">
-                      Booking and payment history must stay intact. Set the court to <b>Inactive</b> in Edit court instead — it disappears from players but keeps its records.
+                      Booking and payment history must stay intact. Set the court to <b>Inactive</b>{" "}
+                      in Edit court instead — it disappears from players but keeps its records.
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
               <p className="mt-1 text-sm text-muted-foreground">
-                This court has no bookings or transactions. Deleting it is permanent and removes its pricing, hours and images.
+                This court has no bookings or transactions. Deleting it is permanent and removes its
+                pricing, hours and images.
               </p>
             )}
-            {err && <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{err}</p>}
+            {err && (
+              <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                {err}
+              </p>
+            )}
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setOpen(false)} disabled={del.isPending} className="rounded-lg border border-border px-3 py-1.5 text-xs">Close</button>
+              <button
+                onClick={() => setOpen(false)}
+                disabled={del.isPending}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs"
+              >
+                Close
+              </button>
               {!blocked && !usageQ.isLoading && (
-                <button onClick={() => del.mutate()} disabled={del.isPending} className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+                <button
+                  onClick={() => del.mutate()}
+                  disabled={del.isPending}
+                  className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60"
+                >
                   {del.isPending ? "Deleting…" : "Delete court"}
                 </button>
               )}
@@ -3912,10 +6252,17 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
     enabled: venueIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("courts").select("*, sports(name)").in("venue_id", venueIds).order("created_at", { ascending: false }).order("id", { ascending: false });
+        .from("courts")
+        .select("*, sports(name)")
+        .in("venue_id", venueIds)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
       if (error) throw error;
       const byId = new Map(venues.map((v) => [v.id, v]));
-      return (data as unknown as Court[]).map((c) => ({ ...c, venue: byId.get(c.venue_id)! })) as CourtRow[];
+      return (data as unknown as Court[]).map((c) => ({
+        ...c,
+        venue: byId.get(c.venue_id)!,
+      })) as CourtRow[];
     },
   });
 
@@ -3926,9 +6273,21 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   const [colCfgOpen, setColCfgOpen] = useState(false);
   const { selected: visibleCols, save: saveCols } = useCourtColumns();
 
-  const rows = (courtsQ.data ?? []).filter((c) => venueFilter === "all" || c.venue_id === venueFilter);
+  const rows = (courtsQ.data ?? []).filter(
+    (c) => venueFilter === "all" || c.venue_id === venueFilter,
+  );
   const invalidate = () => {
-    ["all-tenant-courts", "venues-courts-glance", "venues-court-counts", "venues-courts-table", "courts", "physical-courts-full", "physical-courts", "venues-group-counts", "group-eligible-courts"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    [
+      "all-tenant-courts",
+      "venues-courts-glance",
+      "venues-court-counts",
+      "venues-courts-table",
+      "courts",
+      "physical-courts-full",
+      "physical-courts",
+      "venues-group-counts",
+      "group-eligible-courts",
+    ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
   };
 
   const cfgButton = (
@@ -3945,93 +6304,250 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
 
   const renderHeader = (id: string) => {
     switch (id) {
-      case "emoji": return <th key={id} className="px-4 py-2.5 w-10">{cfgButton}</th>;
-      case "name": return <th key={id} className="px-3 py-2.5">Court</th>;
-      case "description": return <th key={id} className="px-3 py-2.5">About This Court</th>;
-      case "venue": return <th key={id} className="px-3 py-2.5">Venue</th>;
-      case "sport": return <th key={id} className="px-3 py-2.5">Sport</th>;
-      case "type": return <th key={id} className="px-3 py-2.5">Type</th>;
-      case "surface": return <th key={id} className="px-3 py-2.5">Surface</th>;
-      case "capacity": return <th key={id} className="px-3 py-2.5 text-center">Capacity</th>;
-      case "rate": return <th key={id} className="px-3 py-2.5 text-right">Rate / hr</th>;
-      case "voucher": return <th key={id} className="px-3 py-2.5 text-center">Voucher</th>;
-      case "status": return <th key={id} className="px-3 py-2.5">Status</th>;
-      case "created_at": return <th key={id} className="px-3 py-2.5 w-32">Created At</th>;
-      case "history": return <th key={id} className="px-3 py-2.5 w-24 text-center">History</th>;
-      case "actions": return <th key={id} className="px-3 py-2.5 text-right">Actions</th>;
-      default: return null;
+      case "emoji":
+        return (
+          <th key={id} className="px-4 py-2.5 w-10">
+            {cfgButton}
+          </th>
+        );
+      case "name":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Court
+          </th>
+        );
+      case "description":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            About This Court
+          </th>
+        );
+      case "venue":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Venue
+          </th>
+        );
+      case "sport":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Sport
+          </th>
+        );
+      case "type":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Type
+          </th>
+        );
+      case "surface":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Surface
+          </th>
+        );
+      case "capacity":
+        return (
+          <th key={id} className="px-3 py-2.5 text-center">
+            Capacity
+          </th>
+        );
+      case "rate":
+        return (
+          <th key={id} className="px-3 py-2.5 text-right">
+            Rate / hr
+          </th>
+        );
+      case "voucher":
+        return (
+          <th key={id} className="px-3 py-2.5 text-center">
+            Voucher
+          </th>
+        );
+      case "status":
+        return (
+          <th key={id} className="px-3 py-2.5">
+            Status
+          </th>
+        );
+      case "created_at":
+        return (
+          <th key={id} className="px-3 py-2.5 w-32">
+            Created At
+          </th>
+        );
+      case "history":
+        return (
+          <th key={id} className="px-3 py-2.5 w-24 text-center">
+            History
+          </th>
+        );
+      case "actions":
+        return (
+          <th key={id} className="px-3 py-2.5 text-right">
+            Actions
+          </th>
+        );
+      default:
+        return null;
     }
   };
 
   const renderCell = (id: string, c: CourtRow) => {
     switch (id) {
-      case "emoji": return <td key={id} className="px-4 py-3 text-xl leading-none">{c.map_emoji ?? c.venue.map_emoji ?? "🎾"}</td>;
-      case "name": return <td key={id} className="px-3 py-3"><div className="font-semibold">{c.name}</div></td>;
-      case "description": return (
-        <td key={id} className="px-3 py-3">
-          {c.description?.trim() ? (
-            <p title={c.description} className="line-clamp-2 max-w-65 whitespace-normal wrap-break-word text-[12px] leading-snug text-muted-foreground">{c.description}</p>
-          ) : <span className="text-muted-foreground">—</span>}
-        </td>
-      );
-      case "venue": return (
-        <td key={id} className="px-3 py-3">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
-            <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>{c.venue.name}
-          </span>
-        </td>
-      );
-      case "sport": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.sports?.name ?? "—"}</td>;
-      case "type": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.is_indoor ? "Indoor" : "Outdoor"}</td>;
-      case "surface": return <td key={id} className="px-3 py-3 text-muted-foreground">{c.surface_type?.trim() ? c.surface_type : "—"}</td>;
-      case "capacity": return <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">{c.player_capacity ?? "—"}</td>;
-      case "rate": return <td key={id} className="px-3 py-3 text-right"><span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">₱{Number(c.hourly_rate).toFixed(0)}</span></td>;
-      case "voucher": return (
-        <td key={id} className="px-3 py-3 text-center">
-          {c.voucher_enabled ? (
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">True</span>
-          ) : (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">False</span>
-          )}
-        </td>
-      );
-      case "status": return (
-        <td key={id} className="px-3 py-3">
-          {c.coming_soon ? (
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">Coming soon</span>
-          ) : (
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">ACTIVE</span>
-          )}
-        </td>
-      );
-      case "created_at": return (
-        <td key={id} className="px-3 py-3">
-          {c.created_at ? (
-            <div className="flex flex-col leading-tight">
-              <span className="text-foreground">{new Date(c.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-              <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
-            </div>
-          ) : <span className="text-muted-foreground">—</span>}
-        </td>
-      );
-      case "history": return (
-        <td key={id} className="px-3 py-3 text-center">
-          <button type="button" onClick={() => setHistoryCourt(c)} title="Audit history" aria-label={`View audit history for ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-            <HistoryIcon className="h-3.5 w-3.5" />
-          </button>
-        </td>
-      );
-      case "actions": return (
-        <td key={id} className="px-3 py-3">
-          <div className="flex items-center justify-end gap-1">
-            <button type="button" onClick={() => setEditing(c)} title="Edit court" aria-label={`Edit ${c.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary">
-              <Pencil className="h-3.5 w-3.5" />
+      case "emoji":
+        return (
+          <td key={id} className="px-4 py-3 text-xl leading-none">
+            {c.map_emoji ?? c.venue.map_emoji ?? "🎾"}
+          </td>
+        );
+      case "name":
+        return (
+          <td key={id} className="px-3 py-3">
+            <div className="font-semibold">{c.name}</div>
+          </td>
+        );
+      case "description":
+        return (
+          <td key={id} className="px-3 py-3">
+            {c.description?.trim() ? (
+              <p
+                title={c.description}
+                className="line-clamp-2 max-w-65 whitespace-normal wrap-break-word text-[12px] leading-snug text-muted-foreground"
+              >
+                {c.description}
+              </p>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </td>
+        );
+      case "venue":
+        return (
+          <td key={id} className="px-3 py-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[13px] font-semibold leading-tight text-foreground ring-1 ring-primary/20">
+              <span className="text-base leading-none">{c.venue.map_emoji ?? "🏟️"}</span>
+              {c.venue.name}
+            </span>
+          </td>
+        );
+      case "sport":
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground">
+            {c.sports?.name ?? "—"}
+          </td>
+        );
+      case "type":
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground">
+            {c.is_indoor ? "Indoor" : "Outdoor"}
+          </td>
+        );
+      case "surface":
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground">
+            {c.surface_type?.trim() ? c.surface_type : "—"}
+          </td>
+        );
+      case "capacity":
+        return (
+          <td key={id} className="px-3 py-3 text-center tabular-nums text-muted-foreground">
+            {c.player_capacity ?? "—"}
+          </td>
+        );
+      case "rate":
+        return (
+          <td key={id} className="px-3 py-3 text-right">
+            <span className="text-[15px] font-bold tabular-nums text-foreground [text-shadow:0_0_10px_rgba(250,204,21,0.85)]">
+              ₱{Number(c.hourly_rate).toFixed(0)}
+            </span>
+          </td>
+        );
+      case "voucher":
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            {c.voucher_enabled ? (
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">
+                True
+              </span>
+            ) : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground ring-1 ring-border">
+                False
+              </span>
+            )}
+          </td>
+        );
+      case "status":
+        return (
+          <td key={id} className="px-3 py-3">
+            {c.coming_soon ? (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600 ring-1 ring-amber-500/30">
+                Coming soon
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 ring-1 ring-emerald-500/30">
+                ACTIVE
+              </span>
+            )}
+          </td>
+        );
+      case "created_at":
+        return (
+          <td key={id} className="px-3 py-3">
+            {c.created_at ? (
+              <div className="flex flex-col leading-tight">
+                <span className="text-foreground">
+                  {new Date(c.created_at).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {new Date(c.created_at).toLocaleTimeString(undefined, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </td>
+        );
+      case "history":
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <button
+              type="button"
+              onClick={() => setHistoryCourt(c)}
+              title="Audit history"
+              aria-label={`View audit history for ${c.name}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+            >
+              <HistoryIcon className="h-3.5 w-3.5" />
             </button>
-            <DeleteCourtButton court={c} onDeleted={invalidate} />
-          </div>
-        </td>
-      );
-      default: return null;
+          </td>
+        );
+      case "actions":
+        return (
+          <td key={id} className="px-3 py-3">
+            <div className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => setEditing(c)}
+                title="Edit court"
+                aria-label={`Edit ${c.name}`}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <DeleteCourtButton court={c} onDeleted={invalidate} />
+            </div>
+          </td>
+        );
+      default:
+        return null;
     }
   };
 
@@ -4039,25 +6555,23 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
     <>
       <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur">
         <label className="text-xs text-muted-foreground">Filter venue:</label>
-        <select
-          value={venueFilter === "all" ? "all" : String(venueFilter)}
-          onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-        >
-          <option value="all">All venues</option>
-          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
-
+        <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} size="xs" />
       </div>
       {courtsQ.isLoading ? (
-        <div className="p-6"><div className="h-24 animate-pulse rounded-lg bg-muted" /></div>
+        <div className="p-6">
+          <div className="h-24 animate-pulse rounded-lg bg-muted" />
+        </div>
       ) : rows.length === 0 ? (
-        <div className="p-8 text-center text-sm text-muted-foreground">No courts yet. Use <strong>Add court</strong> to create one.</div>
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          No courts yet. Use <strong>Add court</strong> to create one.
+        </div>
       ) : (
         <table className="w-full min-w-225 text-sm">
           <thead className="sticky top-10.25 z-10 bg-secondary/60 text-left text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
             <tr>
-              {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2.5">{cfgButton}</th>}
+              {!visibleCols.includes("emoji") && (
+                <th className="w-8 pl-2 pr-0 py-2.5">{cfgButton}</th>
+              )}
               {visibleCols.map((id) => renderHeader(id))}
             </tr>
           </thead>
@@ -4086,16 +6600,26 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
           <EditCourt
             court={editing}
             venueEmoji={editing.venue.map_emoji}
-            onDone={() => { invalidate(); setEditing(null); }}
+            onDone={() => {
+              invalidate();
+              setEditing(null);
+            }}
             onCancel={() => setEditing(null)}
           />
         )}
       </CourtDrawer>
-      <CourtDrawer title="Manage availability" open={managingHours !== null} onClose={() => setManagingHours(null)}>
+      <CourtDrawer
+        title="Manage availability"
+        open={managingHours !== null}
+        onClose={() => setManagingHours(null)}
+      >
         {managingHours && (
           <AvailabilityEditor
             court={managingHours}
-            onDone={() => { invalidate(); setManagingHours(null); }}
+            onDone={() => {
+              invalidate();
+              setManagingHours(null);
+            }}
             onCancel={() => setManagingHours(null)}
           />
         )}
@@ -4104,10 +6628,23 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
   );
 }
 
+type CourtAuditEntry = {
+  id: number;
+  court_id: number;
+  action: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  changes: Record<string, unknown> | null;
+  created_at: string;
+};
 
-type CourtAuditEntry = { id: number; court_id: number; action: string; actor_id: string | null; actor_name: string | null; changes: Record<string, unknown> | null; created_at: string };
-
-function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name: string } | null; onClose: () => void }) {
+function CourtAuditHistoryModal({
+  court,
+  onClose,
+}: {
+  court: { id: number; name: string } | null;
+  onClose: () => void;
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ["court-audit", court?.id],
     enabled: !!court,
@@ -4124,17 +6661,35 @@ function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name:
 
   if (!court) return null;
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    new Date(iso).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
 
   return (
-    <div className="fixed inset-0 z-1300 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-1300 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Court history</div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Court history
+            </div>
             <div className="font-semibold">{court.name}</div>
           </div>
-          <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+            aria-label="Close"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -4142,14 +6697,20 @@ function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name:
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : !data || data.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground italic">No history yet.</div>
+            <div className="py-8 text-center text-sm text-muted-foreground italic">
+              No history yet.
+            </div>
           ) : (
             <ol className="relative space-y-4 border-l border-border pl-5">
               {data.map((e) => (
                 <li key={e.id} className="relative">
-                  <span className={`absolute -left-6.5 top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`} />
+                  <span
+                    className={`absolute -left-6.5 top-1.5 h-3 w-3 rounded-full ring-4 ring-card ${e.action === "created" ? "bg-primary" : "bg-amber-500"}`}
+                  />
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${e.action === "created" ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}
+                    >
                       {e.action === "created" ? "Created" : "Last modified"}
                     </span>
                     <span className="text-xs text-muted-foreground">{fmt(e.created_at)}</span>
@@ -4161,7 +6722,12 @@ function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name:
                   {e.action === "updated" && e.changes && Object.keys(e.changes).length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {Object.keys(e.changes).map((k) => (
-                        <span key={k} className="inline-flex rounded-md bg-secondary/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">{k}</span>
+                        <span
+                          key={k}
+                          className="inline-flex rounded-md bg-secondary/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {k}
+                        </span>
                       ))}
                     </div>
                   )}
@@ -4175,18 +6741,41 @@ function CourtAuditHistoryModal({ court, onClose }: { court: { id: number; name:
   );
 }
 
-function CourtDrawer({ title, open, onClose, children }: { title: string; open: boolean; onClose: () => void; children: React.ReactNode }) {
+function CourtDrawer({
+  title,
+  open,
+  onClose,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, onClose]);
   return (
-    <div className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}>
-      <div onClick={onClose} className={"absolute inset-0 bg-black/40 transition-opacity duration-300 " + (open ? "opacity-100" : "opacity-0")} />
+    <div
+      className={"fixed inset-0 z-1200 " + (open ? "pointer-events-auto" : "pointer-events-none")}
+    >
+      <div
+        onClick={onClose}
+        className={
+          "absolute inset-0 bg-black/40 transition-opacity duration-300 " +
+          (open ? "opacity-100" : "opacity-0")
+        }
+      />
       <aside
         className={
           "absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto bg-background shadow-2xl transition-transform duration-300 ease-out " +
@@ -4197,7 +6786,13 @@ function CourtDrawer({ title, open, onClose, children }: { title: string; open: 
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
           <h2 className="text-lg font-bold">{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary">✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md border border-border px-2 py-1 text-sm hover:bg-secondary"
+          >
+            ✕
+          </button>
         </div>
         <div className="p-4 sm:p-6">{open && children}</div>
       </aside>
@@ -4212,18 +6807,24 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   const [editing, setEditing] = useState<GroupRow | null>(null);
   const [colCfgOpen, setColCfgOpen] = useState(false);
   const { selected: visibleCols, save: saveCols } = useGroupColumns();
-  useEffect(() => { if (!venueId && venues[0]) setVenueId(venues[0].id); }, [venues, venueId]);
+  useEffect(() => {
+    if (!venueId && venues[0]) setVenueId(venues[0].id);
+  }, [venues, venueId]);
 
   const groupsQ = useQuery({
     queryKey: ["physical-courts-full", venueId],
     enabled: !!venueId,
     queryFn: async () => {
-      const { data: pcs, error } = await supabase.from("physical_courts")
-        .select("id, venue_id, name, map_emoji, description").eq("venue_id", venueId!).order("id");
+      const { data: pcs, error } = await supabase
+        .from("physical_courts")
+        .select("id, venue_id, name, map_emoji, description")
+        .eq("venue_id", venueId!)
+        .order("id");
       if (error) throw error;
       const pcIds = (pcs ?? []).map((p) => p.id);
       if (pcIds.length === 0) return [] as GroupRow[];
-      const { data: cs, error: cErr } = await supabase.from("courts")
+      const { data: cs, error: cErr } = await supabase
+        .from("courts")
         .select("id, name, physical_court_id, sports(name)")
         .in("physical_court_id", pcIds);
       if (cErr) throw cErr;
@@ -4236,16 +6837,22 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       const courtIds = (cs ?? []).map((c: any) => c.id as number);
       const rulesByCourt = new Map<number, number>();
       if (courtIds.length > 0) {
-        const { data: rs, error: rErr } = await supabase.from("court_block_rules")
-          .select("court_id").in("court_id", courtIds);
+        const { data: rs, error: rErr } = await supabase
+          .from("court_block_rules")
+          .select("court_id")
+          .in("court_id", courtIds);
         if (rErr) throw rErr;
-        (rs ?? []).forEach((r: any) => rulesByCourt.set(r.court_id, (rulesByCourt.get(r.court_id) ?? 0) + 1));
+        (rs ?? []).forEach((r: any) =>
+          rulesByCourt.set(r.court_id, (rulesByCourt.get(r.court_id) ?? 0) + 1),
+        );
       }
-      return (pcs ?? []).map((p: any) => {
-        const layouts = byPc.get(p.id) ?? [];
-        const rulesCount = layouts.reduce((sum, l) => sum + (rulesByCourt.get(l.id) ?? 0), 0);
-        return { ...p, layouts, rulesCount };
-      }).filter((g) => g.layouts.length >= 2) as GroupRow[];
+      return (pcs ?? [])
+        .map((p: any) => {
+          const layouts = byPc.get(p.id) ?? [];
+          const rulesCount = layouts.reduce((sum, l) => sum + (rulesByCourt.get(l.id) ?? 0), 0);
+          return { ...p, layouts, rulesCount };
+        })
+        .filter((g) => g.layouts.length >= 2) as GroupRow[];
     },
   });
 
@@ -4265,38 +6872,93 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
 
   const renderHeader = (id: string) => {
     switch (id) {
-      case "emoji": return <th key={id} className="px-3 py-2 w-10 font-semibold">{cfgButton}</th>;
-      case "name": return <th key={id} className="px-3 py-2 font-semibold">Group</th>;
-      case "description": return <th key={id} className="px-3 py-2 font-semibold">About this group</th>;
-      case "courts_count": return <th key={id} className="px-3 py-2 font-semibold text-center">Courts</th>;
-      case "rules": return <th key={id} className="px-3 py-2 font-semibold text-center">Blocking rules</th>;
-      case "sports": return <th key={id} className="px-3 py-2 font-semibold">Sports</th>;
-      case "actions": return <th key={id} className="px-3 py-2 font-semibold text-right">Actions</th>;
-      default: return null;
+      case "emoji":
+        return (
+          <th key={id} className="px-3 py-2 w-10 font-semibold">
+            {cfgButton}
+          </th>
+        );
+      case "name":
+        return (
+          <th key={id} className="px-3 py-2 font-semibold">
+            Group
+          </th>
+        );
+      case "description":
+        return (
+          <th key={id} className="px-3 py-2 font-semibold">
+            About this group
+          </th>
+        );
+      case "courts_count":
+        return (
+          <th key={id} className="px-3 py-2 font-semibold text-center">
+            Courts
+          </th>
+        );
+      case "rules":
+        return (
+          <th key={id} className="px-3 py-2 font-semibold text-center">
+            Blocking rules
+          </th>
+        );
+      case "sports":
+        return (
+          <th key={id} className="px-3 py-2 font-semibold">
+            Sports
+          </th>
+        );
+      case "actions":
+        return (
+          <th key={id} className="px-3 py-2 font-semibold text-right">
+            Actions
+          </th>
+        );
+      default:
+        return null;
     }
   };
 
   const renderCell = (id: string, g: GroupRow) => {
     switch (id) {
-      case "emoji": return <td key={id} className="px-3 py-3 text-lg leading-none">{g.map_emoji ?? "🏟️"}</td>;
-      case "name": return <td key={id} className="px-3 py-3"><span className="font-medium">{g.name}</span></td>;
-      case "description": return <td key={id} className="px-3 py-3 text-muted-foreground">{g.description || "—"}</td>;
-      case "courts_count": return (
-        <td key={id} className="px-3 py-3 text-center">
-          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">{g.layouts.length}</span>
-        </td>
-      );
-      case "rules": return (
-        <td key={id} className="px-3 py-3 text-center">
-          {g.rulesCount > 0 ? (
-            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-foreground ring-1 ring-border">
-              {g.rulesCount} {g.rulesCount === 1 ? "rule" : "rules"} set up
+      case "emoji":
+        return (
+          <td key={id} className="px-3 py-3 text-lg leading-none">
+            {g.map_emoji ?? "🏟️"}
+          </td>
+        );
+      case "name":
+        return (
+          <td key={id} className="px-3 py-3">
+            <span className="font-medium">{g.name}</span>
+          </td>
+        );
+      case "description":
+        return (
+          <td key={id} className="px-3 py-3 text-muted-foreground">
+            {g.description || "—"}
+          </td>
+        );
+      case "courts_count":
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary ring-1 ring-primary/20">
+              {g.layouts.length}
             </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">No rules yet</span>
-          )}
-        </td>
-      );
+          </td>
+        );
+      case "rules":
+        return (
+          <td key={id} className="px-3 py-3 text-center">
+            {g.rulesCount > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-foreground ring-1 ring-border">
+                {g.rulesCount} {g.rulesCount === 1 ? "rule" : "rules"} set up
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">No rules yet</span>
+            )}
+          </td>
+        );
       case "sports": {
         const list = Array.from(new Set(g.layouts.map((l) => l.sport).filter(Boolean))) as string[];
         return (
@@ -4305,23 +6967,25 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           </td>
         );
       }
-      case "actions": return (
-        <td key={id} className="px-3 py-3">
-          <div className="flex items-center justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => setEditing(g)}
-              title="Edit group"
-              aria-label={`Edit ${g.name}`}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <DeleteGroupButton group={g} />
-          </div>
-        </td>
-      );
-      default: return null;
+      case "actions":
+        return (
+          <td key={id} className="px-3 py-3">
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => setEditing(g)}
+                title="Edit group"
+                aria-label={`Edit ${g.name}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <DeleteGroupButton group={g} />
+            </div>
+          </td>
+        );
+      default:
+        return null;
     }
   };
 
@@ -4330,13 +6994,21 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       <div className="flex flex-wrap items-center gap-3 p-4 sm:p-6">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Venue</span>
-          <select value={venueId ?? ""} onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
-            className="mt-1 rounded-lg border border-input bg-background px-3 py-2 text-sm">
-            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          <select
+            value={venueId ?? ""}
+            onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
+            className="mt-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          >
+            {venues.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
           </select>
         </label>
         <p className="text-xs text-muted-foreground">
-          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same physical space.
+          Use <b className="text-foreground">+ Create group</b> to bundle courts that share the same
+          physical space.
         </p>
       </div>
       <div className="flex-1 overflow-auto nice-scroll px-4 pb-6 sm:px-6">
@@ -4344,13 +7016,17 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
           <div className="h-24 animate-pulse rounded-xl bg-muted" />
         ) : groups.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No shared-surface groups yet for this venue. Click <b className="text-foreground">+ Create group</b> above to bundle courts that share one physical space.
+            No shared-surface groups yet for this venue. Click{" "}
+            <b className="text-foreground">+ Create group</b> above to bundle courts that share one
+            physical space.
           </div>
         ) : (
           <table className="w-full min-w-180 border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                {!visibleCols.includes("emoji") && <th className="w-8 pl-2 pr-0 py-2">{cfgButton}</th>}
+                {!visibleCols.includes("emoji") && (
+                  <th className="w-8 pl-2 pr-0 py-2">{cfgButton}</th>
+                )}
                 {visibleCols.map((id) => renderHeader(id))}
               </tr>
             </thead>
@@ -4379,8 +7055,15 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
   );
 }
 
-
-type GroupRow = { id: number; venue_id: number; name: string; map_emoji: string | null; description: string | null; rulesCount: number; layouts: Array<{ id: number; name: string; sport: string | null }> };
+type GroupRow = {
+  id: number;
+  venue_id: number;
+  name: string;
+  map_emoji: string | null;
+  description: string | null;
+  rulesCount: number;
+  layouts: Array<{ id: number; name: string; sport: string | null }>;
+};
 
 function DeleteGroupButton({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
@@ -4391,24 +7074,32 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
     mutationFn: async () => {
       const courtIds = group.layouts.map((l) => l.id);
       if (courtIds.length > 0) {
-        const { count, error } = await supabase.from("bookings")
+        const { count, error } = await supabase
+          .from("bookings")
           .select("id", { count: "exact", head: true })
           .in("court_id", courtIds)
           .eq("status", "confirmed")
           .gte("end_time", new Date().toISOString());
         if (error) throw error;
-        if ((count ?? 0) > 0) throw new Error("This group has upcoming confirmed bookings and cannot be deleted until they finish or are cancelled.");
+        if ((count ?? 0) > 0)
+          throw new Error(
+            "This group has upcoming confirmed bookings and cannot be deleted until they finish or are cancelled.",
+          );
         // Detach courts from the physical surface by giving each its own new slab
         for (const c of group.layouts) {
-          const { data: pc, error: pcErr } = await supabase.from("physical_courts")
+          const { data: pc, error: pcErr } = await supabase
+            .from("physical_courts")
             .insert({ venue_id: (group as any).venue_id ?? undefined, name: c.name })
-            .select("id").single();
+            .select("id")
+            .single();
           if (pcErr) {
             // Fall back: leave the physical_court_id — parent will still delete-cascade if we allow, but safer to abort.
             throw pcErr;
           }
-          const { error: upErr } = await supabase.from("courts")
-            .update({ physical_court_id: pc.id, capacity: 1, footprint: 1 }).eq("id", c.id);
+          const { error: upErr } = await supabase
+            .from("courts")
+            .update({ physical_court_id: pc.id, capacity: 1, footprint: 1 })
+            .eq("id", c.id);
           if (upErr) throw upErr;
         }
       }
@@ -4416,8 +7107,17 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      setConfirm(false); setErr(null);
-      ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      setConfirm(false);
+      setErr(null);
+      [
+        "physical-courts-full",
+        "physical-courts",
+        "tenant-venues-full",
+        "venues-group-counts",
+        "group-eligible-courts",
+        "all-tenant-courts",
+        "court-block-rules",
+      ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     },
     onError: (e: Error) => setErr(e.message),
   });
@@ -4426,7 +7126,10 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
     <>
       <button
         type="button"
-        onClick={() => { setErr(null); setConfirm(true); }}
+        onClick={() => {
+          setErr(null);
+          setConfirm(true);
+        }}
         title="Delete group"
         aria-label={`Delete ${group.name}`}
         className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -4434,8 +7137,14 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
         <Trash2 className="h-4 w-4" />
       </button>
       {confirm && (
-        <div className="fixed inset-0 z-70 grid place-items-center bg-black/50 p-4" onClick={() => !mut.isPending && setConfirm(false)}>
-          <div className="w-full max-w-md rounded-2xl border border-destructive/40 bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-70 grid place-items-center bg-black/50 p-4"
+          onClick={() => !mut.isPending && setConfirm(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-destructive/40 bg-background p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
@@ -4443,17 +7152,35 @@ function DeleteGroupButton({ group }: { group: GroupRow }) {
               <div className="flex-1">
                 <h3 className="text-base font-semibold">Delete group permanently?</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  <b className="text-foreground">{group.name}</b> will be <b className="text-destructive">permanently deleted</b>. Its courts remain but each becomes independent again.
+                  <b className="text-foreground">{group.name}</b> will be{" "}
+                  <b className="text-destructive">permanently deleted</b>. Its courts remain but
+                  each becomes independent again.
                 </p>
               </div>
             </div>
             <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               ⚠ This action is <b>permanent</b> and cannot be undone.
             </div>
-            {err && <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            {err && (
+              <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {err}
+              </p>
+            )}
             <div className="mt-4 flex items-center justify-end gap-2">
-              <button type="button" disabled={mut.isPending} onClick={() => setConfirm(false)} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
-              <button type="button" disabled={mut.isPending} onClick={() => mut.mutate()} className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50">
+              <button
+                type="button"
+                disabled={mut.isPending}
+                onClick={() => setConfirm(false)}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={mut.isPending}
+                onClick={() => mut.mutate()}
+                className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+              >
                 {mut.isPending ? "Deleting…" : "Delete permanently"}
               </button>
             </div>
@@ -4478,24 +7205,38 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   const eligibleQ = useQuery({
     queryKey: ["group-add-eligible", group.venue_id, group.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courts")
+      const { data, error } = await supabase
+        .from("courts")
         .select("id, name, physical_court_id, sports(name)")
-        .eq("venue_id", group.venue_id).order("id");
+        .eq("venue_id", group.venue_id)
+        .order("id");
       if (error) throw error;
-      return (data ?? []) as Array<{ id: number; name: string; physical_court_id: number; sports: { name: string } | null }>;
+      return (data ?? []) as Array<{
+        id: number;
+        name: string;
+        physical_court_id: number;
+        sports: { name: string } | null;
+      }>;
     },
   });
 
   // Pairwise blocking rules among the courts of this group
-  const memberIds = [...group.layouts.filter((l) => !detachSel.has(l.id)).map((l) => l.id), ...Array.from(addSel)];
+  const memberIds = [
+    ...group.layouts.filter((l) => !detachSel.has(l.id)).map((l) => l.id),
+    ...Array.from(addSel),
+  ];
 
   const rulesQ = useQuery({
     queryKey: ["court-block-rules", group.id, group.layouts.map((l) => l.id).join(",")],
     enabled: group.layouts.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.from("court_block_rules")
+      const { data, error } = await supabase
+        .from("court_block_rules")
         .select("court_id, blocked_court_id")
-        .in("court_id", group.layouts.map((l) => l.id));
+        .in(
+          "court_id",
+          group.layouts.map((l) => l.id),
+        );
       if (error) throw error;
       return (data ?? []).map((r) => ruleKey(r.court_id, r.blocked_court_id));
     },
@@ -4503,14 +7244,19 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   const [rulesDraft, setRulesDraft] = useState<Set<string> | null>(null);
   const rules = rulesDraft ?? new Set(rulesQ.data ?? []);
   const ruleCourts: RuleCourt[] = [
-    ...group.layouts.filter((l) => !detachSel.has(l.id)).map((l) => ({ id: l.id, name: l.name, sport: l.sport })),
-    ...(eligibleQ.data ?? []).filter((c) => addSel.has(c.id)).map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null })),
+    ...group.layouts
+      .filter((l) => !detachSel.has(l.id))
+      .map((l) => ({ id: l.id, name: l.name, sport: l.sport })),
+    ...(eligibleQ.data ?? [])
+      .filter((c) => addSel.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name, sport: c.sports?.name ?? null })),
   ];
 
   const toggleAdd = (id: number) => {
     setAddSel((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -4519,7 +7265,8 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     setErr(null);
     setDetachSel((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -4528,39 +7275,57 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
     mutationFn: async () => {
       if (!name.trim()) throw new Error("Group name is required");
       // Update group fields
-      const { error } = await supabase.from("physical_courts")
+      const { error } = await supabase
+        .from("physical_courts")
         .update({ name: name.trim(), map_emoji: emoji, description: description.trim() || null })
         .eq("id", group.id);
       if (error) throw error;
       // Detach unticked members (blocked if they have upcoming confirmed bookings)
       for (const id of Array.from(detachSel)) {
-        const { count, error: cErr } = await supabase.from("bookings")
+        const { count, error: cErr } = await supabase
+          .from("bookings")
           .select("id", { count: "exact", head: true })
           .eq("court_id", id)
           .eq("status", "confirmed")
           .gte("end_time", new Date().toISOString());
         if (cErr) throw cErr;
-        if ((count ?? 0) > 0) throw new Error("A court you unticked has upcoming confirmed bookings and cannot be detached until they finish or are cancelled.");
-        const { data: pc, error: pcErr } = await supabase.from("physical_courts")
-          .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` }).select("id").single();
+        if ((count ?? 0) > 0)
+          throw new Error(
+            "A court you unticked has upcoming confirmed bookings and cannot be detached until they finish or are cancelled.",
+          );
+        const { data: pc, error: pcErr } = await supabase
+          .from("physical_courts")
+          .insert({ venue_id: group.venue_id, name: `Slab ${Date.now()}` })
+          .select("id")
+          .single();
         if (pcErr) throw pcErr;
-        const { error: dErr } = await supabase.from("courts")
-          .update({ physical_court_id: pc.id }).eq("id", id);
+        const { error: dErr } = await supabase
+          .from("courts")
+          .update({ physical_court_id: pc.id })
+          .eq("id", id);
         if (dErr) throw dErr;
-        const { error: rErr } = await supabase.from("court_block_rules").delete().eq("court_id", id);
+        const { error: rErr } = await supabase
+          .from("court_block_rules")
+          .delete()
+          .eq("court_id", id);
         if (rErr) throw rErr;
       }
       // Attach newly selected courts
       for (const id of Array.from(addSel)) {
-        const { error: upErr } = await supabase.from("courts")
-          .update({ physical_court_id: group.id }).eq("id", id);
+        const { error: upErr } = await supabase
+          .from("courts")
+          .update({ physical_court_id: group.id })
+          .eq("id", id);
         if (upErr) throw upErr;
       }
       // Replace pairwise blocking rules for all courts in this group
       const ids = memberIds;
 
       if (ids.length > 0) {
-        const { error: delErr } = await supabase.from("court_block_rules").delete().in("court_id", ids);
+        const { error: delErr } = await supabase
+          .from("court_block_rules")
+          .delete()
+          .in("court_id", ids);
         if (delErr) throw delErr;
         const rows = Array.from(rules)
           .map((k) => k.split(">").map(Number))
@@ -4573,7 +7338,15 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
       }
     },
     onSuccess: () => {
-      ["physical-courts-full", "physical-courts", "tenant-venues-full", "venues-group-counts", "group-eligible-courts", "all-tenant-courts", "court-block-rules"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      [
+        "physical-courts-full",
+        "physical-courts",
+        "tenant-venues-full",
+        "venues-group-counts",
+        "group-eligible-courts",
+        "all-tenant-courts",
+        "court-block-rules",
+      ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
       onClose();
     },
     onError: (e: Error) => setErr(e.message),
@@ -4584,38 +7357,77 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   return (
     <div className="fixed inset-0 z-70 flex" onClick={onClose}>
       <div className="flex-1 bg-black/50" />
-      <div className="h-full w-full max-w-lg overflow-y-auto bg-background shadow-2xl nice-scroll" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="h-full w-full max-w-lg overflow-y-auto bg-background shadow-2xl nice-scroll"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-5 py-4">
           <h3 className="text-lg font-semibold">Edit group</h3>
-          <button onClick={onClose} className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"><X className="h-5 w-5" /></button>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); mut.mutate(); }} className="grid gap-4 p-5">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            mut.mutate();
+          }}
+          className="grid gap-4 p-5"
+        >
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            Editing the <b className="text-foreground">whole group</b> — group name, emoji, description, and which courts belong to this shared space.
+            Editing the <b className="text-foreground">whole group</b> — group name, emoji,
+            description, and which courts belong to this shared space.
           </div>
 
           <Input label="Group name" value={name} onChange={setName} required />
           <div className="rounded-xl border border-border bg-background p-3">
-            <EmojiPicker label="Group emoji" value={emoji} fallback="🏟️" onChange={setEmoji} hint="Shown on the map and in the courts table." />
+            <EmojiPicker
+              label="Group emoji"
+              value={emoji}
+              fallback="🏟️"
+              onChange={setEmoji}
+              hint="Shown on the map and in the courts table."
+            />
           </div>
-          <Textarea label="About this Group (optional)" value={description} onChange={setDescription} placeholder="Court size, surface, lighting, house rules…" />
+          <Textarea
+            label="About this Group (optional)"
+            value={description}
+            onChange={setDescription}
+            placeholder="Court size, surface, lighting, house rules…"
+          />
 
           <CourtBlockRulesEditor courts={ruleCourts} rules={rules} onChange={setRulesDraft} />
 
           <div className="rounded-xl border border-dashed border-border p-3">
             <div className="text-sm font-semibold">Courts in this group</div>
-            <p className="mt-1 text-xs text-muted-foreground">Tick courts from this venue to include them in this group; untick to detach.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Tick courts from this venue to include them in this group; untick to detach.
+            </p>
             <div className="mt-3 grid gap-2">
-              {eligible.length === 0 && <p className="text-xs text-muted-foreground">No courts in this venue.</p>}
+              {eligible.length === 0 && (
+                <p className="text-xs text-muted-foreground">No courts in this venue.</p>
+              )}
               {eligible.map((c) => {
                 const isMember = memberSet.has(c.id);
                 const checked = isMember ? !detachSel.has(c.id) : addSel.has(c.id);
                 return (
-                  <label key={c.id} className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm ${checked ? "border-primary bg-primary/5" : "border-border"}`}>
-                    <input type="checkbox" checked={checked} onChange={() => (isMember ? toggleDetach(c.id) : toggleAdd(c.id))} />
+                  <label
+                    key={c.id}
+                    className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm ${checked ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => (isMember ? toggleDetach(c.id) : toggleAdd(c.id))}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="truncate font-medium">{c.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{c.sports?.name ?? "—"}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {c.sports?.name ?? "—"}
+                      </div>
                     </div>
                   </label>
                 );
@@ -4623,11 +7435,21 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
             </div>
           </div>
 
-
-          {err && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+          {err && (
+            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>
+          )}
           <div className="flex items-center justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary">Cancel</button>
-            <button disabled={mut.isPending || !name.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={mut.isPending || !name.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
               {mut.isPending ? "Saving…" : "Save changes"}
             </button>
           </div>
@@ -4658,12 +7480,18 @@ type TxRow = {
 function TransactionsSection({ venues }: { venues: Venue[] }) {
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "paid" | "pending" | "failed" | "refunded"
+  >("all");
 
   const txQ = useQuery({
     queryKey: ["tenant-transactions", venueFilter, statusFilter],
     queryFn: async () => {
-      let q = supabase.from("transactions").select("*").order("created_at", { ascending: false }).limit(500);
+      let q = supabase
+        .from("transactions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (venueFilter !== "all") q = q.eq("venue_id", venueFilter);
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
       const { data, error } = await q;
@@ -4672,18 +7500,36 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
     },
   });
 
-  const rows = txQ.data ?? [];
+  /* The Date column renders `paid_at ?? created_at`, but the query orders on
+     `created_at` alone — a payment settled later than the row was created lands out
+     of order against the date the tenant is reading. Sort on what is on screen. */
+  const rows = useMemo(
+    () =>
+      (txQ.data ?? [])
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.paid_at ?? b.created_at).getTime() -
+            new Date(a.paid_at ?? a.created_at).getTime(),
+        ),
+    [txQ.data],
+  );
   const paid = rows.filter((r) => r.status === "paid");
   const now = Date.now();
-  const sumSince = (ms: number) => paid.filter((r) => new Date(r.paid_at ?? r.created_at).getTime() >= now - ms).reduce((s, r) => s + Number(r.amount), 0);
+  const sumSince = (ms: number) =>
+    paid
+      .filter((r) => new Date(r.paid_at ?? r.created_at).getTime() >= now - ms)
+      .reduce((s, r) => s + Number(r.amount), 0);
   const todaySum = sumSince(24 * 3_600_000);
   const weekSum = sumSince(7 * 24 * 3_600_000);
   const monthSum = sumSince(30 * 24 * 3_600_000);
   const uniqueCustomers = new Set(paid.map((r) => r.user_id)).size;
   const totalBookings = new Set(paid.map((r) => r.booking_id)).size;
 
-  const currency = (n: number) => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtDate = (iso: string) => new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  const currency = (n: number) =>
+    "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
@@ -4692,12 +7538,21 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
       refunded: "bg-muted text-muted-foreground",
       cancelled: "bg-muted text-muted-foreground",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary text-foreground"}`}>{s}</span>;
+    return (
+      <span
+        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary text-foreground"}`}
+      >
+        {s}
+      </span>
+    );
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Transactions" subtitle="Track online payments, refunds and customer activity across your venues." />
+      <SectionHeader
+        title="Transactions"
+        subtitle="Track online payments, refunds and customer activity across your venues."
+      />
 
       {/* KPI tiles */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -4710,14 +7565,7 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={venueFilter}
-          onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value="all">All venues</option>
-          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
+        <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -4729,7 +7577,9 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
           <option value="failed">Failed</option>
           <option value="refunded">Refunded</option>
         </select>
-        <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-semibold">PayMongo · {paid[0]?.mode === "live" ? "Live" : "Test"} mode</span>
+        <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
+          PayMongo · {paid[0]?.mode === "live" ? "Live" : "Test"} mode
+        </span>
       </div>
 
       {/* Table */}
@@ -4749,25 +7599,40 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
             </thead>
             <tbody>
               {txQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={7}>No transactions yet. Once players start paying online, they'll show up here.</td></tr>
-              ) : rows.map((r) => (
-                <tr key={r.id} className="border-t border-border">
-                  <td className="px-4 py-3 whitespace-nowrap">{fmtDate(r.paid_at ?? r.created_at)}</td>
-                  <td className="px-4 py-3 font-semibold">{currency(Number(r.amount))}</td>
-                  <td className="px-4 py-3 capitalize">{r.method.replace("_", " ")}</td>
-                  <td className="px-4 py-3">{statusBadge(r.status)}</td>
-                  <td className="px-4 py-3"><code className="text-xs font-semibold">{r.raw?.payment_id ?? "—"}</code></td>
-                  <td className="px-4 py-3 text-muted-foreground">#{r.booking_id}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}</td>
+                <tr>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
+                    Loading…
+                  </td>
                 </tr>
-              ))}
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
+                    No transactions yet. Once players start paying online, they'll show up here.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id} className="border-t border-border">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {fmtDate(r.paid_at ?? r.created_at)}
+                    </td>
+                    <td className="px-4 py-3 font-semibold">{currency(Number(r.amount))}</td>
+                    <td className="px-4 py-3 capitalize">{r.method.replace("_", " ")}</td>
+                    <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                    <td className="px-4 py-3">
+                      <code className="text-xs font-semibold">{r.raw?.payment_id ?? "—"}</code>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">#{r.booking_id}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
-
     </div>
   );
 }
@@ -4775,50 +7640,428 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
 function KpiTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
     </div>
   );
 }
 
-function VenuePaymentRow({
-  venue, onSave,
+type PaySettingsVenue = {
+  id: number;
+  name: string;
+  payment_mode: string;
+  refund_cutoff_hours: number;
+};
+
+/**
+ * Payment configuration for every venue, as one table.
+ *
+ * Stacked cards were fine for two venues and became a very long scroll for a tenant
+ * with a dozen — each one repeating its own labels. A table puts the settings in
+ * columns so they can be compared down the page, which is how a manager actually reads
+ * them ("which of my venues still take payment at the counter?"), and the filter makes
+ * the last venue reachable without scrolling at all.
+ *
+ * On a phone the same rows render as cards, because a four-column table with editable
+ * controls does not fit and horizontal scrolling to reach a Save button is worse than
+ * the repetition.
+ */
+const PAY_PAGE_SIZE = 10;
+/** Below this, a search box is noise — scrolling a short list is faster than typing. */
+const PAY_SEARCH_THRESHOLD = 6;
+
+type PayModeFilter = "all" | "full" | "none";
+
+const PAY_MODE_LABEL: Record<string, string> = {
+  full: "Full payment",
+  none: "Settle at venue",
+};
+
+/**
+ * Payment configuration for every venue, as one paged table.
+ *
+ * Stacked cards were fine for two venues and became a very long scroll for a dozen,
+ * each repeating its own labels. Columns let a manager read *down* the page, which is
+ * how the question actually gets asked — "which of my venues still take payment at the
+ * counter?" — and the Payment mode header answers exactly that question by filtering.
+ *
+ * On a phone the same rows render as cards: a four-column table with editable controls
+ * does not fit, and scrolling sideways to reach a Save button is worse than repetition.
+ */
+function PaymentSettingsTable({
+  venues,
+  loading,
+  onSave,
 }: {
-  venue: { id: number; name: string; payment_mode: string; refund_cutoff_hours: number };
+  venues: PaySettingsVenue[];
+  loading: boolean;
   onSave: (id: number, mode: string, cutoff: number) => Promise<void>;
+}) {
+  const [query, setQuery] = useState("");
+  const [modeFilter, setModeFilter] = useState<PayModeFilter>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [page, setPage] = useState(0);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return venues.filter((v) => {
+      if (modeFilter !== "all" && v.payment_mode !== modeFilter) return false;
+      if (q && !v.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [venues, query, modeFilter]);
+
+  /* Narrowing the list can leave you on a page that no longer exists — clamp rather
+     than showing an empty table with a live Next button. */
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAY_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = filtered.slice(
+    safePage * PAY_PAGE_SIZE,
+    safePage * PAY_PAGE_SIZE + PAY_PAGE_SIZE,
+  );
+
+  const resetTo = (fn: () => void) => {
+    fn();
+    setPage(0);
+  };
+
+  if (loading) {
+    return <p className="mt-4 text-sm text-muted-foreground">Loading venues…</p>;
+  }
+  if (venues.length === 0) {
+    return (
+      <p className="mt-4 text-sm text-muted-foreground">
+        Create a venue first to configure payment settings.
+      </p>
+    );
+  }
+
+  const modeHeader = (
+    <button
+      type="button"
+      onClick={() => setFilterOpen(true)}
+      className={
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-secondary " +
+        (modeFilter === "all" ? "text-muted-foreground" : "bg-primary/10 text-primary")
+      }
+      title="Filter by payment mode"
+    >
+      Payment mode
+      <Filter className="h-3 w-3" />
+    </button>
+  );
+
+  return (
+    <div className="mt-4">
+      {venues.length >= PAY_SEARCH_THRESHOLD && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-background px-3">
+          <SearchIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => resetTo(() => setQuery(e.target.value))}
+            placeholder={`Search ${venues.length} venues…`}
+            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          {query && (
+            <button
+              onClick={() => resetTo(() => setQuery(""))}
+              aria-label="Clear search"
+              className="rounded p-1 text-muted-foreground hover:bg-secondary"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {modeFilter !== "all" && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Showing only</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-semibold text-primary">
+            {PAY_MODE_LABEL[modeFilter]}
+            <button
+              onClick={() => resetTo(() => setModeFilter("all"))}
+              aria-label="Clear payment mode filter"
+              className="rounded-full hover:bg-primary/20"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          No venue matches {query.trim() ? `“${query.trim()}”` : "this filter"}.
+        </p>
+      ) : (
+        <>
+          {/* Desktop: one table */}
+          <div className="hidden overflow-hidden rounded-xl border border-border sm:block">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2.5 font-semibold">Venue</th>
+                  <th className="px-4 py-2 font-semibold">{modeHeader}</th>
+                  <th className="px-4 py-2.5 font-semibold">Refund cutoff</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">&nbsp;</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((v) => (
+                  <VenuePaymentRow key={v.id} venue={v} onSave={onSave} layout="row" />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile: the same rows as cards, with the filter still reachable */}
+          <div className="sm:hidden">
+            <div className="mb-2 flex justify-end">{modeHeader}</div>
+            <div className="space-y-3">
+              {pageRows.map((v) => (
+                <VenuePaymentRow key={v.id} venue={v} onSave={onSave} layout="card" />
+              ))}
+            </div>
+          </div>
+
+          {filtered.length > PAY_PAGE_SIZE && (
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Showing {safePage * PAY_PAGE_SIZE + 1}–{safePage * PAY_PAGE_SIZE + pageRows.length}{" "}
+                of {filtered.length}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={safePage === 0}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:border-primary disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                </button>
+                <span className="px-1 text-xs tabular-nums text-muted-foreground">
+                  {safePage + 1} / {pageCount}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={safePage >= pageCount - 1}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:border-primary disabled:opacity-40"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {filterOpen && (
+        <PayModeFilterDialog
+          value={modeFilter}
+          counts={{
+            all: venues.length,
+            full: venues.filter((v) => v.payment_mode === "full").length,
+            none: venues.filter((v) => v.payment_mode === "none").length,
+          }}
+          onClose={() => setFilterOpen(false)}
+          onPick={(next) => {
+            resetTo(() => setModeFilter(next));
+            setFilterOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Filter chooser for the Payment mode column. Counts are shown because the useful
+ *  question is usually "how many are still on settle at venue?" — which the filter
+ *  answers before you even apply it. */
+function PayModeFilterDialog({
+  value,
+  counts,
+  onClose,
+  onPick,
+}: {
+  value: PayModeFilter;
+  counts: { all: number; full: number; none: number };
+  onClose: () => void;
+  onPick: (v: PayModeFilter) => void;
+}) {
+  const options: { key: PayModeFilter; label: string; hint: string; count: number }[] = [
+    { key: "all", label: "All venues", hint: "No filter", count: counts.all },
+    {
+      key: "full",
+      label: "Full payment",
+      hint: "Collected online through PayMongo before the booking is confirmed",
+      count: counts.full,
+    },
+    {
+      key: "none",
+      label: "Settle at venue",
+      hint: "Nothing is collected online; the player pays at the counter",
+      count: counts.none,
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[1400] grid place-items-center bg-black/50 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filter by payment mode"
+        className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-base font-bold">Filter by payment mode</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Show only venues set up one way.</p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-md p-1 hover:bg-secondary"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => onPick(o.key)}
+              className={
+                "flex w-full items-start gap-2.5 rounded-xl border p-3 text-left text-sm transition " +
+                (value === o.key
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50")
+              }
+            >
+              <Check
+                className={
+                  "mt-0.5 h-4 w-4 shrink-0 " + (value === o.key ? "text-primary" : "opacity-0")
+                }
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">{o.label}</span>
+                  <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold tabular-nums">
+                    {o.count}
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                  {o.hint}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VenuePaymentRow({
+  venue,
+  onSave,
+  layout,
+}: {
+  venue: PaySettingsVenue;
+  onSave: (id: number, mode: string, cutoff: number) => Promise<void>;
+  layout: "row" | "card";
 }) {
   const [mode, setMode] = useState(venue.payment_mode);
   const [cutoff, setCutoff] = useState(venue.refund_cutoff_hours);
   const [saving, setSaving] = useState(false);
   const dirty = mode !== venue.payment_mode || cutoff !== venue.refund_cutoff_hours;
 
-  return (
-    <div className="grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
-      <div>
-        <p className="text-sm font-semibold">{venue.name}</p>
-        <p className="text-[11px] text-muted-foreground">
-          Current: <span className="font-medium capitalize">{venue.payment_mode === "none" ? "settle at venue" : venue.payment_mode}</span> · Refund cutoff {venue.refund_cutoff_hours}h
-        </p>
-      </div>
-      <label className="block">
-        <span className="text-[11px] font-medium text-muted-foreground">Payment mode</span>
-        <select value={mode} onChange={(e) => setMode(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm">
-          <option value="none">Settle at venue</option>
-          <option value="full">Full payment</option>
-        </select>
-      </label>
-      <label className="block">
-        <span className="text-[11px] font-medium text-muted-foreground">Refund cutoff (hrs)</span>
-        <input type="number" min={0} value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} className="mt-1 w-24 rounded-lg border border-border bg-card px-2 py-1.5 text-sm" />
-      </label>
-      <button
-        disabled={!dirty || saving}
-        onClick={async () => { setSaving(true); await onSave(venue.id, mode, cutoff); setSaving(false); }}
-        className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {saving ? "Saving…" : "Save"}
-      </button>
+  const save = async () => {
+    setSaving(true);
+    await onSave(venue.id, mode, cutoff);
+    setSaving(false);
+  };
+
+  const modeSelect = (
+    <select
+      value={mode}
+      onChange={(e) => setMode(e.target.value)}
+      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+    >
+      <option value="none">Settle at venue</option>
+      <option value="full">Full payment</option>
+    </select>
+  );
+
+  const cutoffInput = (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="number"
+        min={0}
+        value={cutoff}
+        onChange={(e) => setCutoff(Number(e.target.value))}
+        className="w-20 rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+      />
+      <span className="text-xs text-muted-foreground">hrs</span>
     </div>
+  );
+
+  const saveButton = (
+    <button
+      disabled={!dirty || saving}
+      onClick={save}
+      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+    >
+      {saving ? "Saving…" : dirty ? "Save" : "Saved"}
+    </button>
+  );
+
+  /* An unsaved edit is easy to walk away from in a table of ten venues, so the row
+     says so rather than relying on the button alone. */
+  const dirtyDot = dirty && (
+    <span
+      title="Unsaved changes"
+      className="ml-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500 align-middle"
+    />
+  );
+
+  if (layout === "card") {
+    return (
+      <div className="rounded-xl border border-border bg-background p-3">
+        <p className="text-sm font-semibold">
+          {venue.name}
+          {dirtyDot}
+        </p>
+        <label className="mt-3 block">
+          <span className="text-[11px] font-medium text-muted-foreground">Payment mode</span>
+          <div className="mt-1">{modeSelect}</div>
+        </label>
+        <label className="mt-3 block">
+          <span className="text-[11px] font-medium text-muted-foreground">Refund cutoff</span>
+          <div className="mt-1">{cutoffInput}</div>
+        </label>
+        <div className="mt-3 flex justify-end">{saveButton}</div>
+      </div>
+    );
+  }
+
+  return (
+    <tr className="border-t border-border">
+      <td className="px-4 py-3">
+        <span className="font-medium">{venue.name}</span>
+        {dirtyDot}
+      </td>
+      <td className="px-4 py-3">{modeSelect}</td>
+      <td className="px-4 py-3">{cutoffInput}</td>
+      <td className="px-4 py-3 text-right">{saveButton}</td>
+    </tr>
   );
 }
 
@@ -4849,7 +8092,11 @@ type BookingRow = {
  * chat. The reference is what makes the manual case auditable.
  */
 function SettleRefundDialog({
-  target, busy, error, onClose, onConfirm,
+  target,
+  busy,
+  error,
+  onClose,
+  onConfirm,
 }: {
   target: { ids: number[]; label: string };
   busy: boolean;
@@ -4903,7 +8150,8 @@ function SettleRefundDialog({
 
         <label className="mt-4 block">
           <span className="text-xs font-medium text-muted-foreground">
-            Reference {method === "manual" ? "(GCash ref. no., receipt or note)" : "(PayMongo refund id)"}
+            Reference{" "}
+            {method === "manual" ? "(GCash ref. no., receipt or note)" : "(PayMongo refund id)"}
           </span>
           <input
             value={reference}
@@ -4940,7 +8188,10 @@ function SettleRefundDialog({
 }
 
 function BookingsSection({
-  venues, userId, focusBookingId, openChat,
+  venues,
+  userId,
+  focusBookingId,
+  openChat,
 }: {
   venues: Venue[];
   userId: string;
@@ -4951,11 +8202,21 @@ function BookingsSection({
 }) {
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
-  const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">("upcoming");
-  const [payFilter, setPayFilter] = useState<"all" | "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded">("all");
+  const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">(
+    "upcoming",
+  );
+  const [payFilter, setPayFilter] = useState<
+    "all" | "paid" | "pending" | "unpaid" | "failed" | "cancelled" | "refunded"
+  >("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
   const [settleTarget, setSettleTarget] = useState<{ ids: number[]; label: string } | null>(null);
-  const [chat, setChat] = useState<{ bookingId: number; venueId: number; playerId: string; title: string; subtitle: string } | null>(null);
+  const [chat, setChat] = useState<{
+    bookingId: number;
+    venueId: number;
+    playerId: string;
+    title: string;
+    subtitle: string;
+  } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   /* One shot per target. `sessions` is rebuilt on every render, so an effect that
      depended on it would re-run forever and keep re-opening the chat. */
@@ -4977,14 +8238,14 @@ function BookingsSection({
     setVenueFilter("all");
   }, [focusBookingId]);
 
-
-
   const bookingsQ = useQuery({
     queryKey: ["tenant-bookings", venueFilter, status, payFilter],
     queryFn: async () => {
       let q = supabase
         .from("bookings")
-        .select("id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, refund_method, refund_reference, created_at, unit_price, discount_amount, courts(name, venue_id, venues(name))")
+        .select(
+          "id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, refund_method, refund_reference, created_at, unit_price, discount_amount, courts(name, venue_id, venues(name))",
+        )
         .order("start_time", { ascending: false })
         .limit(500);
       if (payFilter !== "all") q = q.eq("payment_status", payFilter);
@@ -4993,8 +8254,14 @@ function BookingsSection({
       const nowIso = new Date().toISOString();
       let rows = (data as unknown as BookingRow[]) ?? [];
       if (venueFilter !== "all") rows = rows.filter((r) => r.courts?.venue_id === venueFilter);
-      if (status === "upcoming") rows = rows.filter((r) => r.end_time >= nowIso && (r.status === "pending" || r.status === "confirmed"));
-      else if (status === "past") rows = rows.filter((r) => r.end_time < nowIso && r.status !== "cancelled" && r.status !== "expired");
+      if (status === "upcoming")
+        rows = rows.filter(
+          (r) => r.end_time >= nowIso && (r.status === "pending" || r.status === "confirmed"),
+        );
+      else if (status === "past")
+        rows = rows.filter(
+          (r) => r.end_time < nowIso && r.status !== "cancelled" && r.status !== "expired",
+        );
       else if (status === "cancelled") rows = rows.filter((r) => r.status === "cancelled");
       else if (status === "expired") rows = rows.filter((r) => r.status === "expired");
       return rows;
@@ -5007,14 +8274,26 @@ function BookingsSection({
     queryKey: ["profile-names", uids.sort().join(",")],
     enabled: uids.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, full_name, phone").in("id", uids);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, phone")
+        .in("id", uids);
       if (error) throw error;
       return (data ?? []) as { id: string; full_name: string | null; phone: string | null }[];
     },
   });
   const nameMap = new Map((namesQ.data ?? []).map((p) => [p.id, p]));
   const rows = bookingsQ.data ?? [];
-  const sessions = groupBookingSessions(rows).sort((a, b) => b.start_time.localeCompare(a.start_time));
+  /* "Upcoming" is a work queue: the soonest booking is the one that still needs
+     handling, so it stays on top. Every other filter is a record of what happened,
+     where newest means most recently booked rather than the furthest-out slot.
+     `created_at` ties are broken on the slot so a multi-court batch stays stable. */
+  const sessions = groupBookingSessions(rows).sort((a, b) =>
+    status === "upcoming"
+      ? a.start_time.localeCompare(b.start_time)
+      : b.first.created_at.localeCompare(a.first.created_at) ||
+        b.start_time.localeCompare(a.start_time),
+  );
 
   /* One round trip for the whole table rather than a query per row. Keyed on the ids
      actually on screen so it refetches when the filters change. */
@@ -5034,11 +8313,14 @@ function BookingsSection({
   });
   /* A session is several booking rows but one conversation per row id; the thread is
      opened on `first`, so that is the row whose count belongs on the button. */
-  const unreadFor = (ids: number[]) =>
-    ids.reduce((n, id) => n + (unreadQ.data?.get(id) ?? 0), 0);
+  const unreadFor = (ids: number[]) => ids.reduce((n, id) => n + (unreadQ.data?.get(id) ?? 0), 0);
 
   const settleRefund = useMutation({
-    mutationFn: async (args: { ids: number[]; method: "manual" | "paymongo"; reference: string }) => {
+    mutationFn: async (args: {
+      ids: number[];
+      method: "manual" | "paymongo";
+      reference: string;
+    }) => {
       const { error } = await supabase.rpc("staff_mark_refund_settled", {
         _booking_ids: args.ids,
         _method: args.method,
@@ -5081,11 +8363,18 @@ function BookingsSection({
     }
   }, [focusBookingId, openChat, bookingsQ.isLoading, sessions, nameMap]);
 
-  const totalUpcoming = rows.filter((r) => r.end_time >= new Date().toISOString() && (r.status === "pending" || r.status === "confirmed")).length;
+  const totalUpcoming = rows.filter(
+    (r) =>
+      r.end_time >= new Date().toISOString() &&
+      (r.status === "pending" || r.status === "confirmed"),
+  ).length;
   const paidCount = rows.filter((r) => r.payment_status === "paid").length;
-  const unpaidCount = rows.filter((r) => r.payment_status === "pending" && r.status === "pending").length;
+  const unpaidCount = rows.filter(
+    (r) => r.payment_status === "pending" && r.status === "pending",
+  ).length;
 
-  const fmt = (iso: string) => new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
   const payBadge = (s: string, refundStatus?: string | null) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
@@ -5101,7 +8390,13 @@ function BookingsSection({
         : s === "pending"
           ? "Payment pending"
           : s.replace(/_/g, " ");
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
+    return (
+      <span
+        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}
+      >
+        {label}
+      </span>
+    );
   };
   const stBadge = (s: string) => {
     const map: Record<string, string> = {
@@ -5111,11 +8406,20 @@ function BookingsSection({
       expired: "bg-muted text-muted-foreground",
     };
     const label = s === "pending" ? "Payment in progress" : s;
-    return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}>{label}</span>;
+    return (
+      <span
+        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary"}`}
+      >
+        {label}
+      </span>
+    );
   };
   const paymentHoldRemaining = (booking: BookingRow) => {
     if (booking.status !== "pending" || booking.payment_status !== "pending") return null;
-    const seconds = Math.max(0, Math.ceil((new Date(booking.created_at).getTime() + 15 * 60_000 - nowMs) / 1000));
+    const seconds = Math.max(
+      0,
+      Math.ceil((new Date(booking.created_at).getTime() + 15 * 60_000 - nowMs) / 1000),
+    );
     if (seconds === 0) return "Payment hold expired";
     return `Hold expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   };
@@ -5130,18 +8434,23 @@ function BookingsSection({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select value={venueFilter} onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-          <option value="all">All venues</option>
-          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+        <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as typeof status)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        >
           <option value="upcoming">Upcoming</option>
           <option value="past">Past</option>
           <option value="cancelled">Cancelled</option>
           <option value="expired">Expired</option>
           <option value="all">All</option>
         </select>
-        <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+        <select
+          value={payFilter}
+          onChange={(e) => setPayFilter(e.target.value as typeof payFilter)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        >
           <option value="all">Any payment</option>
           <option value="paid">Paid</option>
           <option value="pending">Payment pending</option>
@@ -5167,107 +8476,144 @@ function BookingsSection({
             </thead>
             <tbody>
               {bookingsQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>
+                <tr>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                    Loading…
+                  </td>
+                </tr>
               ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No bookings match these filters yet.</td></tr>
-              ) : sessions.map((s) => {
-                const r = s.first;
-                const p = nameMap.get(r.user_id);
-                const paid = s.items.some((i) => i.payment_status === "paid");
-                const cancelled = r.status === "cancelled";
-                const venueId = r.courts?.venue_id;
-                const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
-                const focused = !!focusBookingId && s.ids.includes(focusBookingId);
-                /* The rules live in @/lib/booking-actions so they can be tested; using
+                <tr>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                    No bookings match these filters yet.
+                  </td>
+                </tr>
+              ) : (
+                sessions.map((s) => {
+                  const r = s.first;
+                  const p = nameMap.get(r.user_id);
+                  const paid = s.items.some((i) => i.payment_status === "paid");
+                  const cancelled = r.status === "cancelled";
+                  const venueId = r.courts?.venue_id;
+                  const label = `${formatDateLabel(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`;
+                  const focused = !!focusBookingId && s.ids.includes(focusBookingId);
+                  /* The rules live in @/lib/booking-actions so they can be tested; using
                    them here is what makes those tests mean anything. */
-                const actionInput = {
-                  status: r.status,
-                  refund_status: r.refund_status ?? "none",
-                  sessionEndsAt: s.end_time,
-                };
-                const showCancel = canCancel(actionInput, nowMs);
-                const showSettle = canSettleRefund(actionInput);
-                const refundNote = describeRefund(r.refund_status ?? "none", r.refund_method);
-                return (
-                  <tr
-                    key={s.key}
-                    id={`tenant-booking-${s.ids[0]}`}
-                    className={
-                      "border-t border-border transition-colors " +
-                      (focused ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : "")
-                    }
-                  >
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {formatDateLabel(s.start_time)}
-                      <div className="text-[11px] text-muted-foreground">{formatSessionLabel(s.start_time, s.end_time)}</div>
-                      {s.ids.length > 1 && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.ids.length} slots</div>}
-                    </td>
-                    <td className="px-4 py-3">{r.courts?.venues?.name ?? "—"}<div className="text-[11px] text-muted-foreground">{r.courts?.name ?? `Court #${r.court_id}`}</div></td>
-                    <td className="px-4 py-3">{p?.full_name || "Player"}<div className="text-[11px] text-muted-foreground">{p?.phone || r.user_id.slice(0, 8)}</div></td>
-                    <td className="px-4 py-3">
-                      {stBadge(r.status)}
-                      {paymentHoldRemaining(r) && <div className="mt-1 text-[10px] font-medium text-amber-700">{paymentHoldRemaining(r)}</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      {payBadge(r.payment_status, r.refund_status)}
-                      {/* "Refunded" alone does not say whether PayMongo pushed it back or
+                  const actionInput = {
+                    status: r.status,
+                    refund_status: r.refund_status ?? "none",
+                    sessionEndsAt: s.end_time,
+                  };
+                  const showCancel = canCancel(actionInput, nowMs);
+                  const showSettle = canSettleRefund(actionInput);
+                  const refundNote = describeRefund(r.refund_status ?? "none", r.refund_method);
+                  return (
+                    <tr
+                      key={s.key}
+                      id={`tenant-booking-${s.ids[0]}`}
+                      className={
+                        "border-t border-border transition-colors " +
+                        (focused ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : "")
+                      }
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {formatDateLabel(s.start_time)}
+                        <div className="text-[11px] text-muted-foreground">
+                          {formatSessionLabel(s.start_time, s.end_time)}
+                        </div>
+                        {s.ids.length > 1 && (
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            {s.ids.length} slots
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.courts?.venues?.name ?? "—"}
+                        <div className="text-[11px] text-muted-foreground">
+                          {r.courts?.name ?? `Court #${r.court_id}`}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {p?.full_name || "Player"}
+                        <div className="text-[11px] text-muted-foreground">
+                          {p?.phone || r.user_id.slice(0, 8)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {stBadge(r.status)}
+                        {paymentHoldRemaining(r) && (
+                          <div className="mt-1 text-[10px] font-medium text-amber-700">
+                            {paymentHoldRemaining(r)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {payBadge(r.payment_status, r.refund_status)}
+                        {/* "Refunded" alone does not say whether PayMongo pushed it back or
                           a manager sent it by hand — which is the whole question when a
                           player asks where their money went. */}
-                      {refundNote && (
-                        <div className="mt-1 text-[10px] leading-tight text-muted-foreground">
-                          {refundNote}
-                          {r.refund_reference && (
-                            <span className="block truncate" title={r.refund_reference}>
-                              {r.refund_reference}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1.5 whitespace-nowrap">
-                        {venueId && (
-                          <button
-                            onClick={() => setChat({ bookingId: r.id, venueId, playerId: r.user_id, title: p?.full_name || "Player", subtitle: label })}
-                            className="relative rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
-                          >
-                            Message
-                            {/* So a venue can see WHICH booking is waiting on them without
-                                depending on a notification having been noticed. Clears
-                                itself once the thread is opened. */}
-                            {unreadFor(s.ids) > 0 && (
-                              <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-                                {unreadFor(s.ids) > 9 ? "9+" : unreadFor(s.ids)}
+                        {refundNote && (
+                          <div className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                            {refundNote}
+                            {r.refund_reference && (
+                              <span className="block truncate" title={r.refund_reference}>
+                                {r.refund_reference}
                               </span>
                             )}
-                          </button>
+                          </div>
                         )}
-                        {/* A refund the venue agreed to settle itself sits on "Awaiting
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1.5 whitespace-nowrap">
+                          {venueId && (
+                            <button
+                              onClick={() =>
+                                setChat({
+                                  bookingId: r.id,
+                                  venueId,
+                                  playerId: r.user_id,
+                                  title: p?.full_name || "Player",
+                                  subtitle: label,
+                                })
+                              }
+                              className="relative rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
+                            >
+                              Message
+                              {/* So a venue can see WHICH booking is waiting on them without
+                                depending on a notification having been noticed. Clears
+                                itself once the thread is opened. */}
+                              {unreadFor(s.ids) > 0 && (
+                                <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                                  {unreadFor(s.ids) > 9 ? "9+" : unreadFor(s.ids)}
+                                </span>
+                              )}
+                            </button>
+                          )}
+                          {/* A refund the venue agreed to settle itself sits on "Awaiting
                             refund" until someone records that it was sent. Nothing in the
                             app called staff_mark_refund_settled before, so this was a
                             dead end. */}
-                        {showSettle && (
-                          <button
-                            onClick={() => setSettleTarget({ ids: s.ids, label })}
-                            className="rounded-lg border border-primary/50 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
-                          >
-                            Mark refund settled
-                          </button>
-                        )}
-                        {showCancel && (
-                          <button
-                            onClick={() => setCancelTarget({ label, slots: s.items })}
-                            className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
+                          {showSettle && (
+                            <button
+                              onClick={() => setSettleTarget({ ids: s.ids, label })}
+                              className="rounded-lg border border-primary/50 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
+                            >
+                              Mark refund settled
+                            </button>
+                          )}
+                          {showCancel && (
+                            <button
+                              onClick={() => setCancelTarget({ label, slots: s.items })}
+                              className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -5317,6 +8663,7 @@ function BookingsSection({
 
 function CustomersSection({ venues }: { venues: Venue[] }) {
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
+  const [sortBy, setSortBy] = useState<"recent" | "spend">("recent");
 
   const dataQ = useQuery({
     queryKey: ["tenant-customers", venueFilter],
@@ -5331,17 +8678,35 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
       if (error) throw error;
 
       const txQ = supabase.from("transactions").select("user_id, amount, status, venue_id");
-      const { data: txs } = venueFilter === "all" ? await txQ : await txQ.eq("venue_id", venueFilter);
+      const { data: txs } =
+        venueFilter === "all" ? await txQ : await txQ.eq("venue_id", venueFilter);
 
       const uids = Array.from(new Set((bookings ?? []).map((b) => b.user_id)));
-      const { data: profiles } = uids.length > 0
-        ? await supabase.from("profiles").select("id, full_name, phone").in("id", uids)
-        : { data: [] as { id: string; full_name: string | null; phone: string | null }[] };
+      const { data: profiles } =
+        uids.length > 0
+          ? await supabase.from("profiles").select("id, full_name, phone").in("id", uids)
+          : { data: [] as { id: string; full_name: string | null; phone: string | null }[] };
 
-      type Agg = { id: string; name: string; phone: string; bookings: number; paidBookings: number; spent: number; lastAt: string | null };
+      type Agg = {
+        id: string;
+        name: string;
+        phone: string;
+        bookings: number;
+        paidBookings: number;
+        spent: number;
+        lastAt: string | null;
+      };
       const map = new Map<string, Agg>();
       for (const b of bookings ?? []) {
-        const cur = map.get(b.user_id) ?? { id: b.user_id, name: "", phone: "", bookings: 0, paidBookings: 0, spent: 0, lastAt: null };
+        const cur = map.get(b.user_id) ?? {
+          id: b.user_id,
+          name: "",
+          phone: "",
+          bookings: 0,
+          paidBookings: 0,
+          spent: 0,
+          lastAt: null,
+        };
         cur.bookings += 1;
         if (b.payment_status === "paid") cur.paidBookings += 1;
         if (!cur.lastAt || b.start_time > cur.lastAt) cur.lastAt = b.start_time;
@@ -5354,17 +8719,28 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
       }
       for (const p of profiles ?? []) {
         const cur = map.get(p.id);
-        if (cur) { cur.name = p.full_name ?? ""; cur.phone = p.phone ?? ""; }
+        if (cur) {
+          cur.name = p.full_name ?? "";
+          cur.phone = p.phone ?? "";
+        }
       }
-      return Array.from(map.values()).sort((a, b) => b.spent - a.spent || b.bookings - a.bookings);
+      return Array.from(map.values());
     },
   });
 
-  const rows = dataQ.data ?? [];
+  /* Ordered outside the query so switching the toggle re-sorts what is already
+     loaded instead of refetching every booking and transaction again. */
+  const rows = useMemo(() => {
+    const list = (dataQ.data ?? []).slice();
+    return sortBy === "spend"
+      ? list.sort((a, b) => b.spent - a.spent || b.bookings - a.bookings)
+      : list.sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
+  }, [dataQ.data, sortBy]);
   const totalCustomers = rows.length;
   const totalSpent = rows.reduce((s, r) => s + r.spent, 0);
   const repeat = rows.filter((r) => r.bookings > 1).length;
-  const currency = (n: number) => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const currency = (n: number) =>
+    "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="space-y-5">
@@ -5375,9 +8751,17 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
         <PlayerKpi label="Lifetime revenue" value={currency(totalSpent)} />
       </div>
       <div className="flex flex-wrap gap-2">
-        <select value={venueFilter} onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-          <option value="all">All venues</option>
-          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
+        {/* Newest-first is the default, but ranking by spend is the question this
+            table also has to answer, so it stays reachable rather than removed. */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          aria-label="Sort customers"
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        >
+          <option value="recent">Most recent booking</option>
+          <option value="spend">Highest spend</option>
         </select>
       </div>
       <div className="rounded-2xl border border-border bg-card shadow-sm">
@@ -5395,19 +8779,36 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
             </thead>
             <tbody>
               {dataQ.isLoading ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-6 text-muted-foreground" colSpan={6}>No customers yet — once players book, they'll show up here.</td></tr>
-              ) : rows.map((r) => (
-                <tr key={r.id} className="border-t border-border">
-                  <td className="px-4 py-3 font-medium">{r.name || "Player"}<div className="text-[11px] text-muted-foreground">{r.id.slice(0, 8)}…</div></td>
-                  <td className="px-4 py-3 text-muted-foreground">{r.phone || "—"}</td>
-                  <td className="px-4 py-3">{r.bookings}</td>
-                  <td className="px-4 py-3">{r.paidBookings}</td>
-                  <td className="px-4 py-3 font-semibold">{currency(r.spent)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{r.lastAt ? new Date(r.lastAt).toLocaleDateString("en-PH", { dateStyle: "medium" }) : "—"}</td>
+                <tr>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                    Loading…
+                  </td>
                 </tr>
-              ))}
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                    No customers yet — once players book, they'll show up here.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id} className="border-t border-border">
+                    <td className="px-4 py-3 font-medium">
+                      {r.name || "Player"}
+                      <div className="text-[11px] text-muted-foreground">{r.id.slice(0, 8)}…</div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{r.phone || "—"}</td>
+                    <td className="px-4 py-3">{r.bookings}</td>
+                    <td className="px-4 py-3">{r.paidBookings}</td>
+                    <td className="px-4 py-3 font-semibold">{currency(r.spent)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {r.lastAt
+                        ? new Date(r.lastAt).toLocaleDateString("en-PH", { dateStyle: "medium" })
+                        : "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -5415,8 +8816,6 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
     </div>
   );
 }
-
-
 
 // ================= Calendar (Day view) =================
 
@@ -5453,7 +8852,13 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
   const venueIds = venueFilter === "all" ? venues.map((v) => v.id) : [venueFilter];
 
   const courtsQ = useQuery({
-    queryKey: ["cal-courts", venueIds.slice().sort((a, b) => a - b).join(",")],
+    queryKey: [
+      "cal-courts",
+      venueIds
+        .slice()
+        .sort((a, b) => a - b)
+        .join(","),
+    ],
     enabled: venueIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -5464,19 +8869,31 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
         .order("name", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as {
-        id: number; name: string; venue_id: number; sport_id: number;
+        id: number;
+        name: string;
+        venue_id: number;
+        sport_id: number;
         sports: { name: string; slug: string | null } | null;
       }[];
     },
   });
 
   const bookingsQ = useQuery({
-    queryKey: ["cal-bookings", venueIds.slice().sort((a, b) => a - b).join(","), dayStart.toISOString()],
+    queryKey: [
+      "cal-bookings",
+      venueIds
+        .slice()
+        .sort((a, b) => a - b)
+        .join(","),
+      dayStart.toISOString(),
+    ],
     enabled: venueIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("id, court_id, user_id, start_time, end_time, status, payment_status, courts!inner(name, venue_id, sport_id, venues(name), sports(name, slug))")
+        .select(
+          "id, court_id, user_id, start_time, end_time, status, payment_status, courts!inner(name, venue_id, sport_id, venues(name), sports(name, slug))",
+        )
         .lt("start_time", dayEnd.toISOString())
         .gt("end_time", dayStart.toISOString())
         .in("courts.venue_id", venueIds)
@@ -5492,7 +8909,10 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
     queryKey: ["cal-profile-names", uids.slice().sort().join(",")],
     enabled: uids.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, full_name").in("id", uids);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", uids);
       if (error) throw error;
       return (data ?? []) as { id: string; full_name: string | null }[];
     },
@@ -5504,13 +8924,14 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
     new Map(
       allCourts
         .filter((c) => c.sports)
-        .map((c) => [c.sports!.slug ?? c.sports!.name.toLowerCase(), c.sports!])
-    ).values()
+        .map((c) => [c.sports!.slug ?? c.sports!.name.toLowerCase(), c.sports!]),
+    ).values(),
   );
 
-  const courtsShown = sportFilter === "all"
-    ? allCourts
-    : allCourts.filter((c) => (c.sports?.slug ?? c.sports?.name.toLowerCase()) === sportFilter);
+  const courtsShown =
+    sportFilter === "all"
+      ? allCourts
+      : allCourts.filter((c) => (c.sports?.slug ?? c.sports?.name.toLowerCase()) === sportFilter);
 
   const bookings = (bookingsQ.data ?? []).filter((b) => {
     if (sportFilter === "all") return true;
@@ -5530,10 +8951,10 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
   const gridHeight = HOURS * ROW_H;
 
   const isToday = (() => {
-    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
     return t.getTime() === day.getTime();
   })();
-
 
   const nudgeDay = (delta: number) => {
     const d = new Date(day);
@@ -5541,27 +8962,54 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
     setDay(d);
   };
 
-  const dayLabel = day.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" });
+  const dayLabel = day.toLocaleDateString("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="Calendar" subtitle="Full 24-hour day view across every court, sport and player." />
+      <SectionHeader
+        title="Calendar"
+        subtitle="Full 24-hour day view across every court, sport and player."
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="inline-flex overflow-hidden rounded-full border border-border bg-card">
-            <button className="bg-foreground px-4 py-1.5 text-xs font-semibold text-background">Day</button>
-            <button disabled className="px-4 py-1.5 text-xs font-medium text-muted-foreground/60">Schedule</button>
+            <button className="bg-foreground px-4 py-1.5 text-xs font-semibold text-background">
+              Day
+            </button>
+            <button disabled className="px-4 py-1.5 text-xs font-medium text-muted-foreground/60">
+              Schedule
+            </button>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => nudgeDay(-1)} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary" aria-label="Previous day">‹</button>
             <button
-              onClick={() => { const t = new Date(); t.setHours(0, 0, 0, 0); setDay(t); }}
+              onClick={() => nudgeDay(-1)}
+              className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary"
+              aria-label="Previous day"
+            >
+              ‹
+            </button>
+            <button
+              onClick={() => {
+                const t = new Date();
+                t.setHours(0, 0, 0, 0);
+                setDay(t);
+              }}
               className={`rounded-full px-4 py-1.5 text-xs font-semibold ${isToday ? "bg-primary text-primary-foreground" : "border border-border bg-card hover:bg-secondary"}`}
             >
               Today
             </button>
-            <button onClick={() => nudgeDay(1)} className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary" aria-label="Next day">›</button>
+            <button
+              onClick={() => nudgeDay(1)}
+              className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm hover:bg-secondary"
+              aria-label="Next day"
+            >
+              ›
+            </button>
           </div>
         </div>
 
@@ -5575,14 +9023,7 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
           >
             {compact ? "Compact 24h" : "Expanded 24h"}
           </button>
-          <select
-            value={venueFilter}
-            onChange={(e) => setVenueFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs"
-          >
-            <option value="all">All venues</option>
-            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
+          <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} size="xs" />
 
           <div className="inline-flex flex-wrap items-center gap-1">
             <button
@@ -5614,7 +9055,9 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
         {courtsQ.isLoading ? (
           <div className="p-6 text-sm text-muted-foreground">Loading calendar…</div>
         ) : courtsShown.length === 0 ? (
-          <div className="p-6 text-sm text-muted-foreground">No courts to display. Add a court to see it here.</div>
+          <div className="p-6 text-sm text-muted-foreground">
+            No courts to display. Add a court to see it here.
+          </div>
         ) : (
           <div className="nice-scroll max-h-[72vh] overflow-auto">
             <div className="min-w-max">
@@ -5637,12 +9080,20 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
               </div>
 
               <div className="relative flex">
-                <div className="sticky left-0 z-10 w-16 shrink-0 bg-card" style={{ height: gridHeight }}>
+                <div
+                  className="sticky left-0 z-10 w-16 shrink-0 bg-card"
+                  style={{ height: gridHeight }}
+                >
                   {Array.from({ length: HOURS }).map((_, i) => {
                     const h = HOUR_START + i;
-                    const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+                    const label =
+                      h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
                     return (
-                      <div key={h} style={{ height: ROW_H }} className="relative border-t border-transparent">
+                      <div
+                        key={h}
+                        style={{ height: ROW_H }}
+                        className="relative border-t border-transparent"
+                      >
                         <div
                           className={`absolute right-2 whitespace-nowrap text-[10px] font-medium leading-none text-muted-foreground ${i === 0 ? "top-0.5" : "top-0 -translate-y-1/2"}`}
                         >
@@ -5651,13 +9102,16 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                       </div>
                     );
                   })}
-
                 </div>
 
                 {courtsShown.map((c) => {
                   const colSessions = sessions.filter((s) => s.first.court_id === c.id);
                   return (
-                    <div key={c.id} className="relative w-40 shrink-0 border-l border-border" style={{ height: gridHeight }}>
+                    <div
+                      key={c.id}
+                      className="relative w-40 shrink-0 border-l border-border"
+                      style={{ height: gridHeight }}
+                    >
                       {Array.from({ length: HOURS }).map((_, i) => (
                         <div
                           key={i}
@@ -5676,7 +9130,9 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                         const endH = rawEnd <= startH ? 24 : rawEnd;
                         const top = Math.max(0, (startH - HOUR_START) * ROW_H);
                         const height = Math.max(22, (endH - startH) * ROW_H - 3);
-                        const st = sportStyle(b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase());
+                        const st = sportStyle(
+                          b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase(),
+                        );
                         const sportName = b.courts?.sports?.name ?? "Booking";
                         const player = nameMap.get(b.user_id) || "Player";
                         const range = `${s.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })} – ${e.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}`;
@@ -5692,7 +9148,9 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} />
                               <span className="truncate">{player}</span>
                               {density === "xs" && (
-                                <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] font-medium opacity-70">{sess.hours}h</span>
+                                <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] font-medium opacity-70">
+                                  {sess.hours}h
+                                </span>
                               )}
                             </div>
                             {density !== "xs" && (
@@ -5701,18 +9159,26 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
                               </div>
                             )}
                             {density === "full" && (
-                              <div className="truncate whitespace-nowrap text-[10px] leading-tight opacity-80">{sportName}</div>
+                              <div className="truncate whitespace-nowrap text-[10px] leading-tight opacity-80">
+                                {sportName}
+                              </div>
                             )}
                           </div>
                         );
                       })}
 
-
-                      {isToday && (() => {
-                        const now = new Date();
-                        const nowTop = (now.getHours() + now.getMinutes() / 60 - HOUR_START) * ROW_H;
-                        return <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-primary" style={{ top: nowTop }} />;
-                      })()}
+                      {isToday &&
+                        (() => {
+                          const now = new Date();
+                          const nowTop =
+                            (now.getHours() + now.getMinutes() / 60 - HOUR_START) * ROW_H;
+                          return (
+                            <div
+                              className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-primary"
+                              style={{ top: nowTop }}
+                            />
+                          );
+                        })()}
                     </div>
                   );
                 })}
@@ -5725,7 +9191,9 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 text-sm font-semibold">
           Players booked on {dayLabel}
-          <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{sessions.length}</span>
+          <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {sessions.length}
+          </span>
         </div>
         {bookingsQ.isLoading ? (
           <div className="text-xs text-muted-foreground">Loading bookings…</div>
@@ -5737,17 +9205,27 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
               const b = sess.first;
               const st = sportStyle(b.courts?.sports?.slug ?? b.courts?.sports?.name.toLowerCase());
               return (
-                <li key={sess.key} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
+                <li
+                  key={sess.key}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs"
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${st.dot}`} />
-                    <span className="truncate font-semibold">{nameMap.get(b.user_id) || "Player"}</span>
+                    <span className="truncate font-semibold">
+                      {nameMap.get(b.user_id) || "Player"}
+                    </span>
                     <span className="truncate text-muted-foreground">
-                      {b.courts?.sports?.name ?? "Sport"} · {b.courts?.name} · {b.courts?.venues?.name}
+                      {b.courts?.sports?.name ?? "Sport"} · {b.courts?.name} ·{" "}
+                      {b.courts?.venues?.name}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{formatSessionLabel(sess.start_time, sess.end_time)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sess.items.some((i) => i.payment_status === "paid") ? "bg-emerald-100 text-emerald-800" : "bg-secondary text-muted-foreground"}`}>
+                    <span className="font-medium">
+                      {formatSessionLabel(sess.start_time, sess.end_time)}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sess.items.some((i) => i.payment_status === "paid") ? "bg-emerald-100 text-emerald-800" : "bg-secondary text-muted-foreground"}`}
+                    >
                       {sess.items.some((i) => i.payment_status === "paid") ? "Paid" : "Unpaid"}
                     </span>
                   </div>
@@ -5757,7 +9235,6 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
           </ul>
         )}
       </div>
-
     </div>
   );
 }
@@ -5766,13 +9243,14 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
 function PlayerKpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
       <p className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }
-
 
 // ===========================================================================
 // Vouchers Section
@@ -5785,8 +9263,11 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
     queryKey: ["vouchers", venueId],
     queryFn: async () => {
       if (!venueId) return [];
-      const { data, error } = await supabase.from("vouchers")
-        .select("id, code, discount_type, discount_value, expires_at, max_uses, one_per_user, min_booking_amount, is_active, notes, created_at")
+      const { data, error } = await supabase
+        .from("vouchers")
+        .select(
+          "id, code, discount_type, discount_value, expires_at, max_uses, one_per_user, min_booking_amount, is_active, notes, created_at",
+        )
         .eq("venue_id", venueId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -5801,11 +9282,14 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
       if (!venueId) return {} as Record<string, number>;
       const ids = (vq.data ?? []).map((v) => v.id);
       if (ids.length === 0) return {};
-      const { data, error } = await supabase.from("voucher_redemptions")
-        .select("voucher_id").in("voucher_id", ids);
+      const { data, error } = await supabase
+        .from("voucher_redemptions")
+        .select("voucher_id")
+        .in("voucher_id", ids);
       if (error) throw error;
       const map: Record<string, number> = {};
-      for (const r of data ?? []) map[r.voucher_id as string] = (map[r.voucher_id as string] ?? 0) + 1;
+      for (const r of data ?? [])
+        map[r.voucher_id as string] = (map[r.voucher_id as string] ?? 0) + 1;
       return map;
     },
     enabled: !!venueId && !!vq.data,
@@ -5852,7 +9336,13 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      setCode(""); setDiscountValue("10"); setExpiresAt(""); setMaxUses(""); setMinAmount(""); setNotes(""); setErr(null);
+      setCode("");
+      setDiscountValue("10");
+      setExpiresAt("");
+      setMaxUses("");
+      setMinAmount("");
+      setNotes("");
+      setErr(null);
       qc.invalidateQueries({ queryKey: ["vouchers", venueId] });
     },
     onError: (e: Error) => setErr(e.message),
@@ -5878,7 +9368,9 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-2xl font-bold">Vouchers</h2>
-        <p className="text-sm text-muted-foreground">Create discount codes players can redeem when booking a court that accepts vouchers.</p>
+        <p className="text-sm text-muted-foreground">
+          Create discount codes players can redeem when booking a court that accepts vouchers.
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -5888,7 +9380,11 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
           value={venueId ?? ""}
           onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
         >
-          {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          {venues.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -5902,13 +9398,28 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             <div>
               <label className="mb-1 block text-xs font-medium">Code</label>
               <div className="flex gap-1">
-                <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER10" className="w-full rounded-md border bg-background px-2 py-1.5 text-sm uppercase" />
-                <button type="button" onClick={genCode} className="rounded-md border px-2 text-xs hover:bg-secondary">Auto</button>
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. SUMMER10"
+                  className="w-full rounded-md border bg-background px-2 py-1.5 text-sm uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={genCode}
+                  className="rounded-md border px-2 text-xs hover:bg-secondary"
+                >
+                  Auto
+                </button>
               </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Discount type</label>
-              <select value={discountType} onChange={(e) => setDiscountType(e.target.value as "percent" | "amount")} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm">
+              <select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value as "percent" | "amount")}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              >
                 <option value="percent">Percentage (%)</option>
                 <option value="amount">Fixed amount (₱)</option>
               </select>
@@ -5917,27 +9428,60 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
               <label className="mb-1 block text-xs font-medium">
                 {discountType === "percent" ? "Percentage off" : "Amount off (₱)"}
               </label>
-              <input type="number" min="1" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+              <input
+                type="number"
+                min="1"
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Expires at (optional)</label>
-              <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Max total uses (optional)</label>
-              <input type="number" min="1" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+              <input
+                type="number"
+                min="1"
+                value={maxUses}
+                onChange={(e) => setMaxUses(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">Minimum booking amount (₱, optional)</label>
-              <input type="number" min="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+              <label className="mb-1 block text-xs font-medium">
+                Minimum booking amount (₱, optional)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              />
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={onePerUser} onChange={(e) => setOnePerUser(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={onePerUser}
+                onChange={(e) => setOnePerUser(e.target.checked)}
+              />
               One redemption per player
             </label>
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="mb-1 block text-xs font-medium">Notes (optional, internal)</label>
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              />
             </div>
           </div>
           {err && <div className="mt-2 text-sm text-red-600">{err}</div>}
@@ -5951,13 +9495,16 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             </button>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Players can only redeem a voucher on courts where you've ticked <b>Accept vouchers</b> (in Add/Edit court).
+            Players can only redeem a voucher on courts where you've ticked <b>Accept vouchers</b>{" "}
+            (in Add/Edit court).
           </p>
         </div>
       )}
 
       <div className="rounded-2xl border bg-card">
-        <div className="border-b px-4 py-2 text-sm font-semibold">Vouchers ({vq.data?.length ?? 0})</div>
+        <div className="border-b px-4 py-2 text-sm font-semibold">
+          Vouchers ({vq.data?.length ?? 0})
+        </div>
         <div className="nice-scroll overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
@@ -5978,17 +9525,28 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
                   <tr key={v.id as string} className="border-t">
                     <td className="p-3 font-mono font-semibold">{v.code}</td>
                     <td className="p-3">
-                      {v.discount_type === "percent" ? `${v.discount_value}%` : `₱${Number(v.discount_value).toFixed(2)}`}
+                      {v.discount_type === "percent"
+                        ? `${v.discount_value}%`
+                        : `₱${Number(v.discount_value).toFixed(2)}`}
                     </td>
                     <td className="p-3">
-                      {used}{v.max_uses ? ` / ${v.max_uses}` : ""}
-                      {v.one_per_user && <span className="ml-1 text-[10px] text-muted-foreground">(1/player)</span>}
+                      {used}
+                      {v.max_uses ? ` / ${v.max_uses}` : ""}
+                      {v.one_per_user && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">(1/player)</span>
+                      )}
                     </td>
-                    <td className="p-3">{v.expires_at ? new Date(v.expires_at as string).toLocaleString() : "—"}</td>
-                    <td className="p-3">{v.min_booking_amount ? `₱${Number(v.min_booking_amount).toFixed(2)}` : "—"}</td>
+                    <td className="p-3">
+                      {v.expires_at ? new Date(v.expires_at as string).toLocaleString() : "—"}
+                    </td>
+                    <td className="p-3">
+                      {v.min_booking_amount ? `₱${Number(v.min_booking_amount).toFixed(2)}` : "—"}
+                    </td>
                     <td className="p-3">
                       <button
-                        onClick={() => toggleActive.mutate({ id: v.id as string, is_active: !v.is_active })}
+                        onClick={() =>
+                          toggleActive.mutate({ id: v.id as string, is_active: !v.is_active })
+                        }
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
                       >
                         {v.is_active ? "Active" : "Inactive"}
@@ -5996,7 +9554,14 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
                     </td>
                     <td className="p-3 text-right">
                       <button
-                        onClick={() => { if (window.confirm(`Delete voucher ${v.code}? Existing redemptions will be removed.`)) del.mutate(v.id as string); }}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Delete voucher ${v.code}? Existing redemptions will be removed.`,
+                            )
+                          )
+                            del.mutate(v.id as string);
+                        }}
                         className="rounded-md border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                       >
                         Delete
@@ -6006,7 +9571,11 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
                 );
               })}
               {(vq.data ?? []).length === 0 && (
-                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No vouchers yet.</td></tr>
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                    No vouchers yet.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
