@@ -13,6 +13,8 @@
 import type { Catalog, CatalogCourt, CatalogVenue } from "./catalog";
 import { SPORT_ALIASES, editDistance, fold, keywords, nameScore, typoBudget } from "./normalize";
 import type { AssistantRole, IntentKind } from "./types";
+import { unknownAmenityTerm, unknownSportTerm } from "./feedback";
+import { buildVocabulary, type Vocabulary } from "./vocabulary";
 import { parseWhen, type When } from "./when";
 
 export type Parsed = {
@@ -38,6 +40,11 @@ export type Parsed = {
   payment: "online" | "venue" | null;
   /** "a 2-hour slot" — how long a block must be when no exact hours were named. */
   minDuration: number;
+  /** A word the question used as an amenity that CourtHub does not list. Kept so
+   *  the answer can say the filter was ignored rather than quietly dropping it. */
+  unknownAmenity: string | null;
+  /** Likewise for a sport CourtHub has never heard of. */
+  unknownSport: string | null;
 };
 
 /** Below this, the engine offers suggestions rather than an answer. */
@@ -217,36 +224,39 @@ function matchCourt(
   return bestScore >= 0.6 ? best : null;
 }
 
-function matchSport(text: string, catalog: Catalog): string | null {
-  const f = ` ${fold(text)} `;
+/**
+ * Which sport the question is about.
+ *
+ * The lookup is built from CourtHub's own sport names, so a court added this
+ * morning is askable this morning. Longest token first, because "sepak takraw"
+ * must win over "takraw" when both are present.
+ */
+function matchSport(text: string, catalog: Catalog, vocab: Vocabulary): string | null {
+  const f = fold(text);
+  const padded = ` ${f} `;
+  const tokens = [...vocab.sportTokens.keys()].sort((a, b) => b.length - a.length);
+
+  for (const token of tokens) {
+    if (padded.includes(` ${token} `)) return vocab.sportTokens.get(token) ?? null;
+  }
+
+  /* The built-in shorthand, kept for the words that predate the dynamic lookup. */
   for (const [alias, canonical] of Object.entries(SPORT_ALIASES)) {
-    if (f.includes(` ${alias} `)) {
-      const hit = catalog.sports.find((s) => fold(s.name) === canonical || s.slug === canonical);
+    if (padded.includes(` ${alias} `)) {
+      const hit = catalog.sports.find((sp) => fold(sp.name) === canonical || sp.slug === canonical);
       if (hit) return hit.slug;
     }
   }
-  for (const s of catalog.sports) {
-    if (f.includes(` ${fold(s.name)} `) || f.includes(` ${fold(s.slug)} `)) return s.slug;
-  }
 
-  /* Typo tolerance, sports only. A sport name is a small closed vocabulary, so a
-     near miss is almost certainly the word. Venue names get no such leniency —
-     there the same slack could send someone to a different business. */
-  for (const token of f.split(" ")) {
-    const budget = typoBudget(token);
+  /* Typo tolerance, against the same dynamic tokens rather than a fixed list. A
+     sport name is a small closed vocabulary, so a near miss is almost certainly the
+     word; venue names still get no such latitude. */
+  for (const word of f.split(" ")) {
+    const budget = typoBudget(word);
     if (budget === 0) continue;
-    for (const sp of catalog.sports) {
-      const name = fold(sp.name);
-      if (editDistance(token, name, budget) <= budget) return sp.slug;
-    }
-    for (const [alias, canonical] of Object.entries(SPORT_ALIASES)) {
-      if (typoBudget(alias) === 0) continue;
-      if (editDistance(token, alias, budget) <= budget) {
-        const hit = catalog.sports.find(
-          (sp) => fold(sp.name) === canonical || sp.slug === canonical,
-        );
-        if (hit) return hit.slug;
-      }
+    for (const token of tokens) {
+      if (token.includes(" ")) continue;
+      if (editDistance(word, token, budget) <= budget) return vocab.sportTokens.get(token) ?? null;
     }
   }
   return null;
@@ -325,11 +335,27 @@ function matchDistance(f: string): number | null {
   return n ? Number(n[1]) : null;
 }
 
-function matchAmenities(f: string): string[] | null {
+/**
+ * Which amenities were asked for, as the venues actually spell them.
+ *
+ * Driven by the values in the catalogue, so "sauna" filters the moment a venue
+ * lists Sauna — no constant to add. The built-in words remain, but they resolve to
+ * a real catalogue value where one exists rather than to their own spelling.
+ */
+function matchAmenities(f: string, vocab: Vocabulary): string[] | null {
+  const padded = ` ${f} `;
   const found = new Set<string>();
-  for (const [word, term] of Object.entries(AMENITY_TERMS)) {
-    if (new RegExp(`\\b${word}\\b`).test(f)) found.add(term);
+
+  for (const [token, value] of vocab.amenityTokens) {
+    if (padded.includes(` ${token} `)) found.add(value);
   }
+
+  for (const [word, term] of Object.entries(AMENITY_TERMS)) {
+    if (!new RegExp(`\\b${word}\\b`).test(f)) continue;
+    const real = vocab.amenityValues.find((v) => fold(v).includes(term));
+    found.add(real ?? term);
+  }
+
   return found.size > 0 ? [...found] : null;
 }
 
@@ -359,7 +385,10 @@ export function parseQuestion(
   catalog: Catalog,
   todayISO: string,
   role: AssistantRole,
+  /** Admin mappings folded in. Omitted, the catalogue's own words still apply. */
+  vocab?: Vocabulary,
 ): Parsed {
+  const vocabulary = vocab ?? buildVocabulary(catalog, []);
   const f = fold(text);
   const kws = new Set(keywords(text));
   const scores = new Map<IntentKind, number>();
@@ -372,7 +401,7 @@ export function parseQuestion(
 
   const venue = matchVenue(text, catalog);
   const court = matchCourt(text, catalog, venue);
-  const sportSlug = matchSport(text, catalog);
+  const sportSlug = matchSport(text, catalog, vocabulary);
   const when = parseWhen(text, todayISO);
   const { place, wantsMyLocation } = matchPlace(text);
 
@@ -431,9 +460,11 @@ export function parseQuestion(
     minPrice,
     maxPrice,
     maxKm: matchDistance(f),
-    amenities: matchAmenities(f),
+    amenities: matchAmenities(f, vocabulary),
     payment: matchPayment(f),
     minDuration: matchDuration(f, when.hours),
+    unknownAmenity: unknownAmenityTerm(text, matchAmenities(f, vocabulary)),
+    unknownSport: unknownSportTerm(text, sportSlug),
   };
 
   /* A location question that named no place and no venue still needs a position. */

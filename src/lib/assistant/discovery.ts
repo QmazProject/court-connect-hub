@@ -262,6 +262,14 @@ export async function resolveDiscovery(ctx: Ctx, offset = 0): Promise<Answer> {
     { kind: "rows", rows: res.rows.map((r) => rowFor(ctx, r, params.hours)) },
     { kind: "note", text: liveNote(res.degraded, res.checkedAt) },
   ];
+  /* A filter CourtHub cannot apply is said out loud. Dropping it silently would
+     answer a different question from the one that was asked. */
+  if (p.unknownAmenity) {
+    blocks.push({
+      kind: "note",
+      text: `CourtHub does not list "${p.unknownAmenity}" as an amenity, so these results ignore that part. Each venue page shows what it actually offers.`,
+    });
+  }
   if (res.degraded && res.scanned != null) {
     blocks.push({
       kind: "note",

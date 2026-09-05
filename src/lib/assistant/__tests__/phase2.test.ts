@@ -101,6 +101,7 @@ const CATALOG: Catalog = {
     { slug: "badminton", name: "Badminton" },
     { slug: "pickleball", name: "Pickleball" },
   ],
+  amenityValues: ["Parking", "Shower", "Sauna"],
 };
 
 const refs: ResultRef[] = [

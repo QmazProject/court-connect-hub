@@ -39,6 +39,8 @@ import {
   type ResultRef,
 } from "./context";
 import { resolveDiscovery } from "./discovery";
+import { recordFeedback } from "./feedback";
+import { buildVocabulary, loadMappings } from "./vocabulary";
 import { resolveMyBookings, resolveMySpend } from "./personal";
 import { resolveTenantActivity, resolveTenantOccupancy, resolveTenantSchedule } from "./tenant";
 import type { Answer, AskContext } from "./types";
@@ -76,7 +78,10 @@ export async function ask(
   );
   if (opts.conversation) Object.assign(opts.conversation, conv);
 
-  const raw = parseQuestion(trimmed, catalog, todayISO, ctx.role);
+  /* Trusted vocabulary: CourtHub's own sport and amenity words, plus whatever an
+     admin has reviewed and mapped. Never anything a user simply asserted. */
+  const vocab = buildVocabulary(catalog, await loadMappings());
+  const raw = parseQuestion(trimmed, catalog, todayISO, ctx.role, vocab);
   const { parsed, ambiguous } = applyContext(raw, conv, catalog, ctx.origin ?? null);
   if (ambiguous) {
     return {
@@ -96,7 +101,66 @@ export async function ask(
 
   const answer = await route(parsed.intent, resolverCtx, askCtx, offset);
   remember(conv, parsed, answer, answer.meta?.results ?? [], askCtx.origin ?? null);
+  reportMiss(trimmed, parsed, answer);
   return answer;
+}
+
+/**
+ * Turn an unsatisfying answer into an admin-reviewable signal.
+ *
+ * The categories are kept apart on purpose. "I did not understand you" and "I
+ * understood you and there is nothing" are different problems: the first is a
+ * vocabulary gap an admin can close with a mapping, the second is inventory. Rolling
+ * them together would make the Insights page useless for either.
+ */
+function reportMiss(question: string, parsed: Parsed, answer: Answer): void {
+  const shared = { query: question, resolvedIntent: answer.intent };
+
+  if (answer.intent === "unknown") {
+    /* Before calling it unintelligible, see whether one specific word was the
+       problem — those are the ones an admin can actually fix. */
+    const sport = parsed.unknownSport;
+    if (sport) {
+      recordFeedback({ ...shared, category: "unknown_sport_term", sportTerm: sport });
+      return;
+    }
+    const amenity = parsed.unknownAmenity;
+    if (amenity) {
+      recordFeedback({ ...shared, category: "unknown_amenity_term", amenityTerm: amenity });
+      return;
+    }
+    recordFeedback({ ...shared, category: "unknown_intent" });
+    return;
+  }
+
+  /* An amenity word the catalogue does not have, in a question that otherwise
+     worked. Worth recording even though the player got an answer. */
+  const strayAmenity = parsed.unknownAmenity;
+  if (strayAmenity) {
+    recordFeedback({ ...shared, category: "unknown_amenity_term", amenityTerm: strayAmenity });
+  }
+
+  if (answer.intent === "nearby" && answer.meta?.originLabel == null && parsed.place) {
+    recordFeedback({ ...shared, category: "location_not_found", locationTerm: parsed.place });
+    return;
+  }
+
+  const total = answer.page?.total;
+  if (total === 0) {
+    /* Nothing came back. Which of the two reasons it was depends on whether
+       CourtHub has the sport at all — an admin acts differently on each. */
+    const category =
+      parsed.sportSlug == null && parsed.amenities == null && parsed.maxPrice == null
+        ? "no_available_slots"
+        : "zero_results";
+    recordFeedback({
+      ...shared,
+      category,
+      sportTerm: parsed.sportSlug,
+      locationTerm: parsed.place ?? answer.meta?.originLabel ?? null,
+      resultCount: 0,
+    });
+  }
 }
 
 async function route(

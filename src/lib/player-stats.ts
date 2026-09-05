@@ -469,7 +469,15 @@ export function buildPlayerStats({
       else if (inWindow(when, prevStart, start)) prevPeriod += Number(t.amount || 0);
     }
   } else {
-    thisPeriod = total;
+    /* All time has to mean every peso that ever reached a venue, counted the same
+       way a dated period counts it: from the paid transactions themselves.
+       `total` is deliberately a different figure — it sums only sessions already
+       played — so using it here made "All time" answer a different question from
+       every other option in the same dropdown, and a player who had just paid for
+       an upcoming game watched their spend drop when they selected it. */
+    for (const t of transactions) {
+      if (t.status === "paid") thisPeriod += Number(t.amount || 0);
+    }
   }
   const delta = start && prevPeriod > 0 ? ((thisPeriod - prevPeriod) / prevPeriod) * 100 : null;
 

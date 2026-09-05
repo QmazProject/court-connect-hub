@@ -15,6 +15,7 @@ import { zonedDateISO, zonedDayOfWeek } from "@/lib/tz";
 import type { Catalog, CatalogCourt, CatalogVenue } from "./catalog";
 import type { Parsed } from "./intents";
 import { courtDaySlots, freeHours, joinHours, slotStateLabel, type SlotInfo } from "./slots";
+import { suggestSport } from "./vocabulary";
 import type { Answer, AnswerBlock, AnswerRow, AskContext, Chip, Origin } from "./types";
 import { dateLabel } from "./when";
 
@@ -909,16 +910,51 @@ export function resolveGreeting(ctx: Ctx): Answer {
 export function resolveUnknown(ctx: Ctx): Answer {
   const examples = ctx.ask.role === "tenant" ? TENANT_EXAMPLES : PLAYER_EXAMPLES;
   const guess = ctx.parsed.venue;
+  const blocks: AnswerBlock[] = [];
+
+  /* Being told "I don't understand" is useless. Being told which single word was
+     the problem, and what can still be done, is not. */
+  if (ctx.parsed.unknownSport) {
+    const suggestion = suggestSport(ctx.parsed.unknownSport, ctx.catalog);
+    blocks.push(
+      text(`CourtHub does not have a sport called "${ctx.parsed.unknownSport}".`),
+      note(
+        suggestion
+          ? `Did you mean ${suggestion}? I can also list every sport CourtHub covers.`
+          : `The sports currently listed are ${ctx.catalog.sports.map((s) => s.name).join(", ") || "none yet"}.`,
+      ),
+    );
+    return answer("unknown", blocks, [
+      ...(suggestion ? [{ label: `Show ${suggestion}`, ask: `${suggestion} courts tonight` }] : []),
+      { label: "What is available tonight?", ask: "what is available tonight" },
+    ]);
+  }
+
+  if (ctx.parsed.unknownAmenity) {
+    blocks.push(
+      text(
+        `I do not recognise "${ctx.parsed.unknownAmenity}" as a CourtHub amenity, so I cannot filter on it.`,
+      ),
+      note("I can still show venues and what each one lists."),
+    );
+    return answer("unknown", blocks, [
+      { label: "Show venues near me", action: "locate" },
+      { label: "What is available tonight?", ask: "what is available tonight" },
+    ]);
+  }
+
+  blocks.push(
+    text(
+      ctx.ask.role === "tenant"
+        ? "I can check your venues: what is free, how booked you are, cancellations, payments and your rates."
+        : "I can check live court availability, prices, venues near you, opening hours, amenities, payment methods, refund rules and your own bookings.",
+    ),
+  );
+  if (guess) note(`I did recognise ${guess.name}.`);
+
   return answer(
     "unknown",
-    [
-      text("I did not follow that one."),
-      note(
-        guess
-          ? `I did recognise ${guess.name} — try asking about its hours, rates, availability or rules.`
-          : "I can answer about opening hours, court availability, rates, distance, payments and refunds.",
-      ),
-    ],
+    blocks,
     guess
       ? [
           { label: `Hours at ${guess.name}`, ask: `opening hours at ${guess.name}` },

@@ -63,6 +63,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
          Add to Home Screen prompt offer a real app rather than a shortcut — which
          is the only route to push notifications on iOS. */
       { name: "theme-color", content: "#0f4a40" },
+      // Both spellings, deliberately: Chrome deprecated the apple- prefix and warns
+      // about it, but iOS Safari still reads only that one for standalone mode.
+      { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "CourtHub" },
     ],

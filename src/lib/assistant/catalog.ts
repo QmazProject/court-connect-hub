@@ -70,6 +70,9 @@ export type Catalog = {
   byVenue: Map<number, CatalogVenue>;
   byCourt: Map<number, { court: CatalogCourt; venue: CatalogVenue }>;
   sports: { name: string; slug: string }[];
+  /** Every distinct amenity string any venue or court actually lists. The searchable
+   *  amenity vocabulary is this, not a constant in the source. */
+  amenityValues: string[];
 };
 
 const SELECT =
@@ -204,16 +207,38 @@ function shape(rows: RawVenue[]): Catalog {
   const byCourt = new Map<number, { court: CatalogCourt; venue: CatalogVenue }>();
   for (const v of venues) for (const c of v.courts) byCourt.set(c.id, { court: c, venue: v });
 
+  const amenities = new Set<string>();
+  for (const v of venues) {
+    for (const a of [...v.amenities, ...v.facilityServices, ...v.foodBeverages]) {
+      if (a && a.trim()) amenities.add(a.trim());
+    }
+    for (const c of v.courts)
+      for (const a of c.amenities) if (a && a.trim()) amenities.add(a.trim());
+  }
+
   return {
     venues,
     byVenue,
     byCourt,
     sports: [...sports].map(([slug, name]) => ({ slug, name })),
+    amenityValues: [...amenities],
   };
 }
 
 const TTL_MS = 60_000;
 let cache: { key: string; at: number; value: Promise<Catalog> } | null = null;
+
+/**
+ * Drop the cached catalogue in this browser.
+ *
+ * The TTL is a floor, not a policy: after a manager saves a venue or a court, the
+ * browser that made the change should not spend up to a minute telling its own user
+ * that the change has not happened. Other sessions still catch up on the TTL, which
+ * is fine for metadata — availability was never cached at all.
+ */
+export function invalidateAssistantCatalog(): void {
+  cache = null;
+}
 
 /**
  * @param venueIds Restricts the catalog to these venues — how a tenant's assistant
@@ -254,4 +279,30 @@ export async function staffVenueIds(userId: string): Promise<number[]> {
   const { data, error } = await supabase.from("staff").select("venue_id").eq("user_id", userId);
   if (error) throw error;
   return Array.from(new Set((data ?? []).map((r) => r.venue_id)));
+}
+
+/**
+ * Keep the assistant's catalogue honest about changes this browser just made.
+ *
+ * Rather than adding an invalidation call to every mutation — six for venues alone,
+ * and one forgotten call is a manager being told their own new court does not exist
+ * — this listens once to the mutation cache. Any successful write may have touched
+ * something the assistant reads, and dropping a 60-second metadata cache costs one
+ * query on the next question.
+ *
+ * Only this browser is affected. Others still catch up on the TTL, which is right
+ * for metadata; availability was never cached at all.
+ */
+export function registerAssistantCacheInvalidation(client: {
+  getMutationCache: () => {
+    subscribe: (
+      cb: (event: { type: string; mutation?: { state: { status: string } } }) => void,
+    ) => () => void;
+  };
+}): () => void {
+  return client.getMutationCache().subscribe((event) => {
+    if (event.type === "updated" && event.mutation?.state.status === "success") {
+      invalidateAssistantCatalog();
+    }
+  });
 }

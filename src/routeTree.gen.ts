@@ -19,6 +19,8 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminAssistantInsightsRouteImport } from './routes/admin/assistant-insights'
+import { Route as AdminAssistantMappingsRouteImport } from './routes/admin/assistant-mappings'
 import { Route as AdminLoginRouteImport } from './routes/admin_.login'
 import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
 import { Route as ExploreGuestRouteImport } from './routes/explore_.guest'
@@ -76,6 +78,16 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminAssistantInsightsRoute = AdminAssistantInsightsRouteImport.update({
+  id: '/assistant-insights',
+  path: '/assistant-insights',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminAssistantMappingsRoute = AdminAssistantMappingsRouteImport.update({
+  id: '/assistant-mappings',
+  path: '/assistant-mappings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin_/login',
   path: '/admin/login',
@@ -123,6 +135,8 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/assistant-insights': typeof AdminAssistantInsightsRoute
+  '/admin/assistant-mappings': typeof AdminAssistantMappingsRoute
   '/admin/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore/guest': typeof ExploreGuestRoute
@@ -140,6 +154,8 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/assistant-insights': typeof AdminAssistantInsightsRoute
+  '/admin/assistant-mappings': typeof AdminAssistantMappingsRoute
   '/admin/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore/guest': typeof ExploreGuestRoute
@@ -160,6 +176,8 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/admin/assistant-insights': typeof AdminAssistantInsightsRoute
+  '/admin/assistant-mappings': typeof AdminAssistantMappingsRoute
   '/admin_/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore_/guest': typeof ExploreGuestRoute
@@ -180,6 +198,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/terms'
     | '/dashboard'
+    | '/admin/assistant-insights'
+    | '/admin/assistant-mappings'
     | '/admin/login'
     | '/courts/$courtId'
     | '/explore/guest'
@@ -197,6 +217,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/terms'
     | '/dashboard'
+    | '/admin/assistant-insights'
+    | '/admin/assistant-mappings'
     | '/admin/login'
     | '/courts/$courtId'
     | '/explore/guest'
@@ -216,6 +238,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/terms'
     | '/_authenticated/dashboard'
+    | '/admin/assistant-insights'
+    | '/admin/assistant-mappings'
     | '/admin_/login'
     | '/courts/$courtId'
     | '/explore_/guest'
@@ -316,6 +340,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/assistant-insights': {
+      id: '/admin/assistant-insights'
+      path: '/assistant-insights'
+      fullPath: '/admin/assistant-insights'
+      preLoaderRoute: typeof AdminAssistantInsightsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/assistant-mappings': {
+      id: '/admin/assistant-mappings'
+      path: '/assistant-mappings'
+      fullPath: '/admin/assistant-mappings'
+      preLoaderRoute: typeof AdminAssistantMappingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin_/login': {
       id: '/admin_/login'
       path: '/admin/login'
@@ -380,10 +418,14 @@ const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 interface AdminRouteRouteChildren {
+  AdminAssistantInsightsRoute: typeof AdminAssistantInsightsRoute
+  AdminAssistantMappingsRoute: typeof AdminAssistantMappingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminAssistantInsightsRoute: AdminAssistantInsightsRoute,
+  AdminAssistantMappingsRoute: AdminAssistantMappingsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 

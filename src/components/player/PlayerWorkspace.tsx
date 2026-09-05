@@ -105,36 +105,55 @@ const fmtTime = (iso: string) =>
 function PaymentBadge({
   paymentStatus,
   refundStatus,
+  surface = "light",
 }: {
   paymentStatus: string;
   refundStatus?: string | null;
+  /** "dark" is the Next game card, a deep green panel where the light-surface
+   *  tones below are close to unreadable — `text-primary` is a dark teal. The
+   *  same convention RateCard, MasterSearch and NotificationBell already use. */
+  surface?: "light" | "dark";
 }) {
+  const dark = surface === "dark";
   let label = paymentStatus.replace("_", " ");
-  let tone = "bg-secondary text-muted-foreground";
+  let tone = dark ? "bg-white/15 text-white" : "bg-secondary text-muted-foreground";
 
   if (refundStatus === "pending") {
     label = "Refund pending";
-    tone = "bg-sky-500/15 text-sky-700 dark:text-sky-300";
+    tone = dark ? "bg-sky-300/20 text-sky-100" : "bg-sky-500/15 text-sky-700 dark:text-sky-300";
   } else if (refundStatus === "refunded" || paymentStatus === "refunded") {
     label = "Refunded";
-    tone = "bg-sky-500/15 text-sky-700 dark:text-sky-300";
+    tone = dark ? "bg-sky-300/20 text-sky-100" : "bg-sky-500/15 text-sky-700 dark:text-sky-300";
   } else if (paymentStatus === "paid") {
     label = "Paid";
-    tone = "bg-primary/15 text-primary";
+    /* The card's own lime rather than the teal primary: on this panel the lime is
+       the accent that actually reads. */
+    tone = dark ? "bg-[#b8f05a]/20 text-[#d9ff9b]" : "bg-primary/15 text-primary";
   } else if (paymentStatus === "pending" || paymentStatus === "unpaid") {
     label = "Payment pending";
-    tone = "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+    tone = dark
+      ? "bg-amber-300/20 text-amber-100"
+      : "bg-amber-500/15 text-amber-700 dark:text-amber-300";
   } else if (paymentStatus === "failed") {
     label = "Payment failed";
-    tone = "bg-destructive/10 text-destructive";
+    tone = dark ? "bg-red-400/25 text-red-100" : "bg-destructive/10 text-destructive";
   }
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>
   );
 }
 
-function StatusBadge({ session, userId }: { session: PlayerSession; userId: string }) {
+function StatusBadge({
+  session,
+  userId,
+  surface = "light",
+}: {
+  session: PlayerSession;
+  userId: string;
+  surface?: "light" | "dark";
+}) {
   const r = session.first;
+  const dark = surface === "dark";
   const state = sessionState(session, Date.now());
 
   if (state === "cancelled" || state === "expired") {
@@ -145,9 +164,11 @@ function StatusBadge({ session, userId }: { session: PlayerSession; userId: stri
     // destructive red that reads as "you did something wrong".
     const tone =
       who === "venue"
-        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-        : who === "player"
-          ? "bg-muted text-muted-foreground"
+        ? dark
+          ? "bg-amber-300/20 text-amber-100"
+          : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+        : dark
+          ? "bg-white/15 text-white/85"
           : "bg-muted text-muted-foreground";
     return (
       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>
@@ -155,15 +176,26 @@ function StatusBadge({ session, userId }: { session: PlayerSession; userId: stri
   }
   if (state === "completed") {
     return (
-      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+      <span
+        className={
+          "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
+          (dark
+            ? "bg-emerald-300/20 text-emerald-100"
+            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300")
+        }
+      >
         Completed
       </span>
     );
   }
   const tone =
     r.status === "confirmed"
-      ? "bg-primary/10 text-primary"
-      : "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+      ? dark
+        ? "bg-[#b8f05a]/20 text-[#d9ff9b]"
+        : "bg-primary/10 text-primary"
+      : dark
+        ? "bg-amber-300/20 text-amber-100"
+        : "bg-amber-500/15 text-amber-700 dark:text-amber-300";
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
       {r.status === "confirmed" ? "Confirmed" : "Awaiting payment"}
@@ -522,8 +554,12 @@ function NextGame({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <StatusBadge session={session} userId={r.cancelled_by ?? ""} />
-            <PaymentBadge paymentStatus={r.payment_status} refundStatus={r.refund_status} />
+            <StatusBadge session={session} userId={r.cancelled_by ?? ""} surface="dark" />
+            <PaymentBadge
+              paymentStatus={r.payment_status}
+              refundStatus={r.refund_status}
+              surface="dark"
+            />
           </div>
         </div>
 
@@ -616,6 +652,10 @@ function NextGame({
 // ===========================================================================
 
 type WhenFilter = "all" | "today" | "week" | "month";
+/** Soonest is the schedule — "what am I playing next" — and stays the default.
+ *  Newest answers a different question, "where did the thing I just booked go",
+ *  which the schedule order legitimately buries when the new game is months out. */
+type UpcomingSort = "soonest" | "newest";
 
 function UpcomingSection({
   sessions,
@@ -639,6 +679,7 @@ function UpcomingSection({
   const [when, setWhen] = useState<WhenFilter>("all");
   const [sport, setSport] = useState("all");
   const [venue, setVenue] = useState("all");
+  const [sort, setSort] = useState<UpcomingSort>("soonest");
 
   const sports = useMemo(
     () =>
@@ -672,6 +713,18 @@ function UpcomingSection({
       return true;
     });
   }, [sessions, when, sport, venue]);
+
+  const ordered = useMemo(() => {
+    /* `sessions` already arrives soonest-first, so that branch is a copy rather
+       than a re-sort. Newest orders by when the booking was made, falling back to
+       start time for rows that predate created_at. */
+    if (sort === "soonest") return shown;
+    return shown
+      .slice()
+      .sort((a, b) =>
+        (b.first.created_at ?? b.start_time).localeCompare(a.first.created_at ?? a.start_time),
+      );
+  }, [shown, sort]);
 
   const chip = (active: boolean) =>
     `rounded-full px-3 py-1.5 text-xs font-bold transition ${
@@ -739,16 +792,41 @@ function UpcomingSection({
             ))}
           </select>
         )}
+        {/* Only worth offering once there is more than one booking to order. */}
+        {sessions.length > 1 && (
+          <div className="ml-auto flex shrink-0 items-center gap-1 rounded-full border border-border bg-card p-0.5">
+            {(
+              [
+                ["soonest", "Soonest"],
+                ["newest", "Newest"],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => setSort(k)}
+                aria-pressed={sort === k}
+                className={
+                  "rounded-full px-2.5 py-1 text-xs font-bold transition " +
+                  (sort === k
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {shown.length === 0 ? (
+      {ordered.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="font-display text-sm font-bold">Nothing in this range</p>
           <p className="mt-1 text-xs text-muted-foreground">Try a wider filter, or book a court.</p>
         </div>
       ) : (
         <ul className="mt-4 grid gap-3">
-          {shown.map((s, i) => (
+          {ordered.map((s, i) => (
             <BookingCard
               key={s.key}
               session={s}
@@ -2336,9 +2414,20 @@ export function PlayerWorkspace({
   const rows = useMemo(() => bookingsQ.data ?? [], [bookingsQ.data]);
   const txs = useMemo(() => txQ.data ?? [], [txQ.data]);
   const idx = useMemo(() => indexTransactions(txs), [txs]);
+  /* buildPlayerStats decides what is upcoming by comparing against the clock, so
+     it has to re-run as the clock moves. Without this the Next game card keeps
+     showing a game that finished twenty minutes ago until something unrelated
+     happens to refetch — the countdown inside the card ticked, but the choice of
+     which game to show never did. */
+  const [minuteTick, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const stats = useMemo(
     () => buildPlayerStats({ rows, transactions: txs, userId, period }),
-    [rows, txs, userId, period],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, txs, userId, period, minuteTick],
   );
 
   // ---- Payment ----------------------------------------------------------

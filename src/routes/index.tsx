@@ -1456,6 +1456,266 @@ const heroImages = [
   "https://images.unsplash.com/photo-1592656094267-764a45160876?auto=format&fit=crop&w=1800&q=85",
 ];
 
+/** Its own component, and its own scroll listener, because the ring redraws on every
+ *  tick of a wheel. Held in LandingPage this was a float in that component's state, so
+ *  the whole page re-rendered to move an arc 48px across. */
+function BackToTop() {
+  const [visible, setVisible] = useState(false);
+  /* 0 at the top of the page, 1 at the bottom. Drives the ring around the back-to-top
+     button, so its arc reads as distance remaining rather than just decoration. */
+  const [progress, setProgress] = useState(0);
+  /* Bumped each time the ring closes, and used as the burst element's key so React remounts
+     it and the one-shot keyframes replay. Scrolling up and back down fires it again; sitting
+     at the bottom does not re-fire, which is what the edge-transition ref guards. */
+  const [burstKey, setBurstKey] = useState(0);
+  const wasAtBottom = useRef(false);
+
+  useEffect(() => {
+    const scroller = document.querySelector("main") as HTMLElement | null;
+    let frame = 0;
+    /* Coalesced into a frame rather than read straight off the event: the measurement
+       below touches scrollHeight and clientHeight, and asking for those mid-scroll forces
+       a layout on every tick. */
+    const measure = () => {
+      frame = 0;
+      const scrollTop = scroller?.scrollTop ?? window.scrollY;
+      const maxScroll = scroller
+        ? scroller.scrollHeight - scroller.clientHeight
+        : document.documentElement.scrollHeight - window.innerHeight;
+      const next = maxScroll > 0 ? Math.min(1, Math.max(0, scrollTop / maxScroll)) : 0;
+      setVisible(scrollTop > 360);
+      setProgress(next);
+      const atBottom = next > 0.995;
+      if (atBottom && !wasAtBottom.current) setBurstKey((key) => key + 1);
+      wasAtBottom.current = atBottom;
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+    measure();
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      scroller?.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  const scrollToTop = () => {
+    const scroller = document.querySelector("main") as HTMLElement | null;
+    if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={scrollToTop}
+      aria-label="Back to top"
+      className={`fixed bottom-5 right-5 z-1100 flex h-12 w-12 items-center justify-center rounded-full bg-[#0b3d35] text-[#b8f05a] shadow-lg shadow-[#09231f]/25 transition-all duration-300 hover:-translate-y-1 hover:bg-[#126152] focus:outline-none focus:ring-2 focus:ring-[#b8f05a] focus:ring-offset-2 motion-reduce:transition-none sm:bottom-7 sm:right-7 ${visible ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-5 scale-90 opacity-0"}`}
+    >
+      {/* Progress ring. The static border this replaces is now the faint track circle, so
+          the edge still reads as an outline at 0%. Rotated -90deg so the arc starts at
+          twelve o'clock, and stroke-dashoffset is the only thing that changes as you
+          scroll — cheap enough to update on every scroll event. */}
+      <svg
+        viewBox="0 0 48 48"
+        aria-hidden
+        className="pointer-events-none absolute inset-0 h-full w-full -rotate-90"
+      >
+        <circle
+          cx="24"
+          cy="24"
+          r="22"
+          fill="none"
+          stroke="rgb(184 240 90 / 0.2)"
+          strokeWidth="2.5"
+        />
+        <circle
+          cx="24"
+          cy="24"
+          r="22"
+          fill="none"
+          stroke="#b8f05a"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={138.23}
+          strokeDashoffset={138.23 * (1 - progress)}
+          className="transition-[stroke-dashoffset] duration-150 ease-out motion-reduce:transition-none"
+        />
+      </svg>
+      {/* The fuse. Rotating a full-size wrapper puts the spark on the arc's leading edge
+          without any trigonometry — the dot sits at the ring's twelve o'clock and the
+          wrapper carries it round by however far you have scrolled. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 transition-transform duration-150 ease-out motion-reduce:transition-none"
+        style={{ transform: `rotate(${progress * 360}deg)` }}
+      >
+        <span className="absolute left-1/2 top-[2px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#d3ff87] shadow-[0_0_8px_1.5px_rgba(184,240,90,0.85)]" />
+        {/* Emitter pinned to the spark, spun back by the same angle the wrapper spun forward.
+            Without that counter-rotation the embers would fall along the ring's local axis —
+            sideways or upward depending on where you are in the scroll — instead of down. */}
+        <span
+          className="absolute left-1/2 top-[2px] transition-transform duration-150 ease-out motion-reduce:transition-none"
+          style={{ transform: `rotate(${-progress * 360}deg)` }}
+        >
+          {FUSE_EMBERS.map((ember, i) => (
+            <span
+              key={i}
+              style={
+                {
+                  "--ex": `${ember.ex}px`,
+                  animationDelay: `${ember.delay}s`,
+                } as CSSProperties
+              }
+              className="absolute h-[3px] w-[3px] rounded-full bg-[#b8f05a] opacity-0 shadow-[0_0_5px_1px_rgba(184,240,90,0.7)] motion-safe:animate-[fuse-ember_1.2s_linear_infinite]"
+            />
+          ))}
+        </span>
+      </span>
+
+      {burstKey > 0 && (
+        <span key={burstKey} aria-hidden className="pointer-events-none absolute inset-0">
+          {SHOWER_DOTS.map((dot, i) => (
+            <span
+              key={i}
+              style={{ width: dot.size, height: dot.size }}
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            >
+              <span
+                style={
+                  {
+                    "--dx": `${dot.dx.toFixed(1)}px`,
+                    "--dy": `${dot.dy.toFixed(1)}px`,
+                    animationDelay: `${dot.delay}ms`,
+                  } as CSSProperties
+                }
+                className="absolute inset-0 rounded-full bg-[#d3ff87] opacity-0 shadow-[0_0_6px_1px_rgba(184,240,90,0.8)] motion-safe:animate-[fuse-shower_.75s_ease-out_forwards]"
+              />
+            </span>
+          ))}
+        </span>
+      )}
+
+      <ChevronUp className="relative h-6 w-6" strokeWidth={2.5} />
+    </button>
+  );
+}
+
+/** Owns the slide index so the six-second advance repaints the hero and nothing else.
+ *  The copy that sits between the images and the dots is passed through as children:
+ *  LandingPage builds that element once per its own render, so the same element object
+ *  arrives on every tick here and React skips straight over it. */
+function HeroCarousel({ children }: { children: ReactNode }) {
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setHeroIndex((index) => (index + 1) % heroImages.length),
+      6000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <section
+      id="home"
+      data-nav="Home"
+      className="relative isolate min-h-175 overflow-hidden bg-[#09231f] pt-24 text-white sm:min-h-190"
+    >
+      {heroImages.map((image, index) => (
+        <img
+          key={image}
+          src={image}
+          alt="Players enjoying sport"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${index === heroIndex ? "opacity-100" : "opacity-0"}`}
+          fetchPriority={index === 0 ? "high" : "auto"}
+        />
+      ))}
+      <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(5,25,21,.92)_5%,rgba(5,25,21,.68)_48%,rgba(5,25,21,.24))]" />
+      <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-[#09231f] to-transparent" />
+      <div className="relative mx-auto flex min-h-155 max-w-7xl flex-col justify-end px-5 pb-16 sm:min-h-170 sm:px-8 sm:pb-24">
+        {children}
+        <div className="mt-12 flex items-center gap-2">
+          {heroImages.map((_, index) => (
+            <button
+              key={index}
+              aria-label={`Show slide ${index + 1}`}
+              onClick={() => setHeroIndex(index)}
+              className={`h-1.5 rounded-full transition-all ${index === heroIndex ? "w-10 bg-[#b8f05a]" : "w-4 bg-white/40"}`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Owns which section the page is scrolled to. That changes at every section boundary on
+ *  the way down the page, and the value is read by nothing but these few pills — held in
+ *  LandingPage it re-rendered the entire landing page each time one lit up. */
+function SectionNav({
+  activeHeaderMenu,
+  onHoverMenu,
+  onSelect,
+}: {
+  activeHeaderMenu: HeaderMegaMenu | null;
+  onHoverMenu: (menu: HeaderMegaMenu | null) => void;
+  onSelect: (name: (typeof landingNav)[number]) => void;
+}) {
+  const [activeSection, setActiveSection] = useState<(typeof landingNav)[number]>("Home");
+
+  useEffect(() => {
+    const sections = landingNav
+      .map((name) => document.getElementById(name.toLowerCase().replaceAll(" ", "-")))
+      .filter(Boolean) as HTMLElement[];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible)
+          setActiveSection(
+            (visible.target as HTMLElement).dataset.nav as (typeof landingNav)[number],
+          );
+      },
+      { rootMargin: "-35% 0px -55% 0px", threshold: [0.01, 0.2, 0.5] },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <nav className="hidden items-center gap-1 lg:flex" aria-label="Landing navigation">
+      {landingNav.map((name) => {
+        const hasMegaMenu =
+          name === "Venues" || name === "Upcoming Events" || name === "Highlights";
+        return (
+          <button
+            key={name}
+            onPointerEnter={() => onHoverMenu(hasMegaMenu ? (name as HeaderMegaMenu) : null)}
+            onFocus={() => onHoverMenu(hasMegaMenu ? (name as HeaderMegaMenu) : null)}
+            onClick={() => {
+              // The hover panel is a preview, not a replacement for the link. Every
+              // entry scrolls to its own section, mega menu or not; the panel is
+              // closed first so it is not left hanging over the section it just
+              // scrolled to. Hover/focus still open it, which is how it is reached.
+              onHoverMenu(null);
+              onSelect(name);
+            }}
+            aria-expanded={hasMegaMenu ? activeHeaderMenu === name : undefined}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${activeSection === name ? "bg-[#b8f05a] text-[#102521]" : "text-white/75 hover:bg-white/10 hover:text-white"}`}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 /** Mounted by /landing. `signin` arrives as a prop rather than via Route.useSearch(), which
  *  would have kept reading the "/" route's search and broken once this moved. `from` still
  *  names /landing so the search updater below types against that route's schema. */
@@ -1463,7 +1723,6 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   const navigate = useNavigate({ from: "/landing" });
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<(typeof landingNav)[number]>("Home");
   /* Drives the staggered tile sweep in How It Works. Tracks isIntersecting rather than
      latching true once, so leaving the section and coming back replays it — removing the
      class and re-adding it is what restarts the CSS animation. */
@@ -1480,7 +1739,6 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   const [activeSport, setActiveSport] = useState<(typeof learnSports)[number]["slug"]>(
     "pickleball",
   );
-  const [heroIndex, setHeroIndex] = useState(0);
   const [lightbox, setLightbox] = useState<string | null>(null);
   /* Which highlight category is open, and where in its three frames. */
   const [highlightOpen, setHighlightOpen] = useState<{ key: string; idx: number } | null>(null);
@@ -1511,15 +1769,6 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   const [headerSolid, setHeaderSolid] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
   const [headerHovering, setHeaderHovering] = useState(false);
-  const [showBackToTop, setShowBackToTop] = useState(false);
-  /* 0 at the top of the page, 1 at the bottom. Drives the ring around the back-to-top
-     button, so its arc reads as distance remaining rather than just decoration. */
-  const [scrollProgress, setScrollProgress] = useState(0);
-  /* Bumped each time the ring closes, and used as the burst element's key so React remounts
-     it and the one-shot keyframes replay. Scrolling up and back down fires it again; sitting
-     at the bottom does not re-fire, which is what the edge-transition ref guards. */
-  const [burstKey, setBurstKey] = useState(0);
-  const wasAtBottom = useRef(false);
   const [activeHeaderMenu, setActiveHeaderMenu] = useState<HeaderMegaMenu | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
   /* The drawer has to outlive the click that closes it, or it would vanish instead of
@@ -1677,59 +1926,35 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   });
 
   useEffect(() => {
-    const timer = window.setInterval(
-      () => setHeroIndex((index) => (index + 1) % heroImages.length),
-      6000,
-    );
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     const scroller = document.querySelector("main") as HTMLElement | null;
     let settleTimer: number | undefined;
+    let frame = 0;
+    /* Coalesced into a frame. This fires on every tick of a wheel, and the setters below
+       can re-render the whole page, so running one per event was the page re-rendering
+       dozens of times a second to decide whether a header border is on. */
     const update = () => {
+      frame = 0;
       const scrollTop = scroller?.scrollTop ?? window.scrollY;
       setHeaderSolid(scrollTop > 24);
-      setShowBackToTop(scrollTop > 360);
-      const maxScroll = scroller
-        ? scroller.scrollHeight - scroller.clientHeight
-        : document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(maxScroll > 0 ? Math.min(1, Math.max(0, scrollTop / maxScroll)) : 0);
       setHeaderHidden(false);
       if (settleTimer) window.clearTimeout(settleTimer);
       if (scrollTop > 24 && !headerHovering && !activeHeaderMenu) {
         settleTimer = window.setTimeout(() => setHeaderHidden(true), 1100);
       }
     };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
     update();
-    scroller?.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("scroll", update, { passive: true });
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       if (settleTimer) window.clearTimeout(settleTimer);
-      scroller?.removeEventListener("scroll", update);
-      window.removeEventListener("scroll", update);
+      scroller?.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll);
     };
   }, [activeHeaderMenu, headerHovering]);
-
-  useEffect(() => {
-    const sections = landingNav
-      .map((name) => document.getElementById(name.toLowerCase().replaceAll(" ", "-")))
-      .filter(Boolean) as HTMLElement[];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible)
-          setActiveSection(
-            (visible.target as HTMLElement).dataset.nav as (typeof landingNav)[number],
-          );
-      },
-      { rootMargin: "-35% 0px -55% 0px", threshold: [0.01, 0.2, 0.5] },
-    );
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
-  }, []);
 
   /* Scatter vector for one shard of a 4x4 break-up. Derived from the cell's row/column so
      the pieces fly outward from the middle rather than in random directions, and so the
@@ -2118,18 +2343,6 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [signInOpen, signInBusy]);
 
-  useEffect(() => {
-    const atBottom = scrollProgress > 0.995;
-    if (atBottom && !wasAtBottom.current) setBurstKey((key) => key + 1);
-    wasAtBottom.current = atBottom;
-  }, [scrollProgress]);
-
-  const scrollToTop = () => {
-    const scroller = document.querySelector("main") as HTMLElement | null;
-    if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
-    else window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const featureCards = [
     [
       CalendarCheck2,
@@ -2225,91 +2438,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
 
   return (
     <div className="bg-[#f6f8f7] text-[#102521]">
-      <button
-        type="button"
-        onClick={scrollToTop}
-        aria-label="Back to top"
-        className={`fixed bottom-5 right-5 z-1100 flex h-12 w-12 items-center justify-center rounded-full bg-[#0b3d35] text-[#b8f05a] shadow-lg shadow-[#09231f]/25 transition-all duration-300 hover:-translate-y-1 hover:bg-[#126152] focus:outline-none focus:ring-2 focus:ring-[#b8f05a] focus:ring-offset-2 motion-reduce:transition-none sm:bottom-7 sm:right-7 ${showBackToTop ? "translate-y-0 scale-100 opacity-100" : "pointer-events-none translate-y-5 scale-90 opacity-0"}`}
-      >
-        {/* Progress ring. The static border this replaces is now the faint track circle, so
-            the edge still reads as an outline at 0%. Rotated -90deg so the arc starts at
-            twelve o'clock, and stroke-dashoffset is the only thing that changes as you
-            scroll — cheap enough to update on every scroll event. */}
-        <svg
-          viewBox="0 0 48 48"
-          aria-hidden
-          className="pointer-events-none absolute inset-0 h-full w-full -rotate-90"
-        >
-          <circle cx="24" cy="24" r="22" fill="none" stroke="rgb(184 240 90 / 0.2)" strokeWidth="2.5" />
-          <circle
-            cx="24"
-            cy="24"
-            r="22"
-            fill="none"
-            stroke="#b8f05a"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeDasharray={138.23}
-            strokeDashoffset={138.23 * (1 - scrollProgress)}
-            className="transition-[stroke-dashoffset] duration-150 ease-out motion-reduce:transition-none"
-          />
-        </svg>
-        {/* The fuse. Rotating a full-size wrapper puts the spark on the arc's leading edge
-            without any trigonometry — the dot sits at the ring's twelve o'clock and the
-            wrapper carries it round by however far you have scrolled. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 transition-transform duration-150 ease-out motion-reduce:transition-none"
-          style={{ transform: `rotate(${scrollProgress * 360}deg)` }}
-        >
-          <span className="absolute left-1/2 top-[2px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#d3ff87] shadow-[0_0_8px_1.5px_rgba(184,240,90,0.85)]" />
-          {/* Emitter pinned to the spark, spun back by the same angle the wrapper spun forward.
-              Without that counter-rotation the embers would fall along the ring's local axis —
-              sideways or upward depending on where you are in the scroll — instead of down. */}
-          <span
-            className="absolute left-1/2 top-[2px] transition-transform duration-150 ease-out motion-reduce:transition-none"
-            style={{ transform: `rotate(${-scrollProgress * 360}deg)` }}
-          >
-            {FUSE_EMBERS.map((ember, i) => (
-              <span
-                key={i}
-                style={
-                  {
-                    "--ex": `${ember.ex}px`,
-                    animationDelay: `${ember.delay}s`,
-                  } as CSSProperties
-                }
-                className="absolute h-[3px] w-[3px] rounded-full bg-[#b8f05a] opacity-0 shadow-[0_0_5px_1px_rgba(184,240,90,0.7)] motion-safe:animate-[fuse-ember_1.2s_linear_infinite]"
-              />
-            ))}
-          </span>
-        </span>
-
-        {burstKey > 0 && (
-          <span key={burstKey} aria-hidden className="pointer-events-none absolute inset-0">
-            {SHOWER_DOTS.map((dot, i) => (
-              <span
-                key={i}
-                style={{ width: dot.size, height: dot.size }}
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-              >
-                <span
-                  style={
-                    {
-                      "--dx": `${dot.dx.toFixed(1)}px`,
-                      "--dy": `${dot.dy.toFixed(1)}px`,
-                      animationDelay: `${dot.delay}ms`,
-                    } as CSSProperties
-                  }
-                  className="absolute inset-0 rounded-full bg-[#d3ff87] opacity-0 shadow-[0_0_6px_1px_rgba(184,240,90,0.8)] motion-safe:animate-[fuse-shower_.75s_ease-out_forwards]"
-                />
-              </span>
-            ))}
-          </span>
-        )}
-
-        <ChevronUp className="relative h-6 w-6" strokeWidth={2.5} />
-      </button>
+      <BackToTop />
       <header
         onMouseEnter={() => {
           setHeaderHovering(true);
@@ -2348,35 +2477,11 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                 />
               </span>
             </button>
-            <nav className="hidden items-center gap-1 lg:flex" aria-label="Landing navigation">
-              {landingNav.map((name) => {
-                const hasMegaMenu =
-                  name === "Venues" || name === "Upcoming Events" || name === "Highlights";
-                return (
-                  <button
-                    key={name}
-                    onPointerEnter={() =>
-                      setActiveHeaderMenu(hasMegaMenu ? (name as HeaderMegaMenu) : null)
-                    }
-                    onFocus={() =>
-                      setActiveHeaderMenu(hasMegaMenu ? (name as HeaderMegaMenu) : null)
-                    }
-                    onClick={() => {
-                      // The hover panel is a preview, not a replacement for the link. Every
-                      // entry scrolls to its own section, mega menu or not; the panel is
-                      // closed first so it is not left hanging over the section it just
-                      // scrolled to. Hover/focus still open it, which is how it is reached.
-                      setActiveHeaderMenu(null);
-                      scrollTo(name);
-                    }}
-                    aria-expanded={hasMegaMenu ? activeHeaderMenu === name : undefined}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${activeSection === name ? "bg-[#b8f05a] text-[#102521]" : "text-white/75 hover:bg-white/10 hover:text-white"}`}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-            </nav>
+            <SectionNav
+              activeHeaderMenu={activeHeaderMenu}
+              onHoverMenu={setActiveHeaderMenu}
+              onSelect={scrollTo}
+            />
             <div className="flex items-center gap-2">
               {player ? (
                 <button
@@ -3399,63 +3504,35 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         </div>
       )}
 
-      <section
-        id="home"
-        data-nav="Home"
-        className="relative isolate min-h-175 overflow-hidden bg-[#09231f] pt-24 text-white sm:min-h-190"
-      >
-        {heroImages.map((image, index) => (
-          <img
-            key={image}
-            src={image}
-            alt="Players enjoying sport"
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${index === heroIndex ? "opacity-100" : "opacity-0"}`}
-            fetchPriority={index === 0 ? "high" : "auto"}
-          />
-        ))}
-        <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(5,25,21,.92)_5%,rgba(5,25,21,.68)_48%,rgba(5,25,21,.24))]" />
-        <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-[#09231f] to-transparent" />
-        <div className="relative mx-auto flex min-h-155 max-w-7xl flex-col justify-end px-5 pb-16 sm:min-h-170 sm:px-8 sm:pb-24">
-          <div className="max-w-3xl animate-[sport-fade-in-up_.7s_ease-out_both]">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#b8f05a]/50 bg-[#b8f05a]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.15em] text-[#d9ff9b]">
-              <span className="h-2 w-2 rounded-full bg-[#b8f05a]" /> Dedicated court booking
-              platform
-            </span>
-            <h1 className="mt-5 font-display text-5xl font-bold leading-[.95] tracking-[-.055em] sm:text-7xl">
-              Your game starts <span className="text-[#b8f05a]">here.</span>
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/78 sm:text-lg">
-              Find and reserve badminton, basketball, pickleball, volleyball, tennis, football, and
-              more across the Philippines with real-time availability and secure online booking.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={startBooking}
-                className="inline-flex items-center gap-2 rounded-full bg-[#b8f05a] px-6 py-3.5 font-bold text-[#102521] transition hover:-translate-y-0.5 hover:bg-[#d3ff87]"
-              >
-                Book a court <ChevronRight className="h-4 w-4" />
-              </button>
-              <button
-                onClick={openExplorer}
-                className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 py-3.5 font-bold backdrop-blur transition hover:bg-white/20"
-              >
-                <Play className="h-4 w-4 fill-current" /> Explore venues
-              </button>
-            </div>
-          </div>
-          <div className="mt-12 flex items-center gap-2">
-            {heroImages.map((_, index) => (
-              <button
-                key={index}
-                aria-label={`Show slide ${index + 1}`}
-                onClick={() => setHeroIndex(index)}
-                className={`h-1.5 rounded-full transition-all ${index === heroIndex ? "w-10 bg-[#b8f05a]" : "w-4 bg-white/40"}`}
-              />
-            ))}
+      <HeroCarousel>
+        <div className="max-w-3xl animate-[sport-fade-in-up_.7s_ease-out_both]">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#b8f05a]/50 bg-[#b8f05a]/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.15em] text-[#d9ff9b]">
+            <span className="h-2 w-2 rounded-full bg-[#b8f05a]" /> Dedicated court booking platform
+          </span>
+          <h1 className="mt-5 font-display text-5xl font-bold leading-[.95] tracking-[-.055em] sm:text-7xl">
+            Your game starts <span className="text-[#b8f05a]">here.</span>
+          </h1>
+          <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/78 sm:text-lg">
+            Find and reserve badminton, basketball, pickleball, volleyball, tennis, football, and
+            more across the Philippines with real-time availability and secure online booking.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={startBooking}
+              className="inline-flex items-center gap-2 rounded-full bg-[#b8f05a] px-6 py-3.5 font-bold text-[#102521] transition hover:-translate-y-0.5 hover:bg-[#d3ff87]"
+            >
+              Book a court <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              onClick={openExplorer}
+              className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 py-3.5 font-bold backdrop-blur transition hover:bg-white/20"
+            >
+              <Play className="h-4 w-4 fill-current" /> Explore venues
+            </button>
           </div>
         </div>
-      </section>
+      </HeroCarousel>
 
       {/* The card floats on -mt-7, so its top 28px overlap the hero and the rest sits in a
           band of its own. The wrapper carries the Venues green so that band matches the

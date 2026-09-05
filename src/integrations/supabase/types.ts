@@ -826,6 +826,52 @@ export type Database = {
           },
         ]
       }
+      assistant_query_feedback: {
+        Row: {
+          id: number
+          category: string
+          dedupe_key: string
+          normalized_query: string
+          display_query: string | null
+          role: string
+          resolved_intent: string | null
+          sport_term: string | null
+          amenity_term: string | null
+          location_term: string | null
+          result_count: number | null
+          occurrence_count: number
+          first_seen_at: string
+          last_seen_at: string
+          status: string
+          resolution_type: string | null
+          resolution_id: number | null
+          admin_notes: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          truncated: boolean
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      assistant_term_mappings: {
+        Row: {
+          id: number
+          kind: string
+          term: string
+          normalized_term: string
+          target_value: string
+          target_id: number | null
+          active: boolean
+          created_by: string | null
+          created_at: string
+          updated_by: string | null
+          updated_at: string
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       user_roles: {
         Row: {
           user_id: string
@@ -1123,6 +1169,47 @@ export type Database = {
       court_price_for_hours: {
         Args: { _court_id: number; _hours: string[] }
         Returns: number
+      }
+      get_active_assistant_mappings: {
+        Args: Record<PropertyKey, never>
+        Returns: { kind: string; normalized_term: string; target_value: string }[]
+      }
+      record_assistant_feedback: {
+        Args: {
+          _category: string
+          _query: string
+          _sport_term?: string | null
+          _amenity_term?: string | null
+          _location_term?: string | null
+          _resolved_intent?: string | null
+          _result_count?: number | null
+        }
+        Returns: undefined
+      }
+      admin_review_assistant_feedback: {
+        Args: { _id: number; _status: string; _notes?: string | null }
+        Returns: undefined
+      }
+      admin_upsert_assistant_mapping: {
+        Args: { _kind: string; _term: string; _target_value: string; _feedback_id?: number | null }
+        Returns: number
+      }
+      admin_set_assistant_mapping_active: {
+        Args: { _id: number; _active: boolean }
+        Returns: undefined
+      }
+      admin_assistant_insight_stats: {
+        Args: { _since?: string | null }
+        Returns: { category: string; status: string; signals: number; occurrences: number }[]
+      }
+      admin_assistant_demand: {
+        Args: { _since?: string | null; _limit?: number | null }
+        Returns: {
+          location_term: string | null
+          sport_term: string | null
+          searches: number
+          last_seen_at: string
+        }[]
       }
       is_courthub_admin: {
         Args: Record<PropertyKey, never>

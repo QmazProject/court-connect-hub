@@ -7,6 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel } from "@/lib/booking-groups";
 import { canCancel, canSettleRefund, describeRefund } from "@/lib/booking-actions";
+import {
+  NON_COUNTING_STATUS_FILTER,
+  countByUser,
+  isCountableBooking,
+  isRepeatCustomer,
+} from "@/lib/booking-counts";
 
 import {
   CourtBlockRulesEditor,
@@ -28,6 +34,21 @@ import {
   type DayKey,
   type HoursMap,
 } from "@/lib/operating-hours";
+import {
+  DEFAULT_TIMEZONE,
+  addZonedDays,
+  zonedDateISO,
+  zonedDayBoundsUtc,
+  zonedDayOfWeek,
+  zonedHour,
+} from "@/lib/tz";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Area, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { MapPicker } from "@/components/MapPicker";
 import { ImageUploader } from "@/components/ImageUploader";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -91,6 +112,9 @@ import {
   Check,
   TrendingUp,
   TrendingDown,
+  Activity,
+  BarChart3,
+  Repeat,
   Wallet,
   Flame,
   Trophy,
@@ -931,6 +955,147 @@ function ComingSoon({ title, body }: { title: string; body: string }) {
   );
 }
 
+/* ── Dashboard analytics ────────────────────────────────────────────────────
+   Colours are computed against the card surface (#ffffff — this app has no dark
+   mode wired), never picked by eye. The brand teal #12806d measures OKLCH chroma
+   0.096, just under the 0.10 floor below which a hue reads as grey once it is a
+   2px line, so the series step is that same hue with the chroma corrected to
+   0.102: indistinguishable as a brand colour, legible as a mark. */
+const VIZ = {
+  series: "#00846f", // L .545 C .102 — 4.64:1 on white
+  trend: "#005647", // same hue, darker: the smoothed line reads as a summary of the series
+  up: "#006300",
+  down: "#d03b3b",
+  pending: "#fab219",
+} as const;
+
+/* Sequential ramp for the heatmap: one hue, lightness stepping ~.08 a time so
+   neighbouring buckets stay apart. Sequential rather than ordinal — the lightest
+   step is allowed to recede into the surface, because "nearly empty" is exactly
+   what an idle hour should look like. Index 0 is the true zero. */
+const HEAT_RAMP = [
+  "#f2f6f5",
+  "#d8ede7",
+  "#b5d8cf",
+  "#91c2b5",
+  "#6bac9c",
+  "#419684",
+  "#00806c",
+  "#006a55",
+] as const;
+
+const DAY_RANGES = [7, 30, 90] as const;
+
+/** A reporting period is either a rolling window of days or a calendar year.
+ *  Generalised from the plain day count it started as, so a tenant can report on
+ *  a year without a second control competing with this one over the same page. */
+type PeriodKey = `d${number}` | `y${number}`;
+
+type Period = {
+  key: PeriodKey;
+  /** Inclusive venue-local dates. */
+  startISO: string;
+  endISO: string;
+  prevStartISO: string;
+  prevEndISO: string;
+  days: number;
+  /** "the last 30 days" / "2026" — reads inside a sentence. */
+  label: string;
+  /** "30 days" / "2026" — reads on a button. */
+  shortLabel: string;
+  compareLabel: string;
+};
+
+const daysBetween = (fromISO: string, toISO: string) =>
+  Math.round((Date.parse(`${toISO}T00:00:00Z`) - Date.parse(`${fromISO}T00:00:00Z`)) / 86_400_000) +
+  1;
+
+function resolvePeriod(key: PeriodKey, tz: string): Period {
+  const todayISO = zonedDateISO(new Date(), tz);
+  if (key.startsWith("y")) {
+    const year = Number(key.slice(1));
+    const startISO = `${year}-01-01`;
+    const lastDay = `${year}-12-31`;
+    /* The current year stops at today rather than running on to December, so the
+       figure is year-to-date and the comparison below is like for like. */
+    const endISO = lastDay > todayISO ? todayISO : lastDay;
+    const days = daysBetween(startISO, endISO);
+    const prevStartISO = `${year - 1}-01-01`;
+    return {
+      key,
+      startISO,
+      endISO,
+      prevStartISO,
+      /* Matched by span, not by calendar, so a part-year compares against the same
+         number of days a year earlier and a leap day cannot skew the delta. */
+      prevEndISO: addZonedDays(prevStartISO, days - 1),
+      days,
+      label: String(year),
+      shortLabel: String(year),
+      compareLabel: String(year - 1),
+    };
+  }
+  const n = Number(key.slice(1));
+  const startISO = addZonedDays(todayISO, -(n - 1));
+  const prevEndISO = addZonedDays(startISO, -1);
+  return {
+    key,
+    startISO,
+    endISO: todayISO,
+    prevStartISO: addZonedDays(prevEndISO, -(n - 1)),
+    prevEndISO,
+    days: n,
+    label: `the last ${n} days`,
+    shortLabel: `${n} days`,
+    compareLabel: `the ${n} days before`,
+  };
+}
+
+const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+const peso = (n: number) =>
+  "₱" + Math.round(n).toLocaleString("en-PH", { maximumFractionDigits: 0 });
+
+/** 1,284 / 12.9K / 1.4M — stat tiles get compact figures so a good month does not
+ *  reflow the row. Full precision stays in the tooltip and the panels below. */
+function compact(n: number): string {
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (Math.abs(n) >= 10_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  return Math.round(n).toLocaleString("en-PH");
+}
+
+/** Percentage change, or null when there is no baseline to compare against —
+ *  a first month of trading has no "vs previous" and must not claim +100%. */
+function pctChange(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return ((current - previous) / previous) * 100;
+}
+
+/** Centred-right moving average: each point is the mean of the trailing `window`
+ *  days. Short ranges get a shorter window — a 7-day mean over 7 days of data is
+ *  one flat line and says nothing. */
+function movingAverage(values: number[], window: number): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < window - 1) return null;
+    let sum = 0;
+    for (let k = i - window + 1; k <= i; k++) sum += values[k];
+    return sum / window;
+  });
+}
+
+type DayPoint = { date: string; label: string; revenue: number; bookings: number };
+type ScheduleRow = {
+  id: number;
+  userId: string;
+  start: string;
+  end: string;
+  court: string;
+  customer: string;
+  status: string;
+  paid: string;
+};
+type BoardRow = { key: string; name: string; sub: string; revenue: number; bookings: number };
+
 function DashboardOverview({
   venues,
   loading,
@@ -940,42 +1105,1254 @@ function DashboardOverview({
   loading: boolean;
   setSection: (s: SectionKey) => void;
 }) {
+  const [periodKey, setPeriodKey] = useState<PeriodKey>("d30");
+  const tz = venues[0]?.timezone || DEFAULT_TIMEZONE;
+  const period = useMemo(() => resolvePeriod(periodKey, tz), [periodKey, tz]);
+  const years = useMemo(() => tenantYears(venues, tz), [venues, tz]);
+  const [metric, setMetric] = useState<"revenue" | "bookings">("revenue");
+  const [chartKind, setChartKind] = useState<"area" | "bar">("area");
+  const [board, setBoard] = useState<"courts" | "venues">("courts");
+  const [boardSort, setBoardSort] = useState<"revenue" | "bookings">("revenue");
+
   const venueIds = venues.map((v) => v.id);
-  const statsQ = useQuery({
-    queryKey: ["tenant-stats", venueIds.join(",")],
+  const venueKey = venueIds.join(",");
+
+  const analyticsQ = useQuery({
+    queryKey: ["tenant-analytics", venueKey, periodKey],
     enabled: venueIds.length > 0,
     queryFn: async () => {
-      const { data: courts } = await supabase
+      /* One venue's timezone stands for the account: bookings are stored as
+         instants, and the tenant reads them in the clock their courts run on. */
+      const todayISO = zonedDateISO(new Date(), tz);
+      /* Two windows are fetched at once — the period on screen and the one before
+         it — because every tile states a delta and a second round trip for the
+         baseline would make the two halves disagree under a slow network. */
+      const windowStartISO = period.prevStartISO;
+      const currentStartISO = period.startISO;
+      const periodEndISO = period.endISO;
+      const fetchFrom = zonedDayBoundsUtc(windowStartISO, tz).start.toISOString();
+      /* Only as far as the period runs. Today's schedule and the upcoming count
+         both mean "now" whatever period is selected, so they are fetched on their
+         own below rather than dragging this window out to today for a past year. */
+      const fetchTo = zonedDayBoundsUtc(addZonedDays(periodEndISO, 1), tz).start.toISOString();
+
+      const { data: courtRows, error: courtErr } = await supabase
         .from("courts")
-        .select("id, venue_id")
+        .select("id, name, venue_id, is_active, inherit_venue_hours, operating_hours")
         .in("venue_id", venueIds);
-      const courtIds = (courts ?? []).map((c) => c.id);
-      let upcoming = 0;
-      if (courtIds.length) {
-        const { count } = await supabase
-          .from("bookings")
-          .select("id", { count: "exact", head: true })
-          .in("court_id", courtIds)
-          .gte("end_time", new Date().toISOString());
-        upcoming = count ?? 0;
+      if (courtErr) throw courtErr;
+      const courts = courtRows ?? [];
+
+      const courtIds = courts.map((c) => c.id);
+      const { data: bookingRows, error: bookingErr } = courtIds.length
+        ? await supabase
+            .from("bookings")
+            .select(
+              "id, court_id, user_id, start_time, end_time, status, payment_status, refund_status, cancelled_at",
+            )
+            .in("court_id", courtIds)
+            .gte("start_time", fetchFrom)
+            .lt("start_time", fetchTo)
+            /* Newest first, so if a very large account ever reaches the cap it is
+               the oldest baseline days that fall off rather than an arbitrary
+               slice of the range being read on screen. */
+            .order("start_time", { ascending: false })
+            .limit(10000)
+        : { data: [], error: null };
+      if (bookingErr) throw bookingErr;
+      const bookings = bookingRows ?? [];
+
+      /* Revenue is dated by settlement, and a payment can settle well after the row
+         was created, so the fetch floor sits a month behind the window it feeds;
+         the settled-date filter below is what actually decides the range. */
+      const txFloor = zonedDayBoundsUtc(addZonedDays(windowStartISO, -30), tz).start.toISOString();
+      const { data: txRows, error: txErr } = await supabase
+        .from("transactions")
+        .select("amount, status, paid_at, created_at, booking_id, venue_id")
+        .in("venue_id", venueIds)
+        .gte("created_at", txFloor)
+        .order("created_at", { ascending: false })
+        .limit(10000);
+      if (txErr) throw txErr;
+      const txs = txRows ?? [];
+
+      const courtById = new Map(courts.map((c) => [c.id, c]));
+      const venueById = new Map(venues.map((v) => [v.id, v]));
+
+      /* ── daily series ──────────────────────────────────────────────────────
+         Revenue is dated by settlement and bookings by the session they are for.
+         They answer different questions and are deliberately never summed or put
+         on one axis together — the toggle shows one at a time, and each subtitle
+         says which date it is counting. */
+      const dayIndex = new Map<string, number>();
+      const days: DayPoint[] = [];
+      for (let i = 0; i < period.days; i++) {
+        const date = addZonedDays(currentStartISO, i);
+        dayIndex.set(date, days.length);
+        days.push({
+          date,
+          label: new Date(`${date}T00:00:00Z`).toLocaleDateString("en-PH", {
+            month: "short",
+            day: "numeric",
+            timeZone: "UTC",
+          }),
+          revenue: 0,
+          bookings: 0,
+        });
       }
-      return { courts: courtIds.length, upcoming };
+
+      let revenueCurrent = 0;
+      let revenuePrevious = 0;
+      for (const t of txs) {
+        if (t.status !== "paid") continue;
+        const settled = t.paid_at ?? t.created_at;
+        if (!settled) continue;
+        const date = zonedDateISO(new Date(settled), tz);
+        if (date < windowStartISO || date > periodEndISO) continue;
+        const amount = Number(t.amount) || 0;
+        if (date >= currentStartISO) {
+          revenueCurrent += amount;
+          const idx = dayIndex.get(date);
+          if (idx !== undefined) days[idx].revenue += amount;
+        } else {
+          revenuePrevious += amount;
+        }
+      }
+
+      /* ── bookings, occupancy, heatmap, schedule ────────────────────────────
+         One pass: every derived figure below reads the same rows, so nothing on
+         the page can disagree with anything else on it. */
+      const heat: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+      const today: ScheduleRow[] = [];
+      const courtAgg = new Map<number, { bookings: number; revenue: number; hours: number }>();
+      const venueAgg = new Map<number, { bookings: number; revenue: number }>();
+      let bookingsCurrent = 0;
+      let bookingsPrevious = 0;
+      let bookedHoursCurrent = 0;
+      let bookedHoursPrevious = 0;
+      let cancelledCurrent = 0;
+      let totalCurrent = 0;
+      let refundPending = 0;
+      let refundDone = 0;
+      const scheduleUserIds = new Set<string>();
+      let upcoming = 0;
+      const nowMs = Date.now();
+
+      for (const b of bookings) {
+        const startMs = new Date(b.start_time).getTime();
+        const endMs = new Date(b.end_time).getTime();
+        const date = zonedDateISO(new Date(b.start_time), tz);
+        const cancelled = b.status === "cancelled" || b.cancelled_at != null;
+        const live = b.status === "pending" || b.status === "confirmed";
+        const hours = Math.max(0, (endMs - startMs) / 3_600_000);
+        const inCurrent = date >= currentStartISO && date <= periodEndISO;
+        const inPrevious = date >= windowStartISO && date < currentStartISO;
+
+        if (inCurrent) {
+          totalCurrent += 1;
+          if (cancelled) cancelledCurrent += 1;
+          if (b.refund_status === "pending") refundPending += 1;
+          if (b.refund_status === "refunded") refundDone += 1;
+        }
+        /* A cancelled session neither occupied a court nor counts as a booking
+           the tenant delivered — it is counted once, in the refunds panel. */
+        if (cancelled) continue;
+
+        if (inCurrent) {
+          bookingsCurrent += 1;
+          bookedHoursCurrent += hours;
+          const idx = dayIndex.get(date);
+          if (idx !== undefined) days[idx].bookings += 1;
+        } else if (inPrevious) {
+          bookingsPrevious += 1;
+          bookedHoursPrevious += hours;
+        }
+
+        if (inCurrent) {
+          /* Every hour the session covers, not just the hour it starts — the
+             question the heatmap answers is when courts are *occupied*. Capped
+             so a malformed row cannot spin here. */
+          const steps = Math.min(24, Math.ceil(hours));
+          for (let s = 0; s < steps; s++) {
+            const at = new Date(startMs + s * 3_600_000);
+            heat[zonedDayOfWeek(zonedDateISO(at, tz))][zonedHour(at, tz)] += 1;
+          }
+          const court = courtById.get(b.court_id);
+          const agg = courtAgg.get(b.court_id) ?? { bookings: 0, revenue: 0, hours: 0 };
+          agg.bookings += 1;
+          agg.hours += hours;
+          courtAgg.set(b.court_id, agg);
+          if (court) {
+            const vAgg = venueAgg.get(court.venue_id) ?? { bookings: 0, revenue: 0 };
+            vAgg.bookings += 1;
+            venueAgg.set(court.venue_id, vAgg);
+          }
+        }
+      }
+
+      /* ── now, whatever period is being reported on ──────────────────────────
+         Today's schedule and the count of what is coming are about the clock, not
+         the report. Fetched separately and cheaply — eight days — so selecting a
+         past year does not drag the period window forward to today just to answer
+         them, and so neither goes blank when it does. */
+      const todayBounds = zonedDayBoundsUtc(todayISO, tz);
+      const nowFrom = todayBounds.start.toISOString();
+      const nowTo = zonedDayBoundsUtc(addZonedDays(todayISO, 8), tz).start.toISOString();
+      const { data: nowRows } = courtIds.length
+        ? await supabase
+            .from("bookings")
+            .select("id, court_id, user_id, start_time, end_time, status, payment_status")
+            .in("court_id", courtIds)
+            .gte("start_time", nowFrom)
+            .lt("start_time", nowTo)
+            .not("status", "in", NON_COUNTING_STATUS_FILTER)
+            .order("start_time", { ascending: true })
+            .limit(TENANT_ROW_CAP)
+        : { data: [] };
+      for (const b of nowRows ?? []) {
+        if (!isCountableBooking({ status: b.status, cancelled_at: null })) continue;
+        const startMs = new Date(b.start_time).getTime();
+        if (startMs >= nowMs && startMs <= nowMs + 7 * 86_400_000) upcoming += 1;
+        if (zonedDateISO(new Date(b.start_time), tz) === todayISO) {
+          today.push({
+            id: b.id,
+            userId: b.user_id,
+            start: b.start_time,
+            end: b.end_time,
+            court: courtById.get(b.court_id)?.name ?? `Court ${b.court_id}`,
+            customer: "",
+            status: b.status,
+            paid: b.payment_status,
+          });
+          scheduleUserIds.add(b.user_id);
+        }
+      }
+
+      /* Revenue per court needs the booking each payment belongs to; per venue the
+         transaction already carries it. Paying today for a session two months out
+         is normal here, and that booking sits outside the window fetched above —
+         so the few ids still unaccounted for are looked up directly rather than
+         widening the whole booking fetch to cover every future session. */
+      const courtOfBooking = new Map(bookings.map((b) => [b.id, b.court_id]));
+      const unresolved = Array.from(
+        new Set(
+          txs
+            .filter((t) => t.status === "paid" && t.booking_id != null)
+            .map((t) => t.booking_id)
+            .filter((id) => !courtOfBooking.has(id)),
+        ),
+      );
+      if (unresolved.length) {
+        const { data: extra } = await supabase
+          .from("bookings")
+          .select("id, court_id")
+          .in("id", unresolved.slice(0, 1000));
+        for (const b of extra ?? []) courtOfBooking.set(b.id, b.court_id);
+      }
+      for (const t of txs) {
+        if (t.status !== "paid") continue;
+        const settled = t.paid_at ?? t.created_at;
+        const date = settled ? zonedDateISO(new Date(settled), tz) : null;
+        if (!date || date < currentStartISO || date > periodEndISO) continue;
+        const amount = Number(t.amount) || 0;
+        const courtId = courtOfBooking.get(t.booking_id);
+        if (courtId !== undefined) {
+          const agg = courtAgg.get(courtId) ?? { bookings: 0, revenue: 0, hours: 0 };
+          agg.revenue += amount;
+          courtAgg.set(courtId, agg);
+        }
+        const vAgg = venueAgg.get(t.venue_id) ?? { bookings: 0, revenue: 0 };
+        vAgg.revenue += amount;
+        venueAgg.set(t.venue_id, vAgg);
+      }
+
+      if (scheduleUserIds.size) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", Array.from(scheduleUserIds));
+        const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? ""]));
+        for (const row of today) row.customer = nameById.get(row.userId) || "Guest";
+      }
+      today.sort((a, b) => a.start.localeCompare(b.start));
+
+      /* ── occupancy ─────────────────────────────────────────────────────────
+         Booked hours over the hours the courts were actually open, read from the
+         same operating-hours rules the booking flow enforces. A flat "12 hours a
+         day" assumption would quietly flatter a venue that opens at noon. */
+      const activeCourts = courts.filter((c) => c.is_active !== false);
+      const openHoursOver = (fromISO: string, dayCount: number) => {
+        let total = 0;
+        for (const court of activeCourts) {
+          const hours = effectiveHours(court, venueById.get(court.venue_id)?.operating_hours);
+          for (let i = 0; i < dayCount; i++) {
+            total += openHoursForDate(hours, addZonedDays(fromISO, i)).size;
+          }
+        }
+        return total;
+      };
+      const capacityCurrent = openHoursOver(currentStartISO, period.days);
+      const capacityPrevious = openHoursOver(windowStartISO, period.days);
+
+      const nameOfCourt = (id: number) => courtById.get(id)?.name ?? `Court ${id}`;
+      const venueOfCourt = (id: number) =>
+        venueById.get(courtById.get(id)?.venue_id ?? -1)?.name ?? "";
+
+      const courtBoard: BoardRow[] = Array.from(courtAgg.entries())
+        .map(([id, agg]) => ({
+          key: `court-${id}`,
+          name: nameOfCourt(id),
+          sub: venueOfCourt(id),
+          revenue: agg.revenue,
+          bookings: agg.bookings,
+        }))
+        .sort((a, b) => b.revenue - a.revenue || b.bookings - a.bookings);
+
+      const venueBoard: BoardRow[] = Array.from(venueAgg.entries())
+        .map(([id, agg]) => ({
+          key: `venue-${id}`,
+          name: venueById.get(id)?.name ?? `Venue ${id}`,
+          sub: `${courts.filter((c) => c.venue_id === id).length} courts`,
+          revenue: agg.revenue,
+          bookings: agg.bookings,
+        }))
+        .sort((a, b) => b.revenue - a.revenue || b.bookings - a.bookings);
+
+      return {
+        days,
+        revenue: { current: revenueCurrent, previous: revenuePrevious },
+        bookings: { current: bookingsCurrent, previous: bookingsPrevious },
+        occupancy: {
+          current: capacityCurrent > 0 ? bookedHoursCurrent / capacityCurrent : 0,
+          previous: capacityPrevious > 0 ? bookedHoursPrevious / capacityPrevious : 0,
+          measurable: capacityCurrent > 0,
+        },
+        upcoming,
+        heat,
+        heatMax: Math.max(1, ...heat.flat()),
+        today,
+        courtBoard,
+        venueBoard,
+        cancels: {
+          cancelled: cancelledCurrent,
+          total: totalCurrent,
+          refundPending,
+          refundDone,
+        },
+        courts: courts.length,
+        activeCourts: activeCourts.length,
+      };
     },
   });
+
+  const a = analyticsQ.data;
+  const sparkRevenue = useMemo(() => (a?.days ?? []).map((d) => d.revenue), [a]);
+  const sparkBookings = useMemo(() => (a?.days ?? []).map((d) => d.bookings), [a]);
 
   return (
     <>
       <SectionHeader title="Dashboard" subtitle="Your workspace at a glance." />
+
+      {/* One filter row, above everything it scopes: the tiles, the chart and all
+          four panels below re-read the same slice, so no two numbers on this page
+          can be describing different windows. Withheld until there is something to
+          scope — a range picker over an empty account only asks a dead question. */}
+      <div
+        className="mb-5 flex flex-wrap items-center gap-3"
+        hidden={loading || venues.length === 0}
+      >
+        <div
+          className="inline-flex rounded-lg border border-border bg-card p-0.5"
+          role="group"
+          aria-label="Date range"
+        >
+          {DAY_RANGES.map((days) => {
+            const key: PeriodKey = `d${days}`;
+            return (
+              <button
+                key={key}
+                onClick={() => setPeriodKey(key)}
+                aria-pressed={periodKey === key}
+                className={
+                  "rounded-md px-3 py-1.5 text-sm font-semibold transition " +
+                  (periodKey === key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground")
+                }
+              >
+                {days} days
+              </button>
+            );
+          })}
+        </div>
+        {/* Years sit in their own select rather than four more buttons: one row of
+            controls, and the rolling windows stay one tap apart. */}
+        <div className="relative">
+          <select
+            value={periodKey.startsWith("y") ? periodKey : ""}
+            onChange={(e) => e.target.value && setPeriodKey(e.target.value as PeriodKey)}
+            aria-label="Reporting year"
+            className="appearance-none rounded-lg border border-border bg-card py-1.5 pl-3 pr-9 text-sm font-semibold outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="">Year…</option>
+            {years.map((y) => (
+              <option key={y} value={`y${y}`}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+        <span className="text-xs text-muted-foreground">compared with {period.compareLabel}</span>
+        {analyticsQ.isFetching && !analyticsQ.isPending && (
+          <span className="text-xs text-muted-foreground">updating…</span>
+        )}
+      </div>
+
       {loading ? (
         <Skeleton />
+      ) : venues.length === 0 ? (
+        <EmptyState
+          title="No venues yet"
+          body="Create your first venue to start taking bookings — your revenue, occupancy and busiest hours will appear here."
+          cta={
+            <button
+              onClick={() => setSection("courts")}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            >
+              Go to Venues & Courts
+            </button>
+          }
+        />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard label="Venues" value={venues.length} />
-          <StatCard label="Courts" value={statsQ.data?.courts ?? 0} />
-          <StatCard label="Upcoming bookings" value={statsQ.data?.upcoming ?? 0} />
+        /* Held at reduced opacity rather than swapped for a skeleton while a new
+           range loads: the frame stays put and nothing below jumps. */
+        <div
+          className={analyticsQ.isFetching ? "opacity-60 transition-opacity" : "transition-opacity"}
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricTile
+              label="Revenue"
+              value={peso(a?.revenue.current ?? 0)}
+              delta={pctChange(a?.revenue.current ?? 0, a?.revenue.previous ?? 0)}
+              spark={sparkRevenue}
+              icon={<Wallet className="h-4 w-4" />}
+              hint={`settled in ${period.label}`}
+            />
+            <MetricTile
+              label="Bookings"
+              value={compact(a?.bookings.current ?? 0)}
+              delta={pctChange(a?.bookings.current ?? 0, a?.bookings.previous ?? 0)}
+              spark={sparkBookings}
+              icon={<BookOpen className="h-4 w-4" />}
+              hint={`sessions played in ${period.label}`}
+            />
+            <MetricTile
+              label="Occupancy"
+              value={
+                a?.occupancy.measurable ? Math.round((a?.occupancy.current ?? 0) * 100) + "%" : "—"
+              }
+              /* Points, not percent-of-a-percent: occupancy is already a rate, and
+                 "up 12%" on a rate is the classic misread. */
+              deltaPoints={
+                a?.occupancy.measurable
+                  ? Math.round(((a?.occupancy.current ?? 0) - (a?.occupancy.previous ?? 0)) * 100)
+                  : null
+              }
+              icon={<Flame className="h-4 w-4" />}
+              hint={
+                a?.occupancy.measurable
+                  ? "booked hours ÷ open hours"
+                  : "set your operating hours to measure this"
+              }
+            />
+            <MetricTile
+              label="Upcoming"
+              value={compact(a?.upcoming ?? 0)}
+              icon={<Timer className="h-4 w-4" />}
+              hint="confirmed in the next 7 days"
+            />
+          </div>
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            {venues.length} {venues.length === 1 ? "venue" : "venues"} · {a?.courts ?? 0}{" "}
+            {a?.courts === 1 ? "court" : "courts"} · {a?.activeCourts ?? 0} active
+          </p>
+
+          <TrendChart
+            days={a?.days ?? []}
+            metric={metric}
+            setMetric={setMetric}
+            kind={chartKind}
+            setKind={setChartKind}
+            period={period}
+          />
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <PeakHoursHeatmap heat={a?.heat} max={a?.heatMax ?? 1} />
+            <TodaySchedule rows={a?.today ?? []} onOpen={() => setSection("bookings")} />
+            <Leaderboard
+              rows={(board === "courts" ? a?.courtBoard : a?.venueBoard) ?? []}
+              board={board}
+              setBoard={setBoard}
+              sortBy={boardSort}
+              setSortBy={setBoardSort}
+            />
+            <RefundsPanel
+              cancels={a?.cancels}
+              period={period}
+              onOpen={() => setSection("transactions")}
+            />
+          </div>
         </div>
       )}
     </>
+  );
+}
+
+/** 12-ish point sparkline. The line sits in a de-emphasised step of the series hue
+ *  and only the latest point is picked out, so the tile reads as "shape, then now"
+ *  rather than as a second chart competing with the one below. */
+function Sparkline({ values }: { values: number[] }) {
+  const points = useMemo(() => {
+    if (values.length < 2) return [] as number[];
+    /* Down-sampled by bucket mean, never by dropping points: a spike that lands on
+       a skipped index would vanish from the shape entirely. */
+    const target = 12;
+    if (values.length <= target) return values;
+    const size = values.length / target;
+    return Array.from({ length: target }, (_, i) => {
+      const from = Math.floor(i * size);
+      const to = Math.max(from + 1, Math.floor((i + 1) * size));
+      const slice = values.slice(from, to);
+      return slice.reduce((s, v) => s + v, 0) / slice.length;
+    });
+  }, [values]);
+
+  if (points.length < 2) return <div className="h-8" />;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const span = max - min || 1;
+  const w = 100;
+  const h = 28;
+  const step = w / (points.length - 1);
+  const coords = points.map((v, i) => [i * step, h - 2 - ((v - min) / span) * (h - 4)] as const);
+  const d = coords
+    .map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`)
+    .join(" ");
+  const [lastX, lastY] = coords[coords.length - 1];
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-8 w-full" preserveAspectRatio="none" aria-hidden>
+      <path
+        d={d}
+        fill="none"
+        stroke={VIZ.series}
+        strokeOpacity={0.45}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={VIZ.series} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+/** Stat tile: label · value · delta against a named period · sparkline.
+ *  `delta` is a percentage; `deltaPoints` is for values that are already rates,
+ *  where a percentage change of a percentage is the classic misreading. */
+function MetricTile({
+  label,
+  value,
+  delta,
+  deltaPoints,
+  spark,
+  icon,
+  hint,
+}: {
+  label: string;
+  value: string;
+  delta?: number | null;
+  deltaPoints?: number | null;
+  spark?: number[];
+  icon?: React.ReactNode;
+  hint?: string;
+}) {
+  const shown = delta ?? deltaPoints ?? null;
+  const flat = shown !== null && Math.abs(shown) < 0.05;
+  const up = shown !== null && shown > 0;
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <span className="text-muted-foreground">{icon}</span>
+      </div>
+      <div className="mt-1 font-display text-3xl font-semibold">{value}</div>
+      <div className="mt-1 flex min-h-5 items-center gap-1.5 text-xs">
+        {shown === null ? (
+          <span className="text-muted-foreground">{hint}</span>
+        ) : (
+          <>
+            {/* The arrow carries the direction as well as the colour — a delta that
+                is green only is invisible to a red-green reader. */}
+            {flat ? (
+              <span className="font-semibold text-muted-foreground">no change</span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-0.5 font-semibold"
+                style={{ color: up ? VIZ.up : VIZ.down }}
+              >
+                {up ? (
+                  <TrendingUp className="h-3.5 w-3.5" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5" />
+                )}
+                {Math.abs(shown).toFixed(deltaPoints !== undefined && deltaPoints !== null ? 0 : 1)}
+                {deltaPoints !== undefined && deltaPoints !== null ? " pts" : "%"}
+              </span>
+            )}
+            <span className="text-muted-foreground">vs previous</span>
+          </>
+        )}
+      </div>
+      {spark && spark.length > 1 ? <Sparkline values={spark} /> : <div className="h-8" />}
+    </div>
+  );
+}
+
+/** The analytics graph. One measure at a time behind a toggle — revenue and
+ *  bookings share no unit, and putting them on two y-scales is the single most
+ *  misread thing a chart can do. The dashed line is the same series smoothed. */
+function TrendChart({
+  days,
+  metric,
+  setMetric,
+  kind,
+  setKind,
+  period,
+}: {
+  days: DayPoint[];
+  metric: "revenue" | "bookings";
+  setMetric: (m: "revenue" | "bookings") => void;
+  kind: "area" | "bar";
+  setKind: (k: "area" | "bar") => void;
+  period: Period;
+}) {
+  /* A seven-day mean over a seven-day range is one flat line; short periods get a
+     window they can actually move inside, long ones a wider one so a year of daily
+     points reads as a trend rather than as noise. */
+  const window = period.days <= 7 ? 3 : period.days > 120 ? 28 : 7;
+  const data = useMemo(() => {
+    const series = days.map((d) => (metric === "revenue" ? d.revenue : d.bookings));
+    const avg = movingAverage(series, window);
+    return days.map((d, i) => ({ ...d, value: series[i], trend: avg[i] }));
+  }, [days, metric, window]);
+
+  const config = {
+    value: { label: metric === "revenue" ? "Revenue" : "Bookings", color: VIZ.series },
+    trend: { label: `${window}-day average`, color: VIZ.trend },
+  } satisfies ChartConfig;
+
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const fmt = (n: number) => (metric === "revenue" ? peso(n) : compact(n));
+  /* Roughly six ticks whatever the range, so labels never collide. */
+  const tickEvery = Math.max(0, Math.ceil(days.length / 6) - 1);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">
+            {metric === "revenue" ? "Revenue" : "Bookings"} over time
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {metric === "revenue"
+              ? "Payments settled each day, and the running average."
+              : "Sessions starting each day, and the running average."}{" "}
+            {fmt(total)} in {period.label}.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-lg border border-border p-0.5"
+            role="group"
+            aria-label="Metric"
+          >
+            {(["revenue", "bookings"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
+                aria-pressed={metric === m}
+                className={
+                  "rounded-md px-3 py-1 text-xs font-semibold capitalize transition " +
+                  (metric === m
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground")
+                }
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          {/* Shape, not data: the same numbers as an area or as columns. Columns
+              read each day as its own quantity, which is what a tenant comparing
+              one Saturday with the next actually wants. */}
+          <div
+            className="inline-flex rounded-lg border border-border p-0.5"
+            role="group"
+            aria-label="Chart type"
+          >
+            {(
+              [
+                ["area", "Area", <Activity key="a" className="h-3.5 w-3.5" />],
+                ["bar", "Bars", <BarChart3 key="b" className="h-3.5 w-3.5" />],
+              ] as const
+            ).map(([value, label, icon]) => (
+              <button
+                key={value}
+                onClick={() => setKind(value)}
+                aria-pressed={kind === value}
+                title={`Show as ${label.toLowerCase()}`}
+                className={
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition " +
+                  (kind === value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground")
+                }
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {days.length === 0 ? (
+        <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+          Nothing booked in this range yet.
+        </div>
+      ) : (
+        <ChartContainer config={config} className="aspect-auto h-56 w-full">
+          <ComposedChart
+            data={data}
+            margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+            /* The 2px separator between touching columns is surface, not a stroke
+               drawn round each bar. */
+            barCategoryGap={2}
+          >
+            <defs>
+              <linearGradient id="tenant-analytics-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={VIZ.series} stopOpacity={0.18} />
+                <stop offset="100%" stopColor={VIZ.series} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            {/* Horizontal only, hairline, solid: the gridline is there to be read
+                past, not looked at. */}
+            <CartesianGrid vertical={false} stroke="var(--border)" strokeWidth={1} />
+            <XAxis
+              dataKey="label"
+              interval={tickEvery}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={16}
+            />
+            <YAxis
+              width={metric === "revenue" ? 56 : 36}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              tickFormatter={(v: number) => (metric === "revenue" ? "₱" + compact(v) : compact(v))}
+            />
+            <ChartTooltip
+              /* A crosshair finds the X on a continuous area. On columns the mark
+                 is the hit target, so the hovered day washes instead — a hairline
+                 through a bar it already covers reads as noise. */
+              cursor={
+                kind === "area"
+                  ? { stroke: "var(--border)", strokeWidth: 1 }
+                  : { fill: "var(--muted)", fillOpacity: 0.7 }
+              }
+              content={
+                <ChartTooltipContent
+                  indicator="line"
+                  formatter={(value, name) => (
+                    <span className="flex w-full justify-between gap-3">
+                      <span className="text-muted-foreground">
+                        {name === "trend" ? config.trend.label : config.value.label}
+                      </span>
+                      <span className="font-semibold tabular-nums text-foreground">
+                        {fmt(Number(value))}
+                      </span>
+                    </span>
+                  )}
+                />
+              }
+            />
+            {kind === "area" ? (
+              <Area
+                dataKey="value"
+                type="monotone"
+                stroke={VIZ.series}
+                strokeWidth={2}
+                fill="url(#tenant-analytics-fill)"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: "#ffffff" }}
+                isAnimationActive={false}
+              />
+            ) : (
+              /* Capped thickness so a 7-day range does not render seven slabs, and
+                 the rounded end sits only on the cap — the baseline stays square. */
+              <Bar
+                dataKey="value"
+                fill={VIZ.series}
+                maxBarSize={24}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
+              />
+            )}
+            <Line
+              dataKey="trend"
+              type="monotone"
+              stroke={VIZ.trend}
+              strokeWidth={2}
+              strokeDasharray="5 4"
+              dot={false}
+              connectNulls
+              isAnimationActive={false}
+            />
+          </ComposedChart>
+        </ChartContainer>
+      )}
+    </div>
+  );
+}
+
+/** When courts are actually occupied, day by hour. Sequential ramp: one hue, and
+ *  the palest step is allowed to sink into the surface because "nobody booked
+ *  this hour" is exactly what should look like nothing. */
+function PeakHoursHeatmap({ heat, max }: { heat?: number[][]; max: number }) {
+  const [hover, setHover] = useState<{ dow: number; hour: number; x: number; y: number } | null>(
+    null,
+  );
+  const grid = heat ?? Array.from({ length: 7 }, () => new Array(24).fill(0));
+  const busiest = useMemo(() => {
+    let best = { dow: 0, hour: 0, count: 0 };
+    grid.forEach((row, dow) =>
+      row.forEach((count, hour) => {
+        if (count > best.count) best = { dow, hour, count };
+      }),
+    );
+    return best;
+  }, [grid]);
+
+  const stepOf = (count: number) =>
+    count === 0 ? 0 : Math.max(1, Math.ceil((count / max) * (HEAT_RAMP.length - 1)));
+
+  return (
+    <div className="relative rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <h2 className="font-display text-lg font-semibold">Peak hours</h2>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {busiest.count > 0 ? (
+          <>
+            Busiest is{" "}
+            <span className="font-semibold text-foreground">
+              {DOW_LABELS[busiest.dow]} {fmtHourShort(busiest.hour)}
+            </span>{" "}
+            with {busiest.count} {busiest.count === 1 ? "booking" : "bookings"}.
+          </>
+        ) : (
+          "No bookings in this range yet."
+        )}
+      </p>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="border-separate border-spacing-0.5">
+          <caption className="sr-only">Bookings by day of week and hour of day</caption>
+          <thead>
+            <tr>
+              <th />
+              {Array.from({ length: 24 }, (_, h) => (
+                <th
+                  key={h}
+                  scope="col"
+                  className="pb-1 text-[9px] font-medium text-muted-foreground tabular-nums"
+                >
+                  {h % 6 === 0 ? fmtHourShort(h) : ""}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.map((row, dow) => (
+              <tr key={dow}>
+                <th
+                  scope="row"
+                  className="pr-1.5 text-right text-[10px] font-medium text-muted-foreground"
+                >
+                  {DOW_LABELS[dow]}
+                </th>
+                {row.map((count, hour) => (
+                  <td key={hour} className="p-0">
+                    {/* The 2px gap between cells is the border-spacing above — a
+                        stroke round each cell would add ink that is not data. */}
+                    <div
+                      role="img"
+                      aria-label={`${DOW_LABELS[dow]} ${fmtHourShort(hour)}: ${count} ${count === 1 ? "booking" : "bookings"}`}
+                      onPointerEnter={(e) =>
+                        setHover({
+                          dow,
+                          hour,
+                          x: e.currentTarget.offsetLeft,
+                          y: e.currentTarget.offsetTop,
+                        })
+                      }
+                      onPointerLeave={() => setHover(null)}
+                      className="h-4 w-4 rounded-[3px] transition-[outline] outline-transparent hover:outline-2 hover:outline-offset-1 hover:outline-primary"
+                      style={{ backgroundColor: HEAT_RAMP[stepOf(count)] }}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* The ramp's ends are labelled with the counts they stand for, so the
+          legend states a scale rather than a vague "more". */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+        <span>0 bookings</span>
+        <span className="inline-flex gap-0.5">
+          {HEAT_RAMP.map((c) => (
+            <span
+              key={c}
+              className="h-3 w-3 rounded-[2px] ring-1 ring-border"
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </span>
+        <span>
+          {max} {max === 1 ? "booking" : "bookings"}
+        </span>
+      </div>
+
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-10 rounded-md border border-border bg-popover px-2 py-1 text-xs shadow-md"
+          style={{ left: hover.x, top: hover.y - 38 }}
+        >
+          <span className="font-semibold tabular-nums text-foreground">
+            {grid[hover.dow][hover.hour]}
+          </span>{" "}
+          <span className="text-muted-foreground">
+            {DOW_LABELS[hover.dow]} {fmtHourShort(hover.hour)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What is happening on the courts today. The dashboard should answer "now" as
+ *  well as "last month". */
+function TodaySchedule({ rows, onOpen }: { rows: ScheduleRow[]; onOpen: () => void }) {
+  const time = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  const nowMs = Date.now();
+  return (
+    <div className="flex flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-lg font-semibold">Today</h2>
+        <button
+          onClick={onOpen}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+        >
+          All bookings <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {rows.length === 0
+          ? "Nothing on the courts today."
+          : `${rows.length} ${rows.length === 1 ? "session" : "sessions"} scheduled.`}
+      </p>
+      {rows.length > 0 && (
+        <ul className="nice-scroll mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+          {rows.map((r) => {
+            const done = new Date(r.end).getTime() < nowMs;
+            const live = new Date(r.start).getTime() <= nowMs && !done;
+            return (
+              <li
+                key={r.id}
+                className={
+                  "flex items-center gap-3 rounded-lg border px-3 py-2 " +
+                  (live ? "border-primary bg-primary/5" : "border-border") +
+                  (done ? " opacity-55" : "")
+                }
+              >
+                <span className="w-24 shrink-0 text-xs font-semibold tabular-nums">
+                  {time(r.start)}–{time(r.end)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium break-words">{r.court}</span>
+                  <span className="block text-xs break-words text-muted-foreground">
+                    {r.customer}
+                  </span>
+                </span>
+                {/* Payment state is a status, so it ships as a word — never a bare
+                    colour a reader has to decode. */}
+                <span
+                  className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                  style={
+                    r.paid === "paid"
+                      ? { color: VIZ.up, backgroundColor: "#0063001a" }
+                      : { color: "#8a6100", backgroundColor: "#fab2191f" }
+                  }
+                >
+                  {r.paid === "paid" ? "Paid" : "Unpaid"}
+                </span>
+                {live && (
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    Now
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Which courts and venues actually earn. Bar length carries the magnitude; the
+ *  bars share one hue because colouring them by rank would repaint the survivors
+ *  every time the list is re-sorted. */
+function Leaderboard({
+  rows,
+  board,
+  setBoard,
+  sortBy,
+  setSortBy,
+}: {
+  rows: BoardRow[];
+  board: "courts" | "venues";
+  setBoard: (b: "courts" | "venues") => void;
+  sortBy: "revenue" | "bookings";
+  setSortBy: (s: "revenue" | "bookings") => void;
+}) {
+  /* Ordered here rather than in the query, so flipping the measure re-sorts rows
+     already loaded instead of going back to the network for the same numbers. */
+  const top = useMemo(() => {
+    const list = rows.slice();
+    list.sort((a, b) =>
+      sortBy === "revenue"
+        ? b.revenue - a.revenue || b.bookings - a.bookings
+        : b.bookings - a.bookings || b.revenue - a.revenue,
+    );
+    return list.slice(0, 6);
+  }, [rows, sortBy]);
+  /* The bar measures whatever is being ranked, so its length can never disagree
+     with the position of the row it sits in — the thing that made revenue order
+     with a bookings count beside it read as a fault. */
+  const valueOf = (r: BoardRow) => (sortBy === "revenue" ? r.revenue : r.bookings);
+  const max = Math.max(1, ...top.map(valueOf));
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="inline-flex items-center gap-2 font-display text-lg font-semibold">
+          <Trophy className="h-4 w-4 text-muted-foreground" /> Top performers
+        </h2>
+        <div
+          className="inline-flex rounded-lg border border-border p-0.5"
+          role="group"
+          aria-label="Leaderboard scope"
+        >
+          {(["courts", "venues"] as const).map((b) => (
+            <button
+              key={b}
+              onClick={() => setBoard(b)}
+              aria-pressed={board === b}
+              className={
+                "rounded-md px-2.5 py-1 text-xs font-semibold capitalize transition " +
+                (board === b
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground")
+              }
+            >
+              {b}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Saying what the order is by. Without it a busier court sitting second
+          reads as a bug rather than as the quieter court above it having earned
+          more, which is the whole point of ranking on money. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Ranked by</span>
+        <div
+          className="inline-flex rounded-lg border border-border p-0.5"
+          role="group"
+          aria-label="Rank by"
+        >
+          {(
+            [
+              ["revenue", "Revenue"],
+              ["bookings", "Bookings"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setSortBy(value)}
+              aria-pressed={sortBy === value}
+              className={
+                "rounded-md px-2.5 py-1 text-xs font-semibold transition " +
+                (sortBy === value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground")
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {top.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">Nothing booked in this range yet.</p>
+      ) : (
+        <ol className="mt-3 space-y-3">
+          {top.map((r, i) => (
+            <li key={r.key} className="flex items-start gap-3">
+              {/* Rank, so the order is stated rather than left to be inferred from
+                  bar lengths that can sit very close together. */}
+              <span
+                className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold tabular-nums"
+                style={
+                  i === 0
+                    ? { backgroundColor: VIZ.series, color: "#ffffff" }
+                    : { backgroundColor: "var(--muted)", color: "var(--muted-foreground)" }
+                }
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                {/* Names wrap instead of truncating: a court called "Center Court
+                    (Indoor) 2" is unrecognisable cut to "Center Cou…". */}
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <span className="text-sm font-medium break-words">{r.name}</span>
+                  {/* Whatever the rows are ordered on is the figure that leads. */}
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">
+                    {sortBy === "revenue"
+                      ? peso(r.revenue)
+                      : `${r.bookings} ${r.bookings === 1 ? "booking" : "bookings"}`}
+                  </span>
+                </div>
+                {r.sub && <div className="text-xs text-muted-foreground">{r.sub}</div>}
+                <div className="mt-1.5 flex items-center gap-2.5">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(2, (valueOf(r) / max) * 100)}%`,
+                        backgroundColor: VIZ.series,
+                      }}
+                    />
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {sortBy === "revenue"
+                      ? `${r.bookings} ${r.bookings === 1 ? "booking" : "bookings"}`
+                      : peso(r.revenue)}
+                  </span>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** Cancellations and money owed back. All of this already sits in `bookings` and
+ *  was invisible on the dashboard, which is the one place a tenant looks daily. */
+function RefundsPanel({
+  cancels,
+  period,
+  onOpen,
+}: {
+  cancels?: { cancelled: number; total: number; refundPending: number; refundDone: number };
+  period: Period;
+  onOpen: () => void;
+}) {
+  const c = cancels ?? { cancelled: 0, total: 0, refundPending: 0, refundDone: 0 };
+  const rate = c.total > 0 ? (c.cancelled / c.total) * 100 : 0;
+  /* A rate is only worth reading against a denominator; under a handful of
+     bookings the percentage swings wildly and would be read as a trend. */
+  const meaningful = c.total >= 5;
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-lg font-semibold">Cancellations &amp; refunds</h2>
+        <button
+          onClick={onOpen}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+        >
+          Transactions <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <p className="mt-0.5 text-xs text-muted-foreground">Across {period.label}.</p>
+
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <div>
+          <div className="font-display text-2xl font-semibold">
+            {meaningful ? rate.toFixed(1) + "%" : "—"}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {meaningful ? "cancellation rate" : `too few bookings (${c.total})`}
+          </div>
+        </div>
+        <div>
+          <div className="font-display text-2xl font-semibold tabular-nums">{c.cancelled}</div>
+          <div className="text-[11px] text-muted-foreground">cancelled</div>
+        </div>
+        <div>
+          <div className="font-display text-2xl font-semibold tabular-nums">{c.refundDone}</div>
+          <div className="text-[11px] text-muted-foreground">refunded</div>
+        </div>
+      </div>
+
+      {/* The one row here that is an action rather than a figure: a pending refund
+          is money the tenant still owes someone. Icon and words, not colour alone. */}
+      <div
+        className="mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+        style={
+          c.refundPending > 0
+            ? { borderColor: VIZ.pending, backgroundColor: "#fab2191a" }
+            : { borderColor: "var(--border)" }
+        }
+      >
+        {c.refundPending > 0 ? (
+          <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: "#8a6100" }} />
+        ) : (
+          <Check className="h-4 w-4 shrink-0" style={{ color: VIZ.up }} />
+        )}
+        <span className="min-w-0 flex-1">
+          {c.refundPending > 0 ? (
+            <>
+              <span className="font-semibold">{c.refundPending}</span> refund
+              {c.refundPending === 1 ? "" : "s"} waiting to be settled
+            </>
+          ) : (
+            "No refunds waiting to be settled."
+          )}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -8661,59 +10038,238 @@ function BookingsSection({
 
 // ================= Customers =================
 
+/** How many booking rows a single tenant query will pull back. Raised from the
+ *  2,000 it was: the lifetime pass behind repeat-customer status has to see a
+ *  customer's whole history, and 2,000 rows across a multi-venue account is a
+ *  season, not a history. See REPORT: above this cap the lifetime count is a
+ *  floor, not a total, which the UI says out loud rather than hiding. */
+const TENANT_ROW_CAP = 10_000;
+
+/** "all" is the whole book. A year is a reporting period — it scopes what a
+ *  customer booked and spent, and never what they are. */
+type ReportYear = "all" | number;
+
+/** Current year back to the oldest venue, capped at five entries so the control
+ *  stays a control. */
+function tenantYears(venues: Venue[], tz: string): number[] {
+  const thisYear = Number(zonedDateISO(new Date(), tz).slice(0, 4));
+  let earliest = thisYear;
+  for (const v of venues) {
+    if (!v.created_at) continue;
+    const y = new Date(v.created_at).getUTCFullYear();
+    if (Number.isFinite(y) && y < earliest) earliest = y;
+  }
+  earliest = Math.max(earliest, thisYear - 4);
+  const out: number[] = [];
+  for (let y = thisYear; y >= earliest; y--) out.push(y);
+  return out;
+}
+
+type CustomerSortKey = "recent" | "spend" | "name" | "bookings";
+
+/** Each column has a direction it is naturally read in first — money and counts
+ *  from the top, names from A. Clicking the column already sorted flips it. */
+const CUSTOMER_SORT_DEFAULT_DIR: Record<CustomerSortKey, "asc" | "desc"> = {
+  recent: "desc",
+  spend: "desc",
+  bookings: "desc",
+  name: "asc",
+};
+
+function CustomerTh({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey: CustomerSortKey;
+  sort: { key: CustomerSortKey; dir: "asc" | "desc" };
+  onSort: (k: CustomerSortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th
+      className="px-4 py-3"
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={
+          "group inline-flex items-center gap-1 uppercase tracking-wide transition hover:text-foreground " +
+          (active ? "text-foreground" : "")
+        }
+      >
+        {label}
+        {/* The arrow shows only on the column actually sorting, so the header row
+            does not read as four competing controls. */}
+        {active ? (
+          sort.dir === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 opacity-0 transition group-hover:opacity-40" />
+        )}
+      </button>
+    </th>
+  );
+}
+
 function CustomersSection({ venues }: { venues: Venue[] }) {
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
-  const [sortBy, setSortBy] = useState<"recent" | "spend">("recent");
+  /* Defaults to the whole book, so the roster a tenant already knows is what
+     loads; picking a year narrows the reporting, never the repeat verdict. */
+  const [year, setYear] = useState<ReportYear>("all");
+  const [query, setQuery] = useState("");
+  /* One piece of state behind both the select and the column headers, so the two
+     controls can never claim different orderings of the same table. */
+  const [sort, setSort] = useState<{ key: CustomerSortKey; dir: "asc" | "desc" }>({
+    key: "recent",
+    dir: "desc",
+  });
+  const sortOn = (key: CustomerSortKey) =>
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: CUSTOMER_SORT_DEFAULT_DIR[key] },
+    );
 
   const dataQ = useQuery({
-    queryKey: ["tenant-customers", venueFilter],
+    queryKey: ["tenant-customers", venueFilter, year],
     queryFn: async () => {
+      const tz = venues[0]?.timezone || DEFAULT_TIMEZONE;
+      /* The reporting period. Null means the whole book. */
+      const period =
+        year === "all"
+          ? null
+          : {
+              from: zonedDayBoundsUtc(`${year}-01-01`, tz).start.toISOString(),
+              to: zonedDayBoundsUtc(`${year + 1}-01-01`, tz).start.toISOString(),
+            };
+
       let bq = supabase
         .from("bookings")
-        .select("id, user_id, start_time, end_time, payment_status, status, courts!inner(venue_id)")
+        .select(
+          "id, user_id, start_time, end_time, payment_status, status, cancelled_at, courts!inner(venue_id)",
+        )
+        /* Excluded in the query rather than after it. A cancelled row can never
+           count, so letting one occupy a slot under the cap spends a row that
+           could have been a real booking. */
+        .not("status", "in", NON_COUNTING_STATUS_FILTER)
+        .is("cancelled_at", null)
         .order("start_time", { ascending: false })
-        .limit(2000);
+        .limit(TENANT_ROW_CAP);
       if (venueFilter !== "all") bq = bq.eq("courts.venue_id", venueFilter);
-      const { data: bookings, error } = await bq;
+      if (period) bq = bq.gte("start_time", period.from).lt("start_time", period.to);
+      const { data: bookingRows, error } = await bq;
       if (error) throw error;
+      /* The predicate runs again on the way in. The filter above and this share
+         one definition, and if the two ever drift it is the code that decides. */
+      const bookings = (bookingRows ?? []).filter(isCountableBooking);
 
-      const txQ = supabase.from("transactions").select("user_id, amount, status, venue_id");
-      const { data: txs } =
-        venueFilter === "all" ? await txQ : await txQ.eq("venue_id", venueFilter);
+      let txQ = supabase
+        .from("transactions")
+        .select("user_id, amount, status, venue_id, paid_at, created_at");
+      if (venueFilter !== "all") txQ = txQ.eq("venue_id", venueFilter);
+      const { data: txRows } = await txQ;
+      /* Spend follows the reporting period by settlement date, matching how the
+         Dashboard dates revenue, so the two panes cannot disagree about a year. */
+      const txs = (txRows ?? []).filter((t) => {
+        if (t.status !== "paid") return false;
+        if (!period) return true;
+        const settled = t.paid_at ?? t.created_at;
+        return !!settled && settled >= period.from && settled < period.to;
+      });
 
-      const uids = Array.from(new Set((bookings ?? []).map((b) => b.user_id)));
+      const uids = Array.from(new Set(bookings.map((b) => b.user_id)));
+
+      /* ── the lifetime pass ──────────────────────────────────────────────────
+         Repeat status is lifetime return behaviour, so this deliberately carries
+         no period filter even when a year is selected. It selects the two columns
+         the count needs and nothing else, so the cap stretches much further here
+         than it would over full booking rows. When a year is not selected the
+         period query already is the whole book, and is reused. */
+      let lifetimeRows: { user_id: string; status: string | null; cancelled_at: string | null }[] =
+        bookings;
+      let lifetimeSaturated = bookings.length >= TENANT_ROW_CAP;
+      if (period && uids.length > 0) {
+        let lq = supabase
+          .from("bookings")
+          .select("user_id, status, cancelled_at, start_time, courts!inner(venue_id)")
+          .not("status", "in", NON_COUNTING_STATUS_FILTER)
+          .is("cancelled_at", null)
+          .in("user_id", uids)
+          /* Newest first so that if the cap is ever reached it is the oldest rows
+             that fall off. Truncation then costs a long-dormant customer their
+             badge — which the notice on screen says — rather than dropping an
+             arbitrary slice nobody can reason about. */
+          .order("start_time", { ascending: false })
+          .limit(TENANT_ROW_CAP);
+        if (venueFilter !== "all") lq = lq.eq("courts.venue_id", venueFilter);
+        const { data: lifetime, error: lifetimeErr } = await lq;
+        if (lifetimeErr) throw lifetimeErr;
+        lifetimeRows = lifetime ?? [];
+        lifetimeSaturated = lifetimeRows.length >= TENANT_ROW_CAP;
+      }
+      const lifetimeCounts = countByUser(lifetimeRows.filter(isCountableBooking));
+
       const { data: profiles } =
         uids.length > 0
-          ? await supabase.from("profiles").select("id, full_name, phone").in("id", uids)
-          : { data: [] as { id: string; full_name: string | null; phone: string | null }[] };
+          ? await supabase
+              .from("profiles")
+              .select("id, full_name, phone, avatar_url, created_at")
+              .in("id", uids)
+          : {
+              data: [] as {
+                id: string;
+                full_name: string | null;
+                phone: string | null;
+                avatar_url: string | null;
+                created_at: string;
+              }[],
+            };
 
       type Agg = {
         id: string;
         name: string;
         phone: string;
+        avatarUrl: string | null;
+        since: string | null;
+        /** Countable bookings inside the reporting period. */
         bookings: number;
+        /** Countable bookings across the customer's whole history here. */
+        lifetimeBookings: number;
         paidBookings: number;
         spent: number;
         lastAt: string | null;
       };
       const map = new Map<string, Agg>();
-      for (const b of bookings ?? []) {
+      for (const b of bookings) {
         const cur = map.get(b.user_id) ?? {
           id: b.user_id,
           name: "",
           phone: "",
+          avatarUrl: null,
+          since: null,
           bookings: 0,
+          lifetimeBookings: 0,
           paidBookings: 0,
           spent: 0,
           lastAt: null,
         };
+        /* Cancelled rows never reach here — they are gone from the query and from
+           the predicate above — so this can no longer make a one-off booker who
+           cancelled once look like a customer who came back. */
         cur.bookings += 1;
         if (b.payment_status === "paid") cur.paidBookings += 1;
         if (!cur.lastAt || b.start_time > cur.lastAt) cur.lastAt = b.start_time;
         map.set(b.user_id, cur);
       }
-      for (const t of txs ?? []) {
-        if (t.status !== "paid") continue;
+      for (const [id, cur] of map) cur.lifetimeBookings = lifetimeCounts.get(id) ?? cur.bookings;
+      for (const t of txs) {
         const cur = map.get(t.user_id);
         if (cur) cur.spent += Number(t.amount);
       }
@@ -8722,23 +10278,62 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
         if (cur) {
           cur.name = p.full_name ?? "";
           cur.phone = p.phone ?? "";
+          cur.avatarUrl = p.avatar_url;
+          cur.since = p.created_at;
         }
       }
-      return Array.from(map.values());
+      return { rows: Array.from(map.values()), lifetimeSaturated };
     },
   });
 
-  /* Ordered outside the query so switching the toggle re-sorts what is already
-     loaded instead of refetching every booking and transaction again. */
+  /* Memoised, not `dataQ.data ?? []` inline: the fallback builds a fresh array
+     on every render, which would change the deps of the sort below each time
+     and re-sort the whole table for nothing. */
+  const all = useMemo(() => dataQ.data?.rows ?? [], [dataQ.data]);
+
+  /* Ordered and filtered outside the query so typing or re-sorting works on rows
+     already loaded instead of refetching every booking and transaction again. */
   const rows = useMemo(() => {
-    const list = (dataQ.data ?? []).slice();
-    return sortBy === "spend"
-      ? list.sort((a, b) => b.spent - a.spent || b.bookings - a.bookings)
-      : list.sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
-  }, [dataQ.data, sortBy]);
-  const totalCustomers = rows.length;
-  const totalSpent = rows.reduce((s, r) => s + r.spent, 0);
-  const repeat = rows.filter((r) => r.bookings > 1).length;
+    const needle = query.trim().toLowerCase();
+    const list = needle
+      ? all.filter(
+          (r) =>
+            (r.name || "player").toLowerCase().includes(needle) ||
+            (r.phone ?? "").toLowerCase().includes(needle),
+        )
+      : all.slice();
+    const sign = sort.dir === "asc" ? -1 : 1;
+    list.sort((a, b) => {
+      switch (sort.key) {
+        case "spend":
+          return sign * (b.spent - a.spent || b.bookings - a.bookings);
+        case "bookings":
+          return sign * (b.bookings - a.bookings || b.spent - a.spent);
+        case "name":
+          /* localeCompare so "Ángeles" files where a reader expects it, and the
+             unnamed fall in as "Player" rather than sorting ahead of everyone. */
+          return -sign * (a.name || "Player").localeCompare(b.name || "Player");
+        default:
+          return sign * (b.lastAt ?? "").localeCompare(a.lastAt ?? "");
+      }
+    });
+    return list;
+  }, [all, query, sort]);
+
+  /* The tiles count the whole book, never the search result — a total that drops
+     as you type is not a total. */
+  const totalCustomers = all.length;
+  const totalSpent = all.reduce((s, r) => s + r.spent, 0);
+  /* Lifetime, never the period. A customer who booked three times in 2024 and
+     once in the year being reported on is still someone who came back. */
+  const repeat = all.filter((r) => isRepeatCustomer(r.lifetimeBookings)).length;
+  const years = useMemo(
+    () => tenantYears(venues, venues[0]?.timezone || DEFAULT_TIMEZONE),
+    [venues],
+  );
+  /* Said out loud rather than hidden: past the cap the lifetime counts are a
+     floor, so a long-standing customer could read as first-time. */
+  const lifetimeSaturated = dataQ.data?.lifetimeSaturated ?? false;
   const currency = (n: number) =>
     "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -8746,61 +10341,170 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
     <div className="space-y-5">
       <SectionHeader title="Customers" subtitle="Players who have booked your venues." />
       <div className="grid gap-3 sm:grid-cols-3">
-        <PlayerKpi label="Total customers" value={String(totalCustomers)} />
-        <PlayerKpi label="Repeat customers" value={String(repeat)} />
-        <PlayerKpi label="Lifetime revenue" value={currency(totalSpent)} />
+        <PlayerKpi
+          label="Total customers"
+          value={String(totalCustomers)}
+          icon={<Users className="h-4 w-4" />}
+        />
+        <PlayerKpi
+          label="Repeat customers"
+          value={String(repeat)}
+          hint={
+            totalCustomers > 0
+              ? `${Math.round((repeat / totalCustomers) * 100)}% booked more than once`
+              : undefined
+          }
+          icon={<Repeat className="h-4 w-4" />}
+        />
+        <PlayerKpi
+          label="Lifetime revenue"
+          value={currency(totalSpent)}
+          icon={<Wallet className="h-4 w-4" />}
+        />
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-55 flex-1 sm:max-w-xs">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            type="search"
+            placeholder="Search name or phone"
+            aria-label="Search customers"
+            className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
         <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
-        {/* Newest-first is the default, but ranking by spend is the question this
-            table also has to answer, so it stays reachable rather than removed. */}
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-          aria-label="Sort customers"
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value="recent">Most recent booking</option>
-          <option value="spend">Highest spend</option>
-        </select>
+        {/* The reporting period. It scopes the bookings, spend and last-booking
+            figures below; it deliberately does not reach the repeat badge, which
+            is about whether someone ever came back, not when. */}
+        <div className="relative">
+          <select
+            value={year === "all" ? "all" : String(year)}
+            onChange={(e) => setYear(e.target.value === "all" ? "all" : Number(e.target.value))}
+            aria-label="Reporting year"
+            className="appearance-none rounded-lg border border-border bg-background py-2 pl-3 pr-9 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="all">All time</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+        {/* The same ordering the column headers drive. A native select keeps the
+            platform's own picker on a phone, so the chevron is drawn rather than
+            the control replaced. */}
+        <div className="relative">
+          <select
+            value={sort.key}
+            onChange={(e) => {
+              const key = e.target.value as CustomerSortKey;
+              setSort({ key, dir: CUSTOMER_SORT_DEFAULT_DIR[key] });
+            }}
+            aria-label="Sort customers"
+            className="appearance-none rounded-lg border border-border bg-background py-2 pl-3 pr-9 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="recent">Most recent booking</option>
+            <option value="spend">Highest spend</option>
+            <option value="bookings">Most bookings</option>
+            <option value="name">Name A–Z</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
       </div>
+      {lifetimeSaturated && (
+        <div
+          className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
+          style={{ borderColor: VIZ.pending, backgroundColor: "#fab2191a" }}
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "#8a6100" }} />
+          <span>
+            This account has more than {TENANT_ROW_CAP.toLocaleString("en-PH")} bookings on record,
+            so the lifetime history behind the repeat badge is read from the most recent{" "}
+            {TENANT_ROW_CAP.toLocaleString("en-PH")}. The booking counts shown are exact; a
+            long-dormant customer may be missing a repeat badge they have earned.
+          </span>
+        </div>
+      )}
       <div className="rounded-2xl border border-border bg-card shadow-sm">
         <div className="nice-scroll max-h-[65vh] overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-10 bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
               <tr>
-                <th className="px-4 py-3">Customer</th>
+                <CustomerTh label="Customer" sortKey="name" sort={sort} onSort={sortOn} />
                 <th className="px-4 py-3">Phone</th>
-                <th className="px-4 py-3">Bookings</th>
-                <th className="px-4 py-3">Paid</th>
-                <th className="px-4 py-3">Spent</th>
-                <th className="px-4 py-3">Last booking</th>
+                <CustomerTh label="Bookings" sortKey="bookings" sort={sort} onSort={sortOn} />
+                <CustomerTh label="Spent" sortKey="spend" sort={sort} onSort={sortOn} />
+                <CustomerTh label="Last booking" sortKey="recent" sort={sort} onSort={sortOn} />
               </tr>
             </thead>
             <tbody>
               {dataQ.isLoading ? (
                 <tr>
-                  <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={5}>
                     Loading…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
-                    No customers yet — once players book, they'll show up here.
+                  {/* Told apart on purpose: an empty book and a search that matched
+                      nothing look identical otherwise, and only one of them is
+                      fixed by clearing the box. */}
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={5}>
+                    {all.length === 0
+                      ? "No customers yet — once players book, they'll show up here."
+                      : `No customer matches “${query.trim()}”.`}
                   </td>
                 </tr>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="px-4 py-3 font-medium">
-                      {r.name || "Player"}
-                      <div className="text-[11px] text-muted-foreground">{r.id.slice(0, 8)}…</div>
+                  <tr key={r.id} className="border-t border-border hover:bg-muted/40">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar
+                          avatarUrl={r.avatarUrl}
+                          fullName={r.name || "Player"}
+                          className="h-9 w-9 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-medium break-words">{r.name || "Player"}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                            {/* A repeat booker is the one fact a venue acts on, and
+                                it was previously buried in a bare count. Word and
+                                icon, never the badge colour alone. */}
+                            {isRepeatCustomer(r.lifetimeBookings) && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-semibold"
+                                style={{ color: VIZ.up, backgroundColor: "#0063001a" }}
+                              >
+                                <Repeat className="h-3 w-3" /> Repeat
+                              </span>
+                            )}
+                            {r.since && (
+                              <span>
+                                since{" "}
+                                {new Date(r.since).toLocaleDateString("en-PH", {
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{r.phone || "—"}</td>
-                    <td className="px-4 py-3">{r.bookings}</td>
-                    <td className="px-4 py-3">{r.paidBookings}</td>
-                    <td className="px-4 py-3 font-semibold">{currency(r.spent)}</td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium tabular-nums">{r.bookings}</span>
+                      <span className="text-muted-foreground">
+                        {" · "}
+                        {r.paidBookings} paid
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-semibold tabular-nums">{currency(r.spent)}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {r.lastAt
                         ? new Date(r.lastAt).toLocaleDateString("en-PH", { dateStyle: "medium" })
@@ -9240,12 +10944,26 @@ function CalendarSection({ venues }: { venues: Venue[] }) {
 }
 /** Shared stat tile used by the tenant sections (transactions, bookings, customers).
  *  The player workspace uses `PlayerTile` instead — see the note there. */
-function PlayerKpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function PlayerKpi({
+  label,
+  value,
+  hint,
+  icon,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  /** Optional, so the seven call sites that predate it keep rendering as they did. */
+  icon?: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        {icon && <span className="shrink-0 text-muted-foreground">{icon}</span>}
+      </div>
       <p className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
     </div>

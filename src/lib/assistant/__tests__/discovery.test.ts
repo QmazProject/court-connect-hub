@@ -96,6 +96,7 @@ function catalogOf(venues: AnyVenue[]): any {
     byVenue: new Map(venues.map((v) => [v.id as number, v])),
     byCourt,
     sports: [{ slug: "badminton", name: "Badminton" }],
+    amenityValues: ["Parking"],
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

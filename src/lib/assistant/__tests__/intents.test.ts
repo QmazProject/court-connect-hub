@@ -94,6 +94,7 @@ const CATALOG: Catalog = {
     { slug: "badminton", name: "Badminton" },
     { slug: "basketball", name: "Basketball" },
   ],
+  amenityValues: ["Parking", "Shower", "Sauna"],
 };
 
 const askAs = (role: "player" | "tenant") => (q: string) => parseQuestion(q, CATALOG, TODAY, role);
