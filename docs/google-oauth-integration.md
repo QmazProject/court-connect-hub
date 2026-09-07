@@ -174,10 +174,8 @@ that isn't on its allow-list. Add every origin this app is actually served from 
 
 - Your local dev URL (e.g. `http://localhost:8080`, whatever port `npm run dev` actually
   binds — check the terminal output, `vite.config.ts` doesn't pin one)
-- Your deployed origin. This project is built with `@lovable.dev/vite-tanstack-config`
-  (see `vite.config.ts`), so that's most likely a Lovable-issued `*.lovable.app` domain or a
-  custom domain connected through Lovable's project settings — check there for the exact
-  value rather than guessing it.
+- Your deployed origin — the value of `APP_URL` in `.env`, which is
+  `https://courthub.app` in production. Add any other domain the app is served from too.
 
 Missing this step is the most common reason "it's configured and still doesn't work" — the
 redirect completes on Google and Supabase's side, then fails silently (or with a vague
