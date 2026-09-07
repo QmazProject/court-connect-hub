@@ -123,7 +123,7 @@ export function ProfileSettingsCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <input
+          <input name="profile-settings-card-file"
             ref={fileRef}
             type="file"
             /* Narrow on purpose. The bucket must not become a general file drop, and
@@ -160,7 +160,7 @@ export function ProfileSettingsCard({
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Full name</span>
-          <input
+          <input name="profile-settings-card-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your full name"
@@ -169,7 +169,7 @@ export function ProfileSettingsCard({
         </label>
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Email</span>
-          <input
+          <input name="profile-settings-card-email"
             value={email}
             readOnly
             className="mt-1 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"

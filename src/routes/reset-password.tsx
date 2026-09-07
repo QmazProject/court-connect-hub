@@ -134,7 +134,7 @@ function ResetPasswordRoute() {
             <form onSubmit={submit} className="flex flex-col">
               <label className="text-sm font-bold text-[#102521]">
                 New password
-                <input
+                <input name="reset-password-password"
                   type="password"
                   autoComplete="new-password"
                   value={password}
@@ -147,7 +147,7 @@ function ResetPasswordRoute() {
               </label>
               <label className="mt-5 text-sm font-bold text-[#102521]">
                 Confirm new password
-                <input
+                <input name="reset-password-confirm-password"
                   type="password"
                   autoComplete="new-password"
                   value={confirmPassword}

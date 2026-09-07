@@ -79,7 +79,7 @@ function AdminLogin() {
         <form onSubmit={submit} className="mt-5 space-y-3">
           <label className="block">
             <span className="text-xs font-semibold text-muted-foreground">Email</span>
-            <input
+            <input name="login-email"
               type="email"
               required
               autoComplete="username"
@@ -90,7 +90,7 @@ function AdminLogin() {
           </label>
           <label className="block">
             <span className="text-xs font-semibold text-muted-foreground">Password</span>
-            <input
+            <input name="login-password"
               type="password"
               required
               autoComplete="current-password"

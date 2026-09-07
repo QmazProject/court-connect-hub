@@ -394,7 +394,7 @@ export function BookingChat({
         )}
 
         <div className="flex items-end gap-2 border-t border-border p-3">
-          <input
+          <input name="booking-chat-file"
             ref={fileRef}
             type="file"
             accept={ALLOWED_ATTACHMENTS.join(",")}
@@ -414,7 +414,7 @@ export function BookingChat({
               <Paperclip className="h-4 w-4" />
             )}
           </button>
-          <textarea
+          <textarea name="booking-chat-text"
             value={text}
             onChange={(e) => setText(e.target.value.slice(0, MAX_LEN))}
             onKeyDown={(e) => {

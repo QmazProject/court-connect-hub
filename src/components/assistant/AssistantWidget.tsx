@@ -665,7 +665,7 @@ export function AssistantWidget() {
               onSubmit={submit}
               className="flex items-center gap-2 border-t border-border px-3 py-2.5"
             >
-              <input
+              <input name="assistant-widget-input"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={

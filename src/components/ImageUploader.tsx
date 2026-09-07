@@ -62,7 +62,7 @@ export function ImageUploader({ label = "Photos", pathPrefix, images, onChange, 
       <div className="flex flex-wrap gap-2">
         {images.map((src, i) => (
           <div key={i} className="relative h-20 w-28 overflow-hidden rounded-md border border-border">
-            <img src={src} alt={`Upload ${i + 1}`} className="h-full w-full object-cover" loading="lazy" />
+            <img width={112} height={80} src={src} alt={`Upload ${i + 1}`} className="h-full w-full object-cover" loading="lazy" />
             <button
               type="button"
               onClick={() => remove(i)}
@@ -84,7 +84,7 @@ export function ImageUploader({ label = "Photos", pathPrefix, images, onChange, 
           </button>
         )}
       </div>
-      <input
+      <input name="image-uploader-file"
         ref={fileRef}
         type="file"
         accept="image/*"

@@ -754,7 +754,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
             <div className="relative flex-1">
               <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 transition focus-within:border-[#b8f05a] focus-within:ring-2 focus-within:ring-[#b8f05a]/30">
                 <Search className="h-4 w-4 shrink-0 text-[#b8f05a]" aria-hidden />
-                <input
+                <input name="index-place-query"
                   type="text"
                   value={placeQuery}
                   onChange={(e) => {
@@ -890,7 +890,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#b8f05a]">
                   Sport
                 </span>
-                <select
+                <select name="index-filter-sport"
                   value={filterSport}
                   onChange={(e) => setFilterSport(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-white/20 bg-[#09231f] px-3 py-2 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#b8f05a]"
@@ -907,7 +907,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#b8f05a]">
                   City / Province
                 </span>
-                <input
+                <input name="index-filter-city"
                   type="text"
                   value={filterCity}
                   onChange={(e) => setFilterCity(e.target.value)}
@@ -919,7 +919,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#b8f05a]">
                   Min available ₱/hr
                 </span>
-                <input
+                <input name="index-min-price"
                   type="number"
                   min={0}
                   value={minPrice}
@@ -933,7 +933,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#b8f05a]">
                   Max available ₱/hr
                 </span>
-                <input
+                <input name="index-max-price"
                   type="number"
                   min={0}
                   value={maxPrice}
@@ -991,7 +991,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                 </div>
                 {!nationwide && (
                   <>
-                    <input
+                    <input name="index-radius-km"
                       type="range"
                       min={1}
                       max={100}
@@ -1017,7 +1017,7 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
                           {km}km
                         </button>
                       ))}
-                      <input
+                      <input name="index-radius-km-2"
                         type="number"
                         min={1}
                         max={500}
@@ -2600,7 +2600,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                           >
                             <div className="relative h-full w-1/2 shrink-0 overflow-hidden bg-[#0b3d35]">
                               {image ? (
-                                <img
+                                <img width={160} height={144}
                                   src={image}
                                   alt=""
                                   loading="lazy"
@@ -2792,7 +2792,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                                 aria-label={`View ${category.label.toLowerCase()} photo ${i + 1} full screen`}
                                 className="group relative h-36 overflow-hidden rounded-2xl text-left ring-1 ring-white/15 transition-all duration-200 hover:shadow-md hover:ring-2 hover:ring-[#b8f05a]"
                               >
-                                <img
+                                <img width={640} height={360}
                                   src={src}
                                   alt={`${category.label} highlight ${i + 1}`}
                                   loading="lazy"
@@ -3051,7 +3051,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               >
                 <label className="text-sm font-bold text-[#102521]">
                   Email
-                  <input
+                  <input name="index-sign-in-email"
                     type="email"
                     autoComplete="email"
                     value={signInEmail}
@@ -3219,7 +3219,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                   </div>
                   <label className="mt-5 text-sm font-bold text-[#102521]">
                     Full name
-                    <input
+                    <input name="index-signup-name"
                       type="text"
                       autoComplete="name"
                       value={signupName}
@@ -3231,7 +3231,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                   </label>
                   <label className="mt-5 text-sm font-bold text-[#102521]">
                     Phone <span className="font-normal text-[#5e746e]">(optional)</span>
-                    <input
+                    <input name="index-signup-phone"
                       type="tel"
                       autoComplete="tel"
                       value={signupPhone}
@@ -3244,7 +3244,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               )}
               <label className="text-sm font-bold text-[#102521]">
                 Email
-                <input
+                <input name="index-sign-in-email-2"
                   type="email"
                   autoComplete="email"
                   value={signInEmail}
@@ -3834,7 +3834,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                     come, so the frame shows the sport rather than an empty gradient — swapping
                     in <video> later replaces the img and the overlay stays. */}
                 <div className="group relative isolate flex aspect-video flex-col justify-between overflow-hidden rounded-3xl border border-[#0f4a40] bg-[#061a17] p-5 text-white">
-                  <img
+                  <img width={1200} height={800}
                     src={sport.photo}
                     alt={`${sport.name} being played`}
                     loading="lazy"
@@ -4048,7 +4048,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                 tabIndex={index >= highlightFrames.length ? -1 : 0}
                 className="group/tile relative h-44 w-64 shrink-0 overflow-hidden rounded-2xl bg-[#0b3d35] ring-1 ring-[#dce8e2] transition duration-300 hover:ring-2 hover:ring-[#b8f05a] focus:outline-none focus:ring-2 focus:ring-[#b8f05a] sm:h-52 sm:w-72"
               >
-                <img
+                <img width={640} height={360}
                   src={frame.src}
                   alt={`${frame.category.label} highlight`}
                   loading="lazy"
@@ -4160,7 +4160,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                           load degrades to a letter rather than an empty circle. */}
                       <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eaf5d8] font-cabinet text-sm font-bold text-[#12806d] ring-2 ring-white">
                         {name.charAt(0)}
-                        <img
+                        <img width={96} height={96}
                           src={avatar}
                           alt=""
                           loading="lazy"
@@ -4597,7 +4597,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               <LandingInput label="Subject" placeholder="How can we help?" />
               <label className="mt-4 block text-sm font-bold">
                 Message
-                <textarea
+                <textarea name="index-tell-us-a-little-more"
                   className="mt-2 min-h-32 w-full rounded-xl border border-[#d8e4df] bg-[#fbfcfb] px-3 py-2.5 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
                   placeholder="Tell us a little more"
                   required
@@ -4630,7 +4630,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
       </section>
 
       <section className="relative isolate overflow-hidden bg-[#09231f] px-5 py-20 text-center text-white sm:px-8">
-        <img
+        <img width={1600} height={900}
           src={heroImages[2]}
           alt=""
           className="absolute inset-0 -z-10 h-full w-full object-cover opacity-25"
@@ -4641,7 +4641,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
             the disc reads whole. It comes after the tint so it paints on top of it — same
             -z-10, so DOM order decides — while staying behind the copy. Shown from md up,
             where the centred text leaves room beside it. */}
-        <img
+        <img width={320} height={320}
           src="/courthub-badge.png"
           alt=""
           loading="lazy"
@@ -4765,7 +4765,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                 <ChevronRight className="h-6 w-6" />
               </button>
 
-              <img
+              <img width={1200} height={800}
                 src={category.images[idx]}
                 alt={`${category.label} highlight ${idx + 1}`}
                 className="max-h-[70vh] max-w-full rounded-2xl object-contain"
@@ -5069,7 +5069,7 @@ function FeaturedVenueCard({
       >
         {images.length > 0 ? (
           images.map((src, i) => (
-            <img
+            <img width={640} height={360}
               key={src}
               src={src}
               alt=""
@@ -5223,7 +5223,7 @@ function LandingInput({
   return (
     <label className="mt-4 block text-sm font-bold">
       {label}
-      <input
+      <input name="index-input"
         type={type}
         placeholder={placeholder}
         className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-[#fbfcfb] px-3 py-2.5 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"

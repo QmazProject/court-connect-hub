@@ -331,7 +331,7 @@ export function MapPicker({ open, initialLat, initialLng, onClose, onSave, savin
 
         <div className="border-b border-border px-4 py-2">
           <div className="relative">
-            <input
+            <input name="map-picker-query"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {

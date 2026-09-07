@@ -378,6 +378,8 @@ function MethodCard({
           <img
             src={logo as string}
             alt={`${name} logo`}
+            width={64}
+            height={28}
             loading="lazy"
             onError={() => setLogoBroken(true)}
             /* Dimmed rather than desaturated for the unavailable ones: a grayscale filter

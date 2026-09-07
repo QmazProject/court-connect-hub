@@ -367,7 +367,7 @@ function BookingCard({
       <div className="flex flex-wrap items-start justify-between gap-3 p-4">
         <div className="flex min-w-0 items-start gap-3">
           {thumb ? (
-            <img
+            <img width={56} height={56}
               src={thumb}
               alt=""
               loading="lazy"
@@ -763,7 +763,7 @@ function UpcomingSection({
           </button>
         ))}
         {sports.length > 1 && (
-          <select
+          <select name="player-workspace-sport"
             value={sport}
             onChange={(e) => setSport(e.target.value)}
             aria-label="Filter by sport"
@@ -778,7 +778,7 @@ function UpcomingSection({
           </select>
         )}
         {venues.length > 1 && (
-          <select
+          <select name="player-workspace-venue"
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
             aria-label="Filter by venue"
@@ -1379,7 +1379,7 @@ function HistorySection({
         </div>
         <div className="relative min-w-0 flex-1 sm:max-w-64">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input name="player-workspace-q"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search venue, court, sport or date"
@@ -2814,7 +2814,7 @@ export function PlayerWorkspace({
           title="Your activity"
           sub="Totals below follow this period"
           action={
-            <select
+            <select name="player-workspace-period"
               value={period}
               onChange={(e) => setPeriod(e.target.value as PeriodKey)}
               aria-label="Statistics period"

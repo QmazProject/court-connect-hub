@@ -175,7 +175,7 @@ export function CancelRefundDialog({
                               : "cursor-not-allowed border-dashed border-border bg-muted/40 text-muted-foreground")
                           }
                         >
-                          <input
+                          <input name="cancel-refund-dialog-checked"
                             type="checkbox"
                             disabled={!selectable}
                             checked={checked && selectable}
@@ -211,7 +211,7 @@ export function CancelRefundDialog({
                   it says out loud what it is overriding. */}
                 {target.slots.some((sl) => needsOverride(states.get(sl.id)!)) && (
                   <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
-                    <input
+                    <input name="cancel-refund-dialog-override"
                       type="checkbox"
                       className="mt-0.5"
                       checked={override}
@@ -242,7 +242,7 @@ export function CancelRefundDialog({
               <label className="mt-4 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Reason for the player <span className="text-destructive">*</span>
               </label>
-              <textarea
+              <textarea name="cancel-refund-dialog-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value.slice(0, 500))}
                 rows={3}
@@ -266,7 +266,7 @@ export function CancelRefundDialog({
                   </p>
                   <div className="mt-2 space-y-2">
                     <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                      <input
+                      <input name="cancel-refund-dialog-mode"
                         type="radio"
                         className="mt-0.5"
                         checked={mode === "auto"}
@@ -288,7 +288,7 @@ export function CancelRefundDialog({
                       </span>
                     </label>
                     <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                      <input
+                      <input name="cancel-refund-dialog-mode"
                         type="radio"
                         className="mt-0.5"
                         checked={mode === "manual"}

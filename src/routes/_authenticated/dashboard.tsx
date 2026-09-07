@@ -352,7 +352,7 @@ function CourtStatusField({ value, onChange }: { value: boolean; onChange: (v: b
   return (
     <div className="flex items-end gap-1.5 pb-2 text-sm">
       <label className="flex cursor-pointer items-center gap-2">
-        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
+        <input name="dashboard-value" type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" />
         <span className="whitespace-nowrap">Active</span>
       </label>
       <span className="group relative inline-flex">
@@ -1488,7 +1488,7 @@ function DashboardOverview({
         {/* Years sit in their own select rather than four more buttons: one row of
             controls, and the rolling windows stay one tap apart. */}
         <div className="relative">
-          <select
+          <select name="dashboard-period-key"
             value={periodKey.startsWith("y") ? periodKey : ""}
             onChange={(e) => e.target.value && setPeriodKey(e.target.value as PeriodKey)}
             aria-label="Reporting year"
@@ -2643,7 +2643,7 @@ function CreateGroupForm({
 
       <label className="block">
         <span className="text-xs font-medium text-muted-foreground">Venue</span>
-        <select
+        <select name="dashboard-venue-id"
           value={venueId}
           onChange={(e) => setVenueId(Number(e.target.value))}
           className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -2706,7 +2706,7 @@ function CreateGroupForm({
                       (checked ? "border-primary bg-primary/5" : "border-border")
                     }
                   >
-                    <input type="checkbox" checked={checked} onChange={() => toggle(c.id)} />
+                    <input name="dashboard-checked" type="checkbox" checked={checked} onChange={() => toggle(c.id)} />
                     <div className="flex-1">
                       <div className="font-medium">{c.name}</div>
                       <div className="text-[11px] text-muted-foreground">
@@ -2958,7 +2958,7 @@ function TagInput({
             </button>
           </span>
         ))}
-        <input
+        <input name="dashboard-draft"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -3014,7 +3014,7 @@ function FeesEditor({
       <div className="space-y-1.5">
         {items.map((it, i) => (
           <div key={i} className="grid grid-cols-[1fr,110px,auto] items-center gap-2">
-            <input
+            <input name="dashboard-label"
               value={it.label}
               onChange={(e) => update(i, { label: e.target.value })}
               placeholder="e.g. Racket rental"
@@ -3022,7 +3022,7 @@ function FeesEditor({
             />
             <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-2">
               <span className="text-xs text-muted-foreground">₱</span>
-              <input
+              <input name="dashboard-is-finite"
                 type="number"
                 min={0}
                 step="0.01"
@@ -3044,7 +3044,7 @@ function FeesEditor({
       </div>
       <label className="block pt-1">
         <span className="text-[11px] font-medium text-muted-foreground">Notes (optional)</span>
-        <textarea
+        <textarea name="dashboard-notes"
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}
           rows={2}
@@ -3179,7 +3179,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         <Input label="Address" value={address} onChange={setAddress} required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Timezone</span>
-          <select
+          <select name="dashboard-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
@@ -3332,7 +3332,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           <span className="text-xs font-medium text-muted-foreground">
             Cancellation cutoff (hours before start)
           </span>
-          <input
+          <input name="dashboard-cancellation-hours"
             type="number"
             min={0}
             step={1}
@@ -3390,7 +3390,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
               </button>
             </div>
             <label className="mt-2 flex items-center gap-2 text-[11px]">
-              <input
+              <input name="dashboard-tz-confirmed"
                 type="checkbox"
                 checked={tzConfirmed}
                 onChange={(e) => setTzConfirmed(e.target.checked)}
@@ -3402,7 +3402,7 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
         )}
         <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2">
           <label className="flex items-center gap-2 text-sm font-medium">
-            <input
+            <input name="dashboard-is-active"
               type="checkbox"
               checked={isActive}
               onChange={(e) => setIsActive(e.target.checked)}
@@ -3544,7 +3544,7 @@ function VenueSection({ venue }: { venue: Venue }) {
                 : "Upcoming bookings"}
             </h3>
             <div className="flex items-center gap-2">
-              <input
+              <input name="dashboard-booking-date"
                 type="date"
                 value={bookingDate}
                 onChange={(e) => setBookingDate(e.target.value)}
@@ -3639,7 +3639,7 @@ function CourtCard({
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       {cover ? (
-        <img src={cover} alt={court.name} className="h-32 w-full object-cover" loading="lazy" />
+        <img width={640} height={128} src={cover} alt={court.name} className="h-32 w-full object-cover" loading="lazy" />
       ) : (
         <div className="court-pattern h-32" />
       )}
@@ -3893,7 +3893,7 @@ function AvailabilityGrid({
             >
               ←
             </button>
-            <input
+            <input name="dashboard-selected-date"
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
@@ -4329,7 +4329,7 @@ function AddCourt({
         <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Sport</span>
-          <select
+          <select name="dashboard-sport-id"
             value={sportId}
             onChange={(e) => setSportId(e.target.value)}
             required
@@ -4344,7 +4344,7 @@ function AddCourt({
           </select>
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
+          <input name="dashboard-is-indoor"
             type="checkbox"
             checked={isIndoor}
             onChange={(e) => setIsIndoor(e.target.checked)}
@@ -4352,7 +4352,7 @@ function AddCourt({
           Indoor court
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
+          <input name="dashboard-coming-soon"
             type="checkbox"
             checked={comingSoon}
             onChange={(e) => setComingSoon(e.target.checked)}
@@ -4360,7 +4360,7 @@ function AddCourt({
           Coming soon
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
+          <input name="dashboard-voucher-enabled"
             type="checkbox"
             checked={voucherEnabled}
             onChange={(e) => setVoucherEnabled(e.target.checked)}
@@ -4384,7 +4384,7 @@ function AddCourt({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
-          <input
+          <input name="dashboard-surface-type"
             list="court-surface-suggestions"
             value={surfaceType}
             onChange={(e) => setSurfaceType(e.target.value)}
@@ -4527,7 +4527,7 @@ function AddCourtDrawer({
         <div className="space-y-4 p-4 sm:p-6">
           <label className="block">
             <span className="text-xs font-medium text-muted-foreground">Venue</span>
-            <select
+            <select name="dashboard-venue-id-2"
               value={venueId ?? ""}
               onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -4702,7 +4702,7 @@ function EditCourt({
         <Input label="Hourly rate (₱)" value={rate} onChange={setRate} type="number" required />
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Sport</span>
-          <select
+          <select name="dashboard-sport-id-2"
             value={sportId}
             onChange={(e) => setSportId(e.target.value)}
             required
@@ -4718,7 +4718,7 @@ function EditCourt({
         </label>
 
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
+          <input name="dashboard-is-indoor-2"
             type="checkbox"
             checked={isIndoor}
             onChange={(e) => setIsIndoor(e.target.checked)}
@@ -4726,7 +4726,7 @@ function EditCourt({
           Indoor court
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
+          <input name="dashboard-coming-soon-2"
             type="checkbox"
             checked={comingSoon}
             onChange={(e) => setComingSoon(e.target.checked)}
@@ -4734,7 +4734,7 @@ function EditCourt({
           Coming soon
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
+          <input name="dashboard-voucher-enabled-2"
             type="checkbox"
             checked={voucherEnabled}
             onChange={(e) => setVoucherEnabled(e.target.checked)}
@@ -4797,7 +4797,7 @@ function EditCourt({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Surface type</span>
-          <input
+          <input name="dashboard-surface-type-2"
             list="court-surface-suggestions-edit"
             value={surfaceType}
             onChange={(e) => setSurfaceType(e.target.value)}
@@ -4881,7 +4881,7 @@ function Textarea(props: {
   return (
     <label className="block">
       <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
-      <textarea
+      <textarea name="dashboard-value-2"
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
@@ -4902,7 +4902,7 @@ function Input(props: {
   return (
     <label className="block">
       <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
-      <input
+      <input name="dashboard-value-3"
         type={props.type ?? "text"}
         required={props.required}
         value={props.value}
@@ -5188,7 +5188,7 @@ function VenueEditor({
           <Input label="Address" value={address} onChange={setAddress} required />
           <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-muted-foreground">Timezone</span>
-            <select
+            <select name="dashboard-timezone-2"
               value={timezone}
               onChange={(e) => {
                 setTimezone(e.target.value);
@@ -5226,7 +5226,7 @@ function VenueEditor({
                   </button>
                 </div>
                 <label className="mt-2 flex items-center gap-2 text-[11px]">
-                  <input
+                  <input name="dashboard-tz-confirmed-2"
                     type="checkbox"
                     checked={tzConfirmed}
                     onChange={(e) => setTzConfirmed(e.target.checked)}
@@ -5238,7 +5238,7 @@ function VenueEditor({
           </label>
           <label className="block sm:col-span-2">
             <span className="text-xs font-medium text-muted-foreground">About this Venue</span>
-            <textarea
+            <textarea name="dashboard-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -5310,7 +5310,7 @@ function VenueEditor({
             <span className="text-xs font-medium text-muted-foreground">
               Cancellation cutoff (hours before start)
             </span>
-            <input
+            <input name="dashboard-cancellation-hours-2"
               type="number"
               min={0}
               step={1}
@@ -5351,7 +5351,7 @@ function VenueEditor({
           </div>
           <div className="sm:col-span-2 flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input
+              <input name="dashboard-is-active-2"
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
@@ -5459,7 +5459,7 @@ function VenueEditor({
       {(venue.images?.length ?? 0) > 0 && (
         <div className="mt-2 flex gap-2 overflow-x-auto">
           {venue.images!.slice(0, 4).map((src, i) => (
-            <img
+            <img width={96} height={64}
               key={i}
               src={src}
               alt={`${venue.name} ${i + 1}`}
@@ -5627,7 +5627,7 @@ function SettingsSection({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs font-medium text-muted-foreground">Full name</span>
-            <input
+            <input name="dashboard-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
@@ -5636,7 +5636,7 @@ function SettingsSection({
           </label>
           <label className="block">
             <span className="text-xs font-medium text-muted-foreground">Email</span>
-            <input
+            <input name="dashboard-email"
               value={email}
               readOnly
               className="mt-1 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
@@ -5644,7 +5644,7 @@ function SettingsSection({
           </label>
           <label className="block">
             <span className="text-xs font-medium text-muted-foreground">Role</span>
-            <input
+            <input name="dashboard-role"
               value={role}
               readOnly
               className="mt-1 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm capitalize text-muted-foreground"
@@ -6225,7 +6225,7 @@ function ColumnConfigModal({
             <div className="mb-1 text-xs font-medium text-muted-foreground">Available Columns</div>
             <div className="relative mb-2">
               <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <input name="dashboard-avail-query"
                 value={availQuery}
                 onChange={(e) => setAvailQuery(e.target.value)}
                 placeholder="Search…"
@@ -6285,7 +6285,7 @@ function ColumnConfigModal({
             <div className="relative mb-2 flex items-center gap-2">
               <div className="relative flex-1">
                 <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
+                <input name="dashboard-sel-query"
                   value={selQuery}
                   onChange={(e) => setSelQuery(e.target.value)}
                   placeholder="Search…"
@@ -8371,7 +8371,7 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
       <div className="flex flex-wrap items-center gap-3 p-4 sm:p-6">
         <label className="block">
           <span className="text-xs font-medium text-muted-foreground">Venue</span>
-          <select
+          <select name="dashboard-venue-id-3"
             value={venueId ?? ""}
             onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
             className="mt-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -8795,7 +8795,7 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
                     key={c.id}
                     className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm ${checked ? "border-primary bg-primary/5" : "border-border"}`}
                   >
-                    <input
+                    <input name="dashboard-checked-2"
                       type="checkbox"
                       checked={checked}
                       onChange={() => (isMember ? toggleDetach(c.id) : toggleAdd(c.id))}
@@ -8943,7 +8943,7 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
-        <select
+        <select name="dashboard-status-filter"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
@@ -9136,6 +9136,7 @@ function PaymentSettingsTable({
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-background px-3">
           <SearchIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
+            name="dashboard-venue-query"
             value={query}
             onChange={(e) => resetTo(() => setQuery(e.target.value))}
             placeholder={`Search ${venues.length} venues…`}
@@ -9367,7 +9368,7 @@ function VenuePaymentRow({
   };
 
   const modeSelect = (
-    <select
+    <select name="dashboard-mode"
       value={mode}
       onChange={(e) => setMode(e.target.value)}
       className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
@@ -9379,7 +9380,7 @@ function VenuePaymentRow({
 
   const cutoffInput = (
     <div className="flex items-center gap-1.5">
-      <input
+      <input name="dashboard-cutoff"
         type="number"
         min={0}
         value={cutoff}
@@ -9496,7 +9497,7 @@ function SettleRefundDialog({
 
         <div className="mt-4 space-y-2">
           <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-            <input
+            <input name="dashboard-method"
               type="radio"
               className="mt-0.5"
               checked={method === "manual"}
@@ -9510,7 +9511,7 @@ function SettleRefundDialog({
             </span>
           </label>
           <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-border p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-            <input
+            <input name="dashboard-method"
               type="radio"
               className="mt-0.5"
               checked={method === "paymongo"}
@@ -9530,7 +9531,7 @@ function SettleRefundDialog({
             Reference{" "}
             {method === "manual" ? "(GCash ref. no., receipt or note)" : "(PayMongo refund id)"}
           </span>
-          <input
+          <input name="dashboard-reference"
             value={reference}
             onChange={(e) => setReference(e.target.value.slice(0, 200))}
             placeholder={method === "manual" ? "e.g. GCash ref 0123 4567 8901" : "e.g. ref_..."}
@@ -9812,7 +9813,7 @@ function BookingsSection({
 
       <div className="flex flex-wrap items-center gap-2">
         <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
-        <select
+        <select name="dashboard-status"
           value={status}
           onChange={(e) => setStatus(e.target.value as typeof status)}
           className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
@@ -9823,7 +9824,7 @@ function BookingsSection({
           <option value="expired">Expired</option>
           <option value="all">All</option>
         </select>
-        <select
+        <select name="dashboard-pay-filter"
           value={payFilter}
           onChange={(e) => setPayFilter(e.target.value as typeof payFilter)}
           className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
@@ -10365,7 +10366,7 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-55 flex-1 sm:max-w-xs">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
+          <input name="dashboard-query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             type="search"
@@ -10379,7 +10380,7 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
             figures below; it deliberately does not reach the repeat badge, which
             is about whether someone ever came back, not when. */}
         <div className="relative">
-          <select
+          <select name="dashboard-year"
             value={year === "all" ? "all" : String(year)}
             onChange={(e) => setYear(e.target.value === "all" ? "all" : Number(e.target.value))}
             aria-label="Reporting year"
@@ -10398,7 +10399,7 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
             platform's own picker on a phone, so the chevron is drawn rather than
             the control replaced. */}
         <div className="relative">
-          <select
+          <select name="dashboard-key"
             value={sort.key}
             onChange={(e) => {
               const key = e.target.value as CustomerSortKey;
@@ -11093,7 +11094,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Venue:</span>
-        <select
+        <select name="dashboard-venue-id-4"
           className="rounded-md border bg-background px-2 py-1.5 text-sm"
           value={venueId ?? ""}
           onChange={(e) => setVenueId(e.target.value ? Number(e.target.value) : null)}
@@ -11116,7 +11117,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             <div>
               <label className="mb-1 block text-xs font-medium">Code</label>
               <div className="flex gap-1">
-                <input
+                <input name="dashboard-code"
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   placeholder="e.g. SUMMER10"
@@ -11133,7 +11134,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Discount type</label>
-              <select
+              <select name="dashboard-discount-type"
                 value={discountType}
                 onChange={(e) => setDiscountType(e.target.value as "percent" | "amount")}
                 className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
@@ -11146,7 +11147,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
               <label className="mb-1 block text-xs font-medium">
                 {discountType === "percent" ? "Percentage off" : "Amount off (₱)"}
               </label>
-              <input
+              <input name="dashboard-discount-value"
                 type="number"
                 min="1"
                 value={discountValue}
@@ -11156,7 +11157,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Expires at (optional)</label>
-              <input
+              <input name="dashboard-expires-at"
                 type="datetime-local"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
@@ -11165,7 +11166,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Max total uses (optional)</label>
-              <input
+              <input name="dashboard-max-uses"
                 type="number"
                 min="1"
                 value={maxUses}
@@ -11177,7 +11178,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
               <label className="mb-1 block text-xs font-medium">
                 Minimum booking amount (₱, optional)
               </label>
-              <input
+              <input name="dashboard-min-amount"
                 type="number"
                 min="0"
                 value={minAmount}
@@ -11186,7 +11187,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <input
+              <input name="dashboard-one-per-user"
                 type="checkbox"
                 checked={onePerUser}
                 onChange={(e) => setOnePerUser(e.target.checked)}
@@ -11195,7 +11196,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
             </label>
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="mb-1 block text-xs font-medium">Notes (optional, internal)</label>
-              <input
+              <input name="dashboard-notes-2"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"

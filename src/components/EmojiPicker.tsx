@@ -74,7 +74,7 @@ export function EmojiPicker({ label = "Map emoji", value, fallback = "🎾", onC
         </div>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <input
+        <input name="emoji-picker-custom"
           type="text"
           value={custom}
           onChange={(e) => setCustom(e.target.value)}

@@ -652,7 +652,7 @@ export function CourtBookingContent({
                   className="block w-full"
                   aria-label="Enlarge image"
                 >
-                  <img
+                  <img width={768} height={224}
                     src={court.images![carouselIdx]}
                     alt={`${court.name} photo ${carouselIdx + 1}`}
                     className="h-56 w-full object-cover sm:h-72"
@@ -699,7 +699,7 @@ export function CourtBookingContent({
                       }
                       aria-label={`Show image ${i + 1}`}
                     >
-                      <img src={src} alt="" className="h-14 w-20 object-cover" loading="lazy" />
+                      <img width={80} height={56} src={src} alt="" className="h-14 w-20 object-cover" loading="lazy" />
                     </button>
                   ))}
                 </div>
@@ -778,7 +778,7 @@ export function CourtBookingContent({
                 >
                   Next →
                 </button>
-                <input
+                <input name="court-booking-panel-date"
                   type="date"
                   value={date}
                   onChange={(e) => {
@@ -962,7 +962,7 @@ export function CourtBookingContent({
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <input
+                      <input name="court-booking-panel-voucher-code"
                         value={voucherCode}
                         onChange={(e) => {
                           setVoucherCode(e.target.value.toUpperCase());

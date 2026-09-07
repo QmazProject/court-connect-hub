@@ -11,7 +11,7 @@ function DayPreset({ rule, onChange }: { rule: RateRule; onChange: (days: DayKey
   const preset = sameSet(rule.days, WEEKDAYS) ? "weekdays" : sameSet(rule.days, WEEKENDS) ? "weekends" : "custom";
   return (
     <div>
-      <select
+      <select name="rate-rules-editor-preset"
         value={preset}
         onChange={(e) => {
           const v = e.target.value;
@@ -48,7 +48,7 @@ function DayPreset({ rule, onChange }: { rule: RateRule; onChange: (days: DayKey
 
 function HourSelect({ value, onChange, max = 24 }: { value: number; onChange: (v: number) => void; max?: number }) {
   return (
-    <select
+    <select name="rate-rules-editor-value"
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
       className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs"
@@ -107,7 +107,7 @@ export function RateRulesEditor({
           </p>
         </div>
         <label className="flex items-center gap-2 text-xs font-medium">
-          <input
+          <input name="rate-rules-editor-enabled"
             type="checkbox"
             checked={enabled}
             onChange={(e) => onChange(e.target.checked ? defaultRuleTemplate(baseRate) : [])}
@@ -123,7 +123,7 @@ export function RateRulesEditor({
               <div key={r.id} className="rounded-lg border border-border bg-background p-2.5">
                 <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr_1fr_0.9fr_auto] sm:items-start">
                   <div>
-                    <input
+                    <input name="rate-rules-editor-label"
                       value={r.label ?? ""}
                       onChange={(e) => update(r.id, { label: e.target.value })}
                       placeholder="Label (e.g. Weekday evening)"
@@ -141,7 +141,7 @@ export function RateRulesEditor({
                   </label>
                   <label className="block">
                     <span className="text-[10px] font-medium text-muted-foreground">Rate / hr (₱)</span>
-                    <input
+                    <input name="rate-rules-editor-rate"
                       type="number"
                       min={1}
                       value={r.rate}

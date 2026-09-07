@@ -362,7 +362,7 @@ function Select({
   options: [string, string][];
 }) {
   return (
-    <select
+    <select name="assistant-insights-value"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="rounded-lg border border-border bg-background px-3 py-2 text-sm"

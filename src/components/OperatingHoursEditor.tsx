@@ -8,7 +8,7 @@ const HOUR_OPTIONS = Array.from({ length: 25 }, (_, h) => h);
 
 function HourSelect({ value, onChange, allowMidnightEnd }: { value: number; onChange: (v: number) => void; allowMidnightEnd?: boolean }) {
   return (
-    <select
+    <select name="operating-hours-editor-value"
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
       className="rounded-lg border border-input bg-background px-2 py-1.5 text-xs"
@@ -29,7 +29,7 @@ function DayRow({ day, value, onChange }: { day: DayKey; value: string; onChange
     <div className="flex flex-wrap items-center gap-2 border-b border-border py-2 last:border-b-0">
       <span className="w-20 shrink-0 text-xs font-semibold">{HOUR_DAY_LABELS[day]}</span>
 
-      <select
+      <select name="operating-hours-editor-closed"
         value={closed ? "closed" : open24 ? "24h" : "custom"}
         onChange={(e) => {
           const v = e.target.value;
@@ -134,7 +134,7 @@ export function CourtHoursEditor({
   return (
     <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
       <label className="flex items-start gap-2 text-xs font-medium">
-        <input type="checkbox" className="mt-0.5" checked={inherit} onChange={(e) => onInheritChange(e.target.checked)} />
+        <input name="operating-hours-editor-inherit" type="checkbox" className="mt-0.5" checked={inherit} onChange={(e) => onInheritChange(e.target.checked)} />
         <span>
           Follow the venue&apos;s operating hours
           <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">

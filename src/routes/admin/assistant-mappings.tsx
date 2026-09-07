@@ -98,7 +98,7 @@ function AssistantMappings() {
       >
         <label className="block">
           <span className="text-xs font-semibold text-muted-foreground">Type</span>
-          <select
+          <select name="assistant-mappings-kind"
             value={kind}
             onChange={(e) => setKind(e.target.value)}
             className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm"
@@ -109,7 +109,7 @@ function AssistantMappings() {
         </label>
         <label className="block">
           <span className="text-xs font-semibold text-muted-foreground">Term people type</span>
-          <input
+          <input name="assistant-mappings-term"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
             placeholder="car park"
@@ -120,7 +120,7 @@ function AssistantMappings() {
           <span className="text-xs font-semibold text-muted-foreground">
             Existing CourtHub value
           </span>
-          <input
+          <input name="assistant-mappings-target"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             placeholder="Parking"

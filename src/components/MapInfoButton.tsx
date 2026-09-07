@@ -173,7 +173,7 @@ export function MapInfoButton({ getCenter, className, align = "right" }: Props) 
                   <span className="font-medium">{reportCategory}</span>
                 </div>
                 <label className="block text-sm font-medium">Describe the issue</label>
-                <textarea
+                <textarea name="map-info-button-report-desc"
                   value={reportDesc}
                   onChange={(e) => setReportDesc(e.target.value.slice(0, 2000))}
                   rows={5}
