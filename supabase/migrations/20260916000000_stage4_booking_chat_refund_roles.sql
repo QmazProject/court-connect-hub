@@ -1,0 +1,461 @@
+-- Phase 2.5, Stage 4 — bookings, chat, and the money that leaves.
+--
+-- The last of the staff-gated surfaces, and the highest-consequence. Two of these
+-- decide whether a booking is cancelled and whether a refund is recorded as paid; the
+-- rest decide who can read a customer's conversation.
+--
+-- Every policy touched here is shared with players. In each one only the right-hand
+-- side of the OR changes; the player clause is carried across character for character
+-- and is never re-expressed. `bookings` INSERT and UPDATE are player-only and do not
+-- appear in this migration at all.
+--
+-- One surface was not visible in the policy text: `is_conversation_participant()` holds
+-- the staff check itself and is what the three `messages` policies and
+-- `conversation_reads` INSERT are written against. Changing the function changes all
+-- four without editing them.
+--
+-- Untouched: `bookings` INSERT/UPDATE, every `USING (true)` public read, the PayMongo
+-- webhook path (service role, bypasses RLS), Stages 1-3, Phases 0-2.
+
+-- ---------------------------------------------------------------------------
+-- 1. Bookings — the staff half of one shared policy.
+-- ---------------------------------------------------------------------------
+-- `bookings` has no staff INSERT, UPDATE or DELETE policy and never had one: every
+-- staff mutation of a booking goes through `staff_cancel_bookings()` below. This is
+-- the whole of the staff read surface.
+--
+-- The player clause is `(user_id = auth.uid())`, reproduced exactly as it stands in
+-- the database today.
+DROP POLICY IF EXISTS "Users can select own bookings" ON public.bookings;
+CREATE POLICY "Users can select own bookings"
+  ON public.bookings FOR SELECT
+  USING (
+    (user_id = auth.uid())
+    OR (EXISTS ( SELECT 1
+                   FROM public.courts c
+                  WHERE c.id = bookings.court_id
+                    AND public.venue_allows(c.venue_id, 'staff')))
+  );
+
+-- ---------------------------------------------------------------------------
+-- 2. Conversations — the staff half of three shared policies.
+-- ---------------------------------------------------------------------------
+-- Talking to a customer is front-desk work, so the staff half stays at 'staff'. What
+-- changes is that it now asks the same question as everything else, through the same
+-- function, instead of asking whether a row exists in `staff`.
+DROP POLICY IF EXISTS "Participants read conversations" ON public.conversations;
+CREATE POLICY "Participants read conversations"
+  ON public.conversations FOR SELECT TO authenticated
+  USING (
+    player_id = auth.uid()
+    OR public.venue_allows(conversations.venue_id, 'staff')
+  );
+
+DROP POLICY IF EXISTS "Participants touch conversations" ON public.conversations;
+CREATE POLICY "Participants touch conversations"
+  ON public.conversations FOR UPDATE TO authenticated
+  USING (
+    player_id = auth.uid()
+    OR public.venue_allows(conversations.venue_id, 'staff')
+  )
+  WITH CHECK (
+    player_id = auth.uid()
+    OR public.venue_allows(conversations.venue_id, 'staff')
+  );
+
+-- The player clause here carries its own sub-check — that the thread being opened
+-- belongs to a booking they made. Copied intact.
+DROP POLICY IF EXISTS "Player opens own booking thread" ON public.conversations;
+CREATE POLICY "Player opens own booking thread"
+  ON public.conversations FOR INSERT TO authenticated
+  WITH CHECK (
+    (player_id = auth.uid() AND EXISTS (
+       SELECT 1 FROM public.bookings b
+        WHERE b.id = conversations.booking_id AND b.user_id = auth.uid()))
+    OR public.venue_allows(conversations.venue_id, 'staff')
+  );
+
+-- ---------------------------------------------------------------------------
+-- 3. The function the `messages` policies are written against.
+-- ---------------------------------------------------------------------------
+-- `_uid` is a parameter rather than `auth.uid()`, and `venue_allows` answers for the
+-- caller. Every caller passes `auth.uid()` — the three `messages` policies and
+-- `conversation_reads` INSERT all do — so the staff branch is guarded on that being
+-- true. A caller passing somebody else's id gets the player branch only, which is a
+-- tightening rather than a change to anything that exists.
+
+CREATE OR REPLACE FUNCTION public.is_conversation_participant(_conversation_id uuid, _uid uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.conversations c
+    WHERE c.id = _conversation_id
+      AND (c.player_id = _uid
+           OR (_uid = auth.uid() AND public.venue_allows(c.venue_id, 'staff')))
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4. Cancelling a booking — manager and above.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.staff_cancel_bookings(
+  _booking_ids bigint[], _reason text, _refund_mode text
+) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  _uid uuid := auth.uid();
+  _n int := 0;
+  _b RECORD;
+  _players uuid[] := '{}';
+  _p uuid;
+  _venue_name text;
+BEGIN
+  IF _uid IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  IF _refund_mode NOT IN ('auto', 'manual', 'none') THEN
+    RAISE EXCEPTION 'Invalid refund mode';
+  END IF;
+
+  -- Checked once, for every venue involved, before a single row is touched. It used
+  -- to run inside the loop below, which meant a caller without rights on the second
+  -- venue got as far as cancelling the first venue's bookings and queueing their
+  -- players' notifications before being refused. Postgres rolls all of that back, so
+  -- nothing escaped — but the work was done and undone, and the reason for refusal
+  -- was discovered halfway through an operation rather than before it began.
+  IF EXISTS (
+    SELECT 1
+      FROM public.bookings b
+      JOIN public.courts c ON c.id = b.court_id
+     WHERE b.id = ANY(_booking_ids)
+       AND b.status <> 'cancelled'
+       AND NOT public.venue_allows(c.venue_id, 'manager')
+  ) THEN
+    RAISE EXCEPTION 'Not authorised for this venue';
+  END IF;
+
+  FOR _b IN
+    SELECT b.id, b.user_id, b.payment_status, c.venue_id
+      FROM public.bookings b
+      JOIN public.courts c ON c.id = b.court_id
+     WHERE b.id = ANY(_booking_ids) AND b.status <> 'cancelled'
+  LOOP
+
+    UPDATE public.bookings
+       SET status = 'cancelled',
+           cancelled_at = now(),
+           cancelled_by = _uid,
+           cancel_reason = NULLIF(trim(COALESCE(_reason, '')), ''),
+           refund_mode = CASE WHEN _b.payment_status = 'paid' THEN _refund_mode ELSE 'none' END,
+           refund_status = CASE
+             WHEN _b.payment_status <> 'paid' THEN 'none'
+             WHEN _refund_mode = 'none' THEN 'none'
+             ELSE 'pending' END
+     WHERE id = _b.id;
+
+    _n := _n + 1;
+    IF NOT (_b.user_id = ANY(_players)) THEN
+      _players := array_append(_players, _b.user_id);
+      SELECT name INTO _venue_name FROM public.venues WHERE id = _b.venue_id;
+      PERFORM public.notify_user(_b.user_id, 'booking_cancelled',
+        'Booking cancelled by ' || COALESCE(_venue_name, 'the venue'),
+        COALESCE(NULLIF(trim(COALESCE(_reason, '')), ''), 'Your reservation was cancelled.')
+          || CASE WHEN _refund_mode = 'auto' THEN ' A refund has been requested to your original payment method.'
+                  WHEN _refund_mode = 'manual' THEN ' The venue will settle your refund directly.'
+                  ELSE '' END,
+        '/dashboard', _b.id, _b.venue_id, NULL);
+    END IF;
+  END LOOP;
+
+  RETURN _n;
+END; $$;
+
+-- ---------------------------------------------------------------------------
+-- 5. Settling a refund — admin only.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.staff_mark_refund_settled(
+  _booking_ids bigint[],
+  _method      text DEFAULT 'manual',
+  _reference   text DEFAULT NULL
+) RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE _uid uuid := auth.uid(); _n int := 0; _b RECORD; _venue text;
+BEGIN
+  IF _uid IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  IF _method NOT IN ('paymongo', 'manual') THEN
+    RAISE EXCEPTION 'Unknown refund method %', _method;
+  END IF;
+
+  -- Admin only, and checked before anything moves. Marking a refund settled is the
+  -- statement that money left the business; it is the one action in this system that
+  -- cannot be corrected from inside the application, so it sits with the person who
+  -- answers for the account rather than with anyone holding a venue key.
+  IF EXISTS (
+    SELECT 1
+      FROM public.bookings b
+      JOIN public.courts c ON c.id = b.court_id
+     WHERE b.id = ANY(_booking_ids)
+       AND b.refund_status = 'pending'
+       AND NOT public.venue_allows(c.venue_id, 'admin')
+  ) THEN
+    RAISE EXCEPTION 'Not authorised for this venue';
+  END IF;
+
+  FOR _b IN
+    SELECT b.id, b.user_id, c.venue_id
+      FROM public.bookings b
+      JOIN public.courts c ON c.id = b.court_id
+     WHERE b.id = ANY(_booking_ids) AND b.refund_status = 'pending'
+  LOOP
+
+    UPDATE public.bookings
+       SET refund_status    = 'refunded',
+           payment_status   = 'refunded',
+           refund_method    = _method,
+           refund_reference = _reference,
+           refund_settled_at = now(),
+           refund_settled_by = _uid
+     WHERE id = _b.id;
+    _n := _n + 1;
+
+    -- The player is the one waiting for this money; tell them it arrived. Idempotent
+    -- per booking, so re-running the action cannot double-notify.
+    SELECT v.name INTO _venue
+      FROM public.courts c JOIN public.venues v ON v.id = c.venue_id
+     WHERE c.id = (SELECT court_id FROM public.bookings WHERE id = _b.id);
+
+    PERFORM public.notify_user(
+      _b.user_id, 'refund',
+      'Refund settled',
+      CASE WHEN _method = 'manual'
+           THEN COALESCE(_venue, 'The venue') || ' has sent your refund'
+                || CASE WHEN _reference IS NOT NULL AND trim(_reference) <> ''
+                        THEN ' (ref: ' || _reference || ')' ELSE '' END || '.'
+           ELSE 'Your refund has been returned to your original payment method.'
+      END,
+      '/dashboard?booking=' || _b.id::text,
+      _b.id, _b.venue_id, NULL
+    );
+  END LOOP;
+
+  RETURN _n;
+END; $$;
+
+-- ---------------------------------------------------------------------------
+-- 6. The two assistant reporting functions.
+-- ---------------------------------------------------------------------------
+-- Both were scoped by "does a staff row exist", which is now the same question asked
+-- through `venue_allows`. For `tenant_court_day` that is all it is: it returns
+-- occupancy and free hours and no money, so it stays at 'staff' and nobody's access
+-- changes.
+--
+-- `tenant_activity` is not the same. It returns paid, pending and refunded amounts, and
+-- being SECURITY DEFINER it reads `transactions` with row-level security off — so it
+-- has been handing revenue to any staff member who asked the assistant for it, right
+-- past the manager-only policy Stage 2 put on that table. The money is gated here to
+-- match; the booking counts are not, so a front-desk member keeps the operational
+-- view and sees zeros where the revenue used to be.
+
+CREATE OR REPLACE FUNCTION public.tenant_court_day(
+  _date date,
+  _hours integer[] DEFAULT NULL,
+  _now timestamptz DEFAULT now()
+)
+RETURNS TABLE(
+  venue_id bigint,
+  venue_name text,
+  court_id bigint,
+  court_name text,
+  sport text,
+  open_hours integer,
+  booked_hours integer,
+  held_hours integer,
+  blocked_hours_count integer,
+  past_hours integer,
+  free_hours integer,
+  free_hour_list integer[],
+  booked_hour_list integer[],
+  occupancy_pct numeric
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  WITH scope AS (
+    SELECT DISTINCT st.venue_id FROM public.staff st
+     WHERE st.user_id = auth.uid()
+       AND public.venue_allows(st.venue_id, 'staff')
+  ),
+  mine AS (
+    SELECT c.id AS court_id,
+           c.venue_id,
+           v.name AS venue_name,
+           c.name AS court_name,
+           coalesce(s.name, '') AS sport,
+           c.capacity,
+           coalesce(v.timezone, 'Asia/Manila') AS tz,
+           CASE WHEN c.inherit_venue_hours THEN v.operating_hours ELSE c.operating_hours END AS hrs,
+           c.blocked_hours,
+           c.blocked_dates
+    FROM public.courts c
+    JOIN public.venues v ON v.id = c.venue_id
+    JOIN scope sc ON sc.venue_id = c.venue_id
+    LEFT JOIN public.sports s ON s.id = c.sport_id
+    WHERE c.is_active IS TRUE
+      AND c.capacity IS NOT NULL
+  ),
+  avail AS (
+    SELECT a.court_id, a.hour_start, a.remaining, a.blocked_by_other_sport, a.held_for_payment
+    FROM public.courts_availability(
+           (SELECT array_agg(DISTINCT court_id) FROM mine),
+           ((_date - 1)::timestamp AT TIME ZONE 'Asia/Manila'),
+           ((_date + 2)::timestamp AT TIME ZONE 'Asia/Manila')
+         ) a
+  ),
+  grid AS (
+    SELECT m.*,
+           h.hour,
+           ((_date::timestamp + make_interval(hours => h.hour)) AT TIME ZONE m.tz) AS ts,
+           (h.hour = ANY (public.assistant_blocked_hours(m.blocked_hours, m.blocked_dates, _date,
+                                                         extract(dow FROM _date)::integer))) AS is_blocked
+    FROM mine m
+    CROSS JOIN LATERAL unnest(
+      public.assistant_open_hours(m.hrs, extract(dow FROM _date)::integer)
+    ) AS h(hour)
+    WHERE _hours IS NULL OR h.hour = ANY (_hours)
+  ),
+  classified AS (
+    SELECT g.venue_id, g.venue_name, g.court_id, g.court_name, g.sport, g.hour,
+           CASE
+             WHEN g.is_blocked THEN 'blocked'
+             WHEN g.ts < _now THEN 'past'
+             WHEN coalesce(a.blocked_by_other_sport, false) THEN 'other_sport'
+             WHEN coalesce(a.remaining, g.capacity) <= 0 THEN 'booked'
+             WHEN coalesce(a.held_for_payment, false) THEN 'held'
+             ELSE 'free'
+           END AS state
+    FROM grid g
+    LEFT JOIN avail a ON a.court_id = g.court_id AND a.hour_start = g.ts
+  )
+  SELECT c.venue_id,
+         c.venue_name,
+         c.court_id,
+         c.court_name,
+         c.sport,
+         count(*)::integer AS open_hours,
+         count(*) FILTER (WHERE c.state IN ('booked', 'other_sport'))::integer AS booked_hours,
+         count(*) FILTER (WHERE c.state = 'held')::integer AS held_hours,
+         count(*) FILTER (WHERE c.state = 'blocked')::integer AS blocked_hours_count,
+         count(*) FILTER (WHERE c.state = 'past')::integer AS past_hours,
+         count(*) FILTER (WHERE c.state = 'free')::integer AS free_hours,
+         coalesce(array_agg(c.hour ORDER BY c.hour) FILTER (WHERE c.state = 'free'), ARRAY[]::integer[]),
+         coalesce(array_agg(c.hour ORDER BY c.hour) FILTER (WHERE c.state IN ('booked', 'other_sport')), ARRAY[]::integer[]),
+         -- Occupancy counts only hours that were winnable: a past or manager-blocked
+         -- hour is neither taken nor lost, and folding it in makes every evening
+         -- look worse than it was.
+         CASE
+           WHEN count(*) FILTER (WHERE c.state NOT IN ('past', 'blocked')) = 0 THEN NULL
+           ELSE round(
+             100.0 * count(*) FILTER (WHERE c.state IN ('booked', 'other_sport', 'held'))
+             / count(*) FILTER (WHERE c.state NOT IN ('past', 'blocked')), 0)
+         END AS occupancy_pct
+  FROM classified c
+  GROUP BY c.venue_id, c.venue_name, c.court_id, c.court_name, c.sport
+  ORDER BY c.venue_name, c.court_name;
+$function$;
+
+
+CREATE OR REPLACE FUNCTION public.tenant_activity(
+  _from timestamptz,
+  _to timestamptz
+)
+RETURNS TABLE(
+  venue_id bigint,
+  venue_name text,
+  bookings_created integer,
+  bookings_starting integer,
+  cancelled_count integer,
+  confirmed_count integer,
+  pending_payment_count integer,
+  unpaid_count integer,
+  refund_pending_count integer,
+  refund_settled_count integer,
+  paid_amount numeric,
+  pending_amount numeric,
+  refunded_amount numeric
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  WITH scope AS (
+    SELECT DISTINCT st.venue_id FROM public.staff st
+     WHERE st.user_id = auth.uid()
+       AND public.venue_allows(st.venue_id, 'staff')
+  ),
+  b AS (
+    SELECT c.venue_id, bk.*
+    FROM public.bookings bk
+    JOIN public.courts c ON c.id = bk.court_id
+    JOIN scope sc ON sc.venue_id = c.venue_id
+    WHERE (bk.created_at >= _from AND bk.created_at < _to)
+       OR (bk.start_time >= _from AND bk.start_time < _to)
+       OR (bk.cancelled_at IS NOT NULL AND bk.cancelled_at >= _from AND bk.cancelled_at < _to)
+  ),
+  t AS (
+    SELECT tx.venue_id, tx.status, tx.amount, tx.paid_at, tx.refunded_at, tx.created_at
+    FROM public.transactions tx
+    JOIN scope sc ON sc.venue_id = tx.venue_id
+    -- Money is manager-and-above, matching the policy on `transactions` itself. This
+    -- function is SECURITY DEFINER and so reads that table with row-level security
+    -- switched off; without this line it would hand a front-desk member the revenue
+    -- figures that Stage 2 was written to keep from them. The booking counts above are
+    -- unaffected, and a staff caller simply sees zero in the three money columns.
+    WHERE public.venue_allows(tx.venue_id, 'manager')
+      AND ((tx.paid_at >= _from AND tx.paid_at < _to)
+       OR (tx.refunded_at >= _from AND tx.refunded_at < _to)
+       OR (tx.created_at >= _from AND tx.created_at < _to))
+  ),
+  per_venue_bookings AS (
+    SELECT b.venue_id,
+           count(*) FILTER (WHERE b.created_at >= _from AND b.created_at < _to)::integer AS bookings_created,
+           count(*) FILTER (WHERE b.start_time >= _from AND b.start_time < _to)::integer AS bookings_starting,
+           count(*) FILTER (WHERE b.cancelled_at >= _from AND b.cancelled_at < _to)::integer AS cancelled_count,
+           count(*) FILTER (WHERE b.status = 'confirmed')::integer AS confirmed_count,
+           count(*) FILTER (WHERE b.payment_status = 'pending')::integer AS pending_payment_count,
+           count(*) FILTER (WHERE b.payment_status = 'unpaid')::integer AS unpaid_count,
+           count(*) FILTER (WHERE b.refund_status = 'pending')::integer AS refund_pending_count,
+           count(*) FILTER (WHERE b.refund_status = 'settled')::integer AS refund_settled_count
+    FROM b GROUP BY b.venue_id
+  ),
+  per_venue_money AS (
+    SELECT t.venue_id,
+           coalesce(sum(t.amount) FILTER (WHERE t.status = 'paid' AND t.paid_at >= _from AND t.paid_at < _to), 0) AS paid_amount,
+           coalesce(sum(t.amount) FILTER (WHERE t.status = 'pending'), 0) AS pending_amount,
+           coalesce(sum(t.amount) FILTER (WHERE t.status = 'refunded' AND t.refunded_at >= _from AND t.refunded_at < _to), 0) AS refunded_amount
+    FROM t GROUP BY t.venue_id
+  )
+  SELECT sc.venue_id,
+         v.name,
+         coalesce(pb.bookings_created, 0),
+         coalesce(pb.bookings_starting, 0),
+         coalesce(pb.cancelled_count, 0),
+         coalesce(pb.confirmed_count, 0),
+         coalesce(pb.pending_payment_count, 0),
+         coalesce(pb.unpaid_count, 0),
+         coalesce(pb.refund_pending_count, 0),
+         coalesce(pb.refund_settled_count, 0),
+         coalesce(pm.paid_amount, 0),
+         coalesce(pm.pending_amount, 0),
+         coalesce(pm.refunded_amount, 0)
+  FROM scope sc
+  JOIN public.venues v ON v.id = sc.venue_id
+  LEFT JOIN per_venue_bookings pb ON pb.venue_id = sc.venue_id
+  LEFT JOIN per_venue_money pm ON pm.venue_id = sc.venue_id
+  ORDER BY v.name;
+$function$;
+
