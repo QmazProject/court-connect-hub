@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
   CalendarDays,
+  Hash,
   LandPlot,
   Layers,
   LayoutDashboard,
@@ -51,6 +52,7 @@ export type TenantCourtsTab = "venues" | "courts" | "groups";
 export const TENANT_ANCHORS = {
   account: "tenant-settings-account",
   payments: "tenant-settings-payments",
+  bookingNumbers: "tenant-settings-booking-numbers",
 } as const;
 
 /** Just enough of a venue to list one. The dashboard's own `Venue` is far wider and
@@ -326,6 +328,29 @@ function staticEntries(a: TenantSearchActions): SearchEntry[] {
       run: () => {
         a.setSection("settings");
         scrollToAnchor(TENANT_ANCHORS.payments);
+      },
+    },
+    {
+      id: "set:booking-numbers",
+      label: "Booking numbers",
+      group: "Settings",
+      kind: "setting",
+      hint: "The letters in front of each venue's booking numbers",
+      icon: Hash,
+      priority: P_SETTING,
+      keywords: [
+        "booking number",
+        "sequence",
+        "prefix",
+        "invoice number",
+        "reference",
+        "numbering",
+        "bn",
+        "inv",
+      ],
+      run: () => {
+        a.setSection("settings");
+        scrollToAnchor(TENANT_ANCHORS.bookingNumbers);
       },
     },
   ];

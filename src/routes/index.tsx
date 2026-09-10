@@ -117,6 +117,23 @@ function GoogleGlyph({ className }: { className?: string }) {
    hydration effect below. */
 const GOOGLE_PENDING_ROLE_KEY = "courthub_google_pending_role";
 
+/* The business name typed on the venue-manager sign-up, waiting out the same redirect.
+   Deliberately its own key rather than a second field packed into the one above: that key
+   is what `claim_initial_role` reads, and anything sharing it could put a role claim in
+   front of an account that never picked one. */
+const GOOGLE_PENDING_BUSINESS_KEY = "courthub_google_pending_business";
+
+/* Which side of the sign-in toggle was showing when the visitor left for Google, so the
+   notice below can tell them their account is the other kind. Presentation only — it is
+   never consulted for access, and a third key keeps it that way by construction. */
+const GOOGLE_PENDING_SIGNIN_SIDE_KEY = "courthub_google_pending_signin_side";
+
+/* How long the mismatched-side notice is left on screen before the visitor is taken where
+   they were always going. Both sign-in paths close this sheet and navigate away the moment
+   they know the role, so a message rendered here has to be given a moment to be read — but
+   it asks for no click, and the destination is the one they would have reached anyway. */
+const ROLE_NOTICE_MS = 1600;
+
 function hasGoogleProvider(user: {
   app_metadata?: { provider?: string; providers?: string[] } | null;
 }): boolean {
@@ -1789,6 +1806,19 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const [signupName, setSignupName] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
+  /* The trading name of the business being signed up. Required on the venue-manager side and
+     absent from the player side, because a player has no business to name. Collected here and
+     carried on the account until the tenant record that will own it exists. */
+  const [signupBusiness, setSignupBusiness] = useState("");
+  const [businessInfoOpen, setBusinessInfoOpen] = useState(false);
+  /* Which sign-in tab is showing. Player by default: most people arriving here are players,
+     and the venue managers who are not know it. It changes the wording and nothing else —
+     what an account may do is decided by its role in the database, after the password has
+     been checked, exactly as it was before this toggle existed. */
+  const [signinSide, setSigninSide] = useState<"player" | "tenant">("player");
+  /* Shown once, after a sign-in that landed on the other side's tab. It explains where the
+     visitor is being taken; it never stops them going there. */
+  const [roleNotice, setRoleNotice] = useState<string | null>(null);
   /* Consent to the Terms and the Privacy Policy, which is a sign-up-only gate: creating the
      account is the moment the agreement is entered into, so that is where the tick is
      required.  Signing in afterwards does not ask again — an existing account has already
@@ -1808,6 +1838,11 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
      state: the post-sign-in redirect lives in an effect whose closure would capture a stale
      value, and this never needs to trigger a render. */
   const pendingVenueRef = useRef<string | null>(null);
+  /* The hydration effect below runs once and subscribes to auth changes; adding the toggle to
+     its dependencies would tear that subscription down and rebuild it on every tap. A ref
+     lets it read the current tab without owning it. */
+  const signinSideRef = useRef<"player" | "tenant">("player");
+  signinSideRef.current = signinSide;
 
   useEffect(() => {
     let mounted = true;
@@ -1836,8 +1871,22 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         const { error: roleError } = await supabase.rpc("claim_initial_role", {
           _role: pendingRole,
         });
+        /* Read and cleared whatever happens next, so an abandoned sign-up cannot leave a
+           business name behind for whoever uses this tab afterwards. */
+        const pendingBusiness = sessionStorage.getItem(GOOGLE_PENDING_BUSINESS_KEY);
+        sessionStorage.removeItem(GOOGLE_PENDING_BUSINESS_KEY);
         if (!roleError) {
-          await supabase.auth.updateUser({ data: { role: pendingRole } });
+          /* Carried on the account rather than written to a tenant record, because there is
+             no tenants table yet — Phase 0 seeds it from exactly this field. Only stored for
+             the role that has one, so a player account never grows a business name. */
+          await supabase.auth.updateUser({
+            data: {
+              role: pendingRole,
+              ...(pendingRole === "tenant" && pendingBusiness
+                ? { business_name: pendingBusiness }
+                : {}),
+            },
+          });
         }
       } else if (isFreshGoogleAccount(user)) {
         await supabase.auth.signOut();
@@ -1858,6 +1907,21 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         .maybeSingle();
       const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
       const role = profile?.role === "tenant" || metadata.role === "tenant" ? "tenant" : "player";
+      /* Read only now, with the password already checked and the real role in hand. Saying
+         anything about which side an email belongs to before this point would answer that
+         question for anyone who typed an address in, signed in or not. */
+      const chosenSide =
+        sessionStorage.getItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY) ?? signinSideRef.current;
+      sessionStorage.removeItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY);
+      if (mounted && chosenSide && chosenSide !== role) {
+        setRoleNotice(
+          role === "tenant"
+            ? "That is a venue manager account — taking you to your dashboard."
+            : "That is a player account — taking you to Explore.",
+        );
+        await new Promise((resolve) => setTimeout(resolve, ROLE_NOTICE_MS));
+        if (!mounted) return;
+      }
       if (role === "tenant") {
         navigate({ to: "/dashboard", replace: true });
         return;
@@ -2117,6 +2181,12 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
     setSignInClosing(false);
     setMenuOpen(false);
     setSignInError(null);
+    /* Player every time the sheet opens, not whatever was last tapped: the default is the
+       answer for most visitors, and a remembered tab would quietly change what the next
+       person sees. The notice from a previous sign-in goes with it — it described a result
+       that has already happened. */
+    setSigninSide("player");
+    setRoleNotice(null);
     setAuthSheetStep("signin");
     setSignInOpen(true);
   };
@@ -2215,12 +2285,29 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
     } else {
       sessionStorage.removeItem(GOOGLE_PENDING_ROLE_KEY);
     }
+    /* Signing up as a venue manager: the business name has to outlive the redirect the same
+       way the role does. Written under its own key, and only for that role — a player
+       sign-up has no business name, and a stale one must never reach the next account. */
+    if (role === "tenant" && signupBusiness.trim()) {
+      sessionStorage.setItem(GOOGLE_PENDING_BUSINESS_KEY, signupBusiness.trim());
+    } else {
+      sessionStorage.removeItem(GOOGLE_PENDING_BUSINESS_KEY);
+    }
+    /* Only for a sign-in, where a tab was actually chosen. A sign-up already knows which
+       kind of account it is making and has nothing to be told afterwards. */
+    if (role === null) {
+      sessionStorage.setItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY, signinSide);
+    } else {
+      sessionStorage.removeItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY);
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin },
     });
     if (error) {
       sessionStorage.removeItem(GOOGLE_PENDING_ROLE_KEY);
+      sessionStorage.removeItem(GOOGLE_PENDING_BUSINESS_KEY);
+      sessionStorage.removeItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY);
       setSignInError(error.message);
     }
   };
@@ -2259,6 +2346,10 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
     try {
       if (authSheetStep === "signup") {
         if (!signupRole) throw new Error("Please choose an account type.");
+        /* Checked here as well as through the input's `required`, so the account cannot be
+           created without it however the form was submitted. */
+        if (signupRole === "tenant" && !signupBusiness.trim())
+          throw new Error("Please enter the name of your business.");
         if (signInPassword.length < 8)
           throw new Error("Use a password with at least 8 characters.");
         const { data, error } = await supabase.auth.signUp({
@@ -2270,6 +2361,9 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               full_name: signupName,
               phone: signupPhone,
               role: signupRole,
+              /* Only ever set for the side that has one. Phase 0 reads this to seed the
+                 tenant record; until then it is the only place the name lives. */
+              ...(signupRole === "tenant" ? { business_name: signupBusiness.trim() } : {}),
               /* The authoritative consent record: which version of the documents this
                  account agreed to, and when. The localStorage copy is only a convenience. */
               terms_version: LEGAL_VERSION,
@@ -2311,6 +2405,16 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         .maybeSingle();
       const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
       const isTenant = profile?.role === "tenant" || metadata.role === "tenant";
+      /* The tab was a guess about this account; now the password has been checked, the role
+         is known and the guess can be answered. Nothing about the destination changes. */
+      if ((isTenant ? "tenant" : "player") !== signinSide) {
+        setRoleNotice(
+          isTenant
+            ? "That is a venue manager account — taking you to your dashboard."
+            : "That is a player account — taking you to Explore.",
+        );
+        await new Promise((resolve) => setTimeout(resolve, ROLE_NOTICE_MS));
+      }
       setSignInOpen(false);
       if (isTenant) {
         navigate({ to: "/dashboard", replace: true });
@@ -3034,6 +3138,13 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                   Check <strong className="text-[#102521]">{signInEmail}</strong> and follow the
                   confirmation link to activate your account.
                 </p>
+                {/* Neutral on purpose. This screen looks the same whether the address was new
+                    or already registered, so it can carry the one hint that helps without
+                    confirming which of the two happened. */}
+                <p className="mt-3 text-xs leading-relaxed text-[#8a9c96]">
+                  If it doesn&rsquo;t arrive within a few minutes, that email may already be
+                  registered — try signing in, or use a different address.
+                </p>
                 <button
                   type="button"
                   onClick={() => setAuthSheetStep("signin")}
@@ -3115,6 +3226,58 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                   this step doesn't know one yet. */}
               {authSheetStep === "signin" && (
                 <>
+                  {/* Which kind of account is signing in. Player leads because most visitors
+                      are players; the venue managers who are not already know it.
+
+                      It changes the wording on this step and nothing else. Both sides post to
+                      the same Supabase call, and what the account may then do is decided by
+                      its role in the database — a visitor cannot gain a dashboard by tapping
+                      the right-hand tab, and this control is never sent anywhere. */}
+                  {roleNotice && (
+                    /* `status`, not `alert`: this reports where the visitor is being taken,
+                       which is not an error and should not interrupt a screen reader. */
+                    <p
+                      role="status"
+                      className="mb-4 rounded-xl bg-[#eaf5d8] px-3 py-2.5 text-sm font-semibold leading-snug text-[#0b3d35]"
+                    >
+                      {roleNotice}
+                    </p>
+                  )}
+                  <div
+                    className="mb-5 grid grid-cols-2 gap-1 rounded-full border-2 border-[#d8e4df] bg-white p-1"
+                    role="group"
+                    aria-label="Account type"
+                  >
+                    {(
+                      [
+                        ["player", "Player"],
+                        ["tenant", "Venue manager"],
+                      ] as const
+                    ).map(([side, label]) => (
+                      <button
+                        key={side}
+                        type="button"
+                        onClick={() => {
+                          setSigninSide(side);
+                          setRoleNotice(null);
+                        }}
+                        aria-pressed={signinSide === side}
+                        className={`rounded-full px-3 py-2 text-sm font-bold transition ${
+                          signinSide === side
+                            ? "bg-[#0b3d35] text-white"
+                            : "text-[#5e746e] hover:text-[#102521]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {signinSide === "tenant" && (
+                    <p className="mb-4 text-xs leading-relaxed text-[#5e746e]">
+                      Sign in with your venue manager account. If your account is a player account,
+                      you&rsquo;ll be taken to Explore instead.
+                    </p>
+                  )}
                   <div className="group relative">
                     <button
                       type="button"
@@ -3229,6 +3392,57 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
                       required
                     />
                   </label>
+                  {signupRole === "tenant" && (
+                    <div className="mt-5">
+                      <div className="flex items-center gap-1.5">
+                        <label
+                          htmlFor="signup-business"
+                          className="text-sm font-bold text-[#102521]"
+                        >
+                          Business name
+                        </label>
+                        {/* Click, not hover: the answer is a sentence worth reading, and a
+                            bubble that vanishes when the pointer drifts is no use on a phone.
+                            type="button" is load-bearing — this sits inside the sign-up form
+                            and would submit it otherwise. */}
+                        <button
+                          type="button"
+                          onClick={() => setBusinessInfoOpen((open) => !open)}
+                          aria-expanded={businessInfoOpen}
+                          aria-label="What is the business name used for?"
+                          className="grid h-4 w-4 place-items-center rounded-full border border-[#8a9c96] text-[10px] font-bold text-[#5e746e] transition hover:border-[#12806d] hover:text-[#12806d]"
+                        >
+                          i
+                        </button>
+                      </div>
+                      {businessInfoOpen && (
+                        <p className="mt-2 rounded-lg bg-[#eaf5d8] px-3 py-2 text-xs leading-relaxed text-[#0b3d35]">
+                          This is the name your workspace and your team will be known by, and what
+                          players see against your venues. Use your trading name rather than your
+                          own — you can change it later.
+                        </p>
+                      )}
+                      <input
+                        id="signup-business"
+                        name="index-signup-business"
+                        type="text"
+                        autoComplete="organization"
+                        value={signupBusiness}
+                        onChange={(event) => setSignupBusiness(event.target.value)}
+                        className="mt-2 w-full rounded-xl border border-[#d8e4df] bg-white px-3 py-3 outline-none transition focus:border-[#12806d] focus:ring-2 focus:ring-[#b8f05a]/50"
+                        placeholder="e.g. ABC Sports"
+                        required
+                      />
+                      {/* Said before the attempt rather than after it. A duplicate sign-up is
+                          answered with the same screen as a successful one — deliberately, so
+                          that this page cannot be used to test which addresses are registered
+                          — which means the warning has to arrive early enough to be useful. */}
+                      <p className="mt-2 text-xs leading-relaxed text-[#5e746e]">
+                        Use an email that isn&rsquo;t already a CourtHub player account — player and
+                        business accounts are always separate.
+                      </p>
+                    </div>
+                  )}
                   <label className="mt-5 text-sm font-bold text-[#102521]">
                     Phone <span className="font-normal text-[#5e746e]">(optional)</span>
                     <input name="index-signup-phone"

@@ -38,3 +38,18 @@ codeledger/
 .claude/commands/
 .cursor/
 .gemini/
+echo ".venv/" >> .gitignore
+echo ".venv.broken-0.4.0/" >> .gitignore
+# Python virtual environments
+.venv/
+.venv.broken-*/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Supabase CLI temporary files
+supabase/.temp/
+
+# Node
+node_modules/

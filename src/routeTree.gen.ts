@@ -26,6 +26,7 @@ import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
 import { Route as ExploreGuestRouteImport } from './routes/explore_.guest'
 import { Route as PaymentReturnRouteImport } from './routes/payment.return'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
+import { Route as ApiTenantInviteRouteImport } from './routes/api/tenant/invite'
 import { Route as ApiInternalNotificationsDrainRouteImport } from './routes/api/internal/notifications.drain'
 import { Route as ApiPublicPaymongoWebhookRouteImport } from './routes/api/public/paymongo.webhook'
 
@@ -113,6 +114,11 @@ const VenuesVenueIdRoute = VenuesVenueIdRouteImport.update({
   path: '/venues/$venueId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTenantInviteRoute = ApiTenantInviteRouteImport.update({
+  id: '/api/tenant/invite',
+  path: '/api/tenant/invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInternalNotificationsDrainRoute =
   ApiInternalNotificationsDrainRouteImport.update({
     id: '/api/internal/notifications/drain',
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/admin': typeof AdminIndexRoute
+  '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/payment/return'
     | '/venues/$venueId'
     | '/admin/'
+    | '/api/tenant/invite'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/payment/return'
     | '/venues/$venueId'
     | '/admin'
+    | '/api/tenant/invite'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   id:
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/payment/return'
     | '/venues/$venueId'
     | '/admin/'
+    | '/api/tenant/invite'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesById: FileRoutesById
@@ -264,6 +276,7 @@ export interface RootRouteChildren {
   ExploreGuestRoute: typeof ExploreGuestRoute
   PaymentReturnRoute: typeof PaymentReturnRoute
   VenuesVenueIdRoute: typeof VenuesVenueIdRoute
+  ApiTenantInviteRoute: typeof ApiTenantInviteRoute
   ApiInternalNotificationsDrainRoute: typeof ApiInternalNotificationsDrainRoute
   ApiPublicPaymongoWebhookRoute: typeof ApiPublicPaymongoWebhookRoute
 }
@@ -389,6 +402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VenuesVenueIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tenant/invite': {
+      id: '/api/tenant/invite'
+      path: '/api/tenant/invite'
+      fullPath: '/api/tenant/invite'
+      preLoaderRoute: typeof ApiTenantInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/internal/notifications/drain': {
       id: '/api/internal/notifications/drain'
       path: '/api/internal/notifications/drain'
@@ -447,6 +467,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreGuestRoute: ExploreGuestRoute,
   PaymentReturnRoute: PaymentReturnRoute,
   VenuesVenueIdRoute: VenuesVenueIdRoute,
+  ApiTenantInviteRoute: ApiTenantInviteRoute,
   ApiInternalNotificationsDrainRoute: ApiInternalNotificationsDrainRoute,
   ApiPublicPaymongoWebhookRoute: ApiPublicPaymongoWebhookRoute,
 }

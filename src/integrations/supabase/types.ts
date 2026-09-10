@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           cancel_reason: string | null
           cancelled_at: string | null
+          booking_no: number | null
           cancelled_by: string | null
           court_id: number
           created_at: string
@@ -40,6 +41,7 @@ export type Database = {
         Insert: {
           cancel_reason?: string | null
           cancelled_at?: string | null
+          booking_no?: number | null
           cancelled_by?: string | null
           court_id: number
           created_at?: string
@@ -62,6 +64,7 @@ export type Database = {
         Update: {
           cancel_reason?: string | null
           cancelled_at?: string | null
+          booking_no?: number | null
           cancelled_by?: string | null
           court_id?: number
           created_at?: string
@@ -754,6 +757,97 @@ export type Database = {
           },
         ]
       }
+      tenant_invite_attempts: {
+        Row: {
+          actor_id: string
+          created_at: string
+          email: string
+          id: number
+          outcome: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          email: string
+          id?: never
+          outcome: string
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          email?: string
+          id?: never
+          outcome?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invite_attempts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_members: {
+        Row: {
+          created_at: string
+          id: number
+          role: string
+          status: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          role?: string
+          status?: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          role?: string
+          status?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          slug?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          slug?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -960,6 +1054,7 @@ export type Database = {
         Row: {
           address: string
           amenities: string[]
+          booking_no_prefix: string
           cancellation_notes: string | null
           contact_email: string | null
           contact_phone: string | null
@@ -981,11 +1076,14 @@ export type Database = {
           payment_mode: string
           refund_cutoff_hours: number
           rules: string | null
+          tenant_id: string | null
+          tenant_id_legacy_user: string | null
           timezone: string
         }
         Insert: {
           address: string
           amenities?: string[]
+          booking_no_prefix?: string
           cancellation_notes?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -1007,11 +1105,14 @@ export type Database = {
           payment_mode?: string
           refund_cutoff_hours?: number
           rules?: string | null
+          tenant_id?: string | null
+          tenant_id_legacy_user?: string | null
           timezone?: string
         }
         Update: {
           address?: string
           amenities?: string[]
+          booking_no_prefix?: string
           cancellation_notes?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -1033,6 +1134,8 @@ export type Database = {
           payment_mode?: string
           refund_cutoff_hours?: number
           rules?: string | null
+          tenant_id?: string | null
+          tenant_id_legacy_user?: string | null
           timezone?: string
         }
         Relationships: []
@@ -1415,6 +1518,25 @@ export type Database = {
           booking_id: number
           unread: number
         }[]
+      }
+      tenant_accept_invitation: {
+        Args: Record<string, never>
+        Returns: string
+      }
+      tenant_member_eligibility: {
+        Args: { _email: string }
+        Returns: {
+          outcome: string
+          user_id: string
+        }[]
+      }
+      tenant_remove_member: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
+      tenant_set_member_role: {
+        Args: { _role: string; _user_id: string }
+        Returns: undefined
       }
       venue_has_active_bookings: {
         Args: { _venue_id: number }

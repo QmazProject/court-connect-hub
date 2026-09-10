@@ -77,6 +77,24 @@ import { BookingChat } from "@/components/BookingChat";
 import { CancelRefundDialog, type CancelTarget } from "@/components/CancelRefundDialog";
 import { HoursConflictDialog, type HoursConflict } from "@/components/HoursConflictDialog";
 import { findHoursConflicts } from "@/lib/hours-conflicts";
+import {
+  BOOKING_PREFIX_MAX,
+  checkBookingPrefix,
+  formatBookingNo,
+  normaliseBookingPrefix,
+} from "@/lib/booking-numbers";
+import {
+  canChangeRole,
+  canManageTeam,
+  canRemoveMember,
+  MEMBER_ROLES,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  STATUS_LABELS,
+  type MemberRole,
+  type MemberStatus,
+  type TeamMemberLike,
+} from "@/lib/team";
 import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
 
 const chLogo = { url: "/CHicon.png" };
@@ -312,6 +330,9 @@ type Venue = {
   operating_hours_text?: string | null;
   refund_cutoff_hours?: number | null;
   cancellation_notes?: string | null;
+  /** Letters the tenant puts in front of this venue's booking numbers — "BN",
+   *  "INV", or "" for a bare count. See `src/lib/booking-numbers.ts`. */
+  booking_no_prefix?: string | null;
   rules?: string | null;
 };
 
@@ -536,6 +557,10 @@ function Dashboard() {
       onSignOut={signOut}
       search={shellSearch}
     >
+      {/* Above whichever section is open, because an unaccepted invitation is the
+          only thing that matters until it is answered — every panel below it is
+          empty for this account anyway. Renders nothing when none is waiting. */}
+      <PendingInvitation userId={user.id} />
       {section === "dashboard" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
@@ -642,10 +667,7 @@ function Dashboard() {
       )}
       {section === "team" && (
         <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <ComingSoon
-            title="Team"
-            body="Invite staff, assign roles and manage permissions per venue."
-          />
+          <TeamSection userId={user.id} />
         </div>
       )}
       {section === "transactions" && (
@@ -1096,6 +1118,19 @@ type ScheduleRow = {
 };
 type BoardRow = { key: string; name: string; sub: string; revenue: number; bookings: number };
 
+/** One venue's sales, opened up to the courts inside it. `unattributed` is the
+ *  part of the venue's take that no court could be named for — see where it is
+ *  computed; it is carried rather than hidden so the court rows and the venue
+ *  total above them always reconcile. */
+type SalesVenue = {
+  id: number;
+  name: string;
+  revenue: number;
+  bookings: number;
+  courts: { id: number; name: string; revenue: number; bookings: number }[];
+  unattributed: number;
+};
+
 function DashboardOverview({
   venues,
   loading,
@@ -1418,9 +1453,51 @@ function DashboardOverview({
         }))
         .sort((a, b) => b.revenue - a.revenue || b.bookings - a.bookings);
 
+      /* ── sales by venue, and by court inside it ─────────────────────────────
+         The board above ranks the best six. This answers the other question a
+         tenant asks of the same numbers — where all of the money came from — so
+         it is built from the very same aggregates rather than a second pass that
+         could drift from them.
+
+         Court revenue is only knowable where a payment can be traced to the
+         booking it settled. A transaction with no `booking_id`, or one whose
+         booking sits outside both the window fetched above and the thousand-row
+         backfill, still belongs to its venue and to no court. The difference is
+         kept as `unattributed` and shown as its own row: court rows that quietly
+         summed to less than the venue heading above them would read as a bug in
+         the arithmetic, which is worse than naming the gap. */
+      const courtsByVenue = new Map<number, SalesVenue["courts"]>();
+      for (const [id, agg] of courtAgg) {
+        const vid = courtById.get(id)?.venue_id;
+        if (vid === undefined) continue;
+        const list = courtsByVenue.get(vid) ?? [];
+        list.push({ id, name: nameOfCourt(id), revenue: agg.revenue, bookings: agg.bookings });
+        courtsByVenue.set(vid, list);
+      }
+      const salesTree: SalesVenue[] = Array.from(venueAgg.entries())
+        .map(([id, agg]) => {
+          const inside = (courtsByVenue.get(id) ?? []).sort(
+            (a, b) => b.revenue - a.revenue || b.bookings - a.bookings,
+          );
+          const named = inside.reduce((sum, c) => sum + c.revenue, 0);
+          return {
+            id,
+            name: venueById.get(id)?.name ?? `Venue ${id}`,
+            revenue: agg.revenue,
+            bookings: agg.bookings,
+            courts: inside,
+            /* Clamped at zero: the two figures are summed from the same rows, so a
+               negative here would mean a court was credited money its venue never
+               took, and a negative row is not a thing to render. */
+            unattributed: Math.max(0, agg.revenue - named),
+          };
+        })
+        .sort((a, b) => b.revenue - a.revenue || b.bookings - a.bookings);
+
       return {
         days,
         revenue: { current: revenueCurrent, previous: revenuePrevious },
+        salesTree,
         bookings: { current: bookingsCurrent, previous: bookingsPrevious },
         occupancy: {
           current: capacityCurrent > 0 ? bookedHoursCurrent / capacityCurrent : 0,
@@ -1532,7 +1609,11 @@ function DashboardOverview({
         >
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricTile
-              label="Revenue"
+              /* "Total sales" rather than "Revenue": same figure, same query — the
+                 settled take for the selected range, net of refunds, which drop out
+                 as their transaction leaves `paid`. The word is the one a tenant
+                 uses, and the breakdown below totals to exactly this. */
+              label="Total sales"
               value={peso(a?.revenue.current ?? 0)}
               delta={pctChange(a?.revenue.current ?? 0, a?.revenue.previous ?? 0)}
               spark={sparkRevenue}
@@ -1602,6 +1683,19 @@ function DashboardOverview({
               cancels={a?.cancels}
               period={period}
               onOpen={() => setSection("transactions")}
+            />
+          </div>
+
+          {/* Full width, below the two-column grid: this is a list that grows with
+              the account, and a tenant with nine venues needs the room more than
+              it needs to sit beside something. */}
+          <div className="mt-4">
+            <SalesBreakdown
+              tree={a?.salesTree ?? []}
+              /* The tile's own figure, not a second sum of the same rows: the
+                 header and the tile are then the same number by construction. */
+              total={a?.revenue.current ?? 0}
+              period={period}
             />
           </div>
         </div>
@@ -2273,6 +2367,183 @@ function Leaderboard({
             </li>
           ))}
         </ol>
+      )}
+    </div>
+  );
+}
+
+/** Sales by venue, opened up to the courts inside each one.
+ *
+ *  The board above it ranks the best six and stops; this is the other question
+ *  asked of the same money — where all of it came from, the quiet courts
+ *  included, and what share of the total each one holds. Both read the same
+ *  aggregate, so the two panels can never disagree.
+ *
+ *  A share is a part of a whole, so the bar is drawn against the tenant's total
+ *  take and not against the biggest row: scaling to the leader would make the
+ *  top venue a full bar whether it earned nine tenths of the money or a fifth,
+ *  which is the one thing this panel exists to show. */
+function SalesBreakdown({
+  tree,
+  total,
+  period,
+}: {
+  tree: SalesVenue[];
+  total: number;
+  period: Period;
+}) {
+  /* Explicit toggles only; everything else follows the default below, so the
+     panel does not need an effect to re-seed itself when a new range arrives. */
+  const [toggled, setToggled] = useState<Record<number, boolean>>({});
+  /* A short account opens showing everything, because that is the whole answer
+     and hiding it behind three clicks helps nobody. A long one opens collapsed
+     rather than filling the page with sixty rows before a tenant has asked. */
+  const openByDefault = tree.length <= 3;
+  const isOpen = (id: number) => toggled[id] ?? openByDefault;
+  const toggle = (id: number) =>
+    setToggled((prev) => ({ ...prev, [id]: !(prev[id] ?? openByDefault) }));
+
+  const share = (value: number) => (total > 0 ? value / total : 0);
+  const pct = (value: number) => {
+    const p = share(value) * 100;
+    /* "0%" against a figure that is plainly not nothing reads as a broken cell,
+       so anything that rounds away is shown as the bound it is under. */
+    return p > 0 && p < 1 ? "<1%" : `${Math.round(p)}%`;
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="inline-flex items-center gap-2 font-display text-lg font-semibold">
+          <Layers className="h-4 w-4 text-muted-foreground" /> Sales by venue & court
+        </h2>
+        <div className="text-right">
+          <div className="font-display text-lg font-semibold tabular-nums">{peso(total)}</div>
+          <div className="text-xs text-muted-foreground">settled in {period.label}</div>
+        </div>
+      </div>
+
+      {tree.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">Nothing settled in this range yet.</p>
+      ) : (
+        <ul className="mt-3 space-y-1">
+          {tree.map((venue) => {
+            const open = isOpen(venue.id);
+            /* Rows the venue can actually be opened to. A venue whose every
+               payment is unattributed has nothing underneath worth a control. */
+            const rows = venue.courts.length + (venue.unattributed > 0 ? 1 : 0);
+            return (
+              <li key={venue.id}>
+                <button
+                  type="button"
+                  onClick={() => toggle(venue.id)}
+                  disabled={rows === 0}
+                  aria-expanded={rows === 0 ? undefined : open}
+                  className="w-full rounded-lg px-2 py-2 text-left transition hover:bg-muted/60 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <div className="flex items-baseline gap-2">
+                    {rows === 0 ? (
+                      <span className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <ChevronRight
+                        aria-hidden
+                        className={
+                          "h-4 w-4 shrink-0 self-center text-muted-foreground transition-transform " +
+                          (open ? "rotate-90" : "")
+                        }
+                      />
+                    )}
+                    {/* Names wrap rather than truncate, for the same reason they do
+                        on the board above: a venue cut to "Sunrise Sports Com…" is
+                        not a venue a tenant can recognise at a glance. */}
+                    <span className="min-w-0 flex-1 text-sm font-semibold break-words">
+                      {venue.name}
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">
+                      {peso(venue.revenue)}
+                    </span>
+                    <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                      {pct(venue.revenue)}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2.5 pl-6">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(100, share(venue.revenue) * 100)}%`,
+                          backgroundColor: VIZ.series,
+                        }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {venue.bookings} {venue.bookings === 1 ? "booking" : "bookings"}
+                    </span>
+                  </div>
+                </button>
+
+                {open && rows > 0 && (
+                  /* Indented under the venue and drawn in a lighter step, so the
+                     courts read as a part of the row above rather than as venues
+                     of their own. */
+                  <ul className="mb-1 ml-6 space-y-1.5 border-l border-border pl-3">
+                    {venue.courts.map((court) => (
+                      <li key={court.id} className="pt-1.5">
+                        <div className="flex items-baseline gap-2">
+                          <span className="min-w-0 flex-1 text-sm break-words">{court.name}</span>
+                          <span className="shrink-0 text-sm tabular-nums">
+                            {peso(court.revenue)}
+                          </span>
+                          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                            {pct(court.revenue)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2.5">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, share(court.revenue) * 100)}%`,
+                                backgroundColor: VIZ.series,
+                                opacity: 0.55,
+                              }}
+                            />
+                          </div>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {court.bookings} {court.bookings === 1 ? "booking" : "bookings"}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                    {venue.unattributed > 0 && (
+                      /* Named, not dropped. This is money the venue took that no
+                         court could be traced for — most often a payment settled
+                         for a session outside the range being read. Leaving it out
+                         would make the courts sum to less than the venue heading
+                         and look like an arithmetic fault. */
+                      <li className="pt-1.5">
+                        <div className="flex items-baseline gap-2">
+                          <span className="min-w-0 flex-1 text-sm italic text-muted-foreground">
+                            Not traced to a court
+                          </span>
+                          <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                            {peso(venue.unattributed)}
+                          </span>
+                          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                            {pct(venue.unattributed)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          Paid for a session outside this range, or with no booking attached.
+                        </p>
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
@@ -5520,6 +5791,406 @@ function VenueEditor({
   );
 }
 
+/** What a failed query should say.
+ *
+ *  These panels used to answer every failure with their empty state — "No
+ *  transactions yet", "Create a venue first". That is the one thing a failure
+ *  must not say: it reports an account with nothing in it, which is a claim about
+ *  the tenant's data rather than about the request, and it is wrong every time.
+ *
+ *  The cause is shown rather than a house sentence, because "column
+ *  bookings.booking_no does not exist" tells whoever reads it that a migration is
+ *  pending, and "JWT expired" tells them to sign in again. Neither is guessable
+ *  from "Something went wrong". */
+function QueryErrorNote({
+  what,
+  error,
+  onRetry,
+}: {
+  what: string;
+  error: unknown;
+  onRetry: () => void;
+}) {
+  const detail = error instanceof Error ? error.message : error ? String(error) : null;
+  return (
+    <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+      <p className="text-sm font-semibold text-destructive">Couldn&rsquo;t load {what}.</p>
+      {detail && <p className="mt-1 break-words text-xs text-muted-foreground">{detail}</p>}
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-2 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
+/** How many venues the booking-number list shows at once. Ten, matching the
+ *  payment table above it: a tenant with sixty venues gets a page they can read
+ *  rather than a wall they have to scroll past to reach anything else. */
+const BOOKING_PREFIX_PAGE_SIZE = 10;
+
+type VenuePrefixRow = { id: number; name: string; booking_no_prefix: string | null };
+
+/** One venue's prefix. Split out per row so editing one venue cannot disturb what
+ *  was typed into another, and so the preview re-reads only its own draft.
+ *
+ *  The rule itself lives in `src/lib/booking-numbers.ts` and, for uniqueness, in
+ *  the database — this form validates through both rather than restating either,
+ *  so the message a tenant reads cannot drift from what is actually enforced. */
+function BookingNumberRow({
+  venue,
+  heldBy,
+  onSave,
+}: {
+  venue: VenuePrefixRow;
+  /** Every prefix this tenant already uses, and which venue holds it. Lets the
+   *  clash be named before the save is attempted; the database is still what
+   *  decides — see the rejection handling below. */
+  heldBy: Map<string, VenuePrefixRow>;
+  onSave: (id: number, prefix: string) => Promise<string>;
+}) {
+  const stored = normaliseBookingPrefix(venue.booking_no_prefix ?? "");
+  const [draft, setDraft] = useState(stored);
+  const [saving, setSaving] = useState(false);
+  const [savedAs, setSavedAs] = useState<string | null>(null);
+  const [rejected, setRejected] = useState<string | null>(null);
+
+  const typed = normaliseBookingPrefix(draft);
+  const check = checkBookingPrefix(draft);
+  const dirty = typed !== stored;
+  const holder = typed ? heldBy.get(typed) : undefined;
+  const clash = holder && holder.id !== venue.id ? holder : undefined;
+  const canSave = check.ok && dirty && !clash && !saving;
+  /* "Done" only while what is on screen is what was saved. The moment the tenant
+     types again there is unsaved work, and the button has to say so. */
+  const done = savedAs !== null && !dirty;
+
+  const submit = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setRejected(null);
+    try {
+      const nowStored = await onSave(venue.id, typed);
+      /* Echoed back from the row the database actually wrote, because clearing
+         the field does not store an empty prefix — it re-derives one from the
+         venue name. Reading it back is the only way the field can show what is
+         really there. */
+      setDraft(nowStored);
+      setSavedAs(nowStored);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setRejected(
+        /* The unique index refusing a second venue the same letters. It can beat
+           the check above when two tabs save at once, which is the whole reason
+           the rule is in the database and not only in this form. */
+        /duplicate key|already exists|23505|uq_venues_tenant_booking_prefix/i.test(message)
+          ? "Another venue already uses this — it was taken while you were typing. Choose another."
+          : message,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const problem = !check.ok
+    ? check.reason
+    : clash
+      ? `Already used by ${clash.name} — choose another.`
+      : rejected;
+
+  return (
+    <div className="grid gap-3 border-t border-border py-3 sm:grid-cols-[1fr_auto] sm:items-start">
+      <div className="min-w-0">
+        <div className="text-sm font-medium break-words">{venue.name}</div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            name={`booking-prefix-${venue.id}`}
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setSavedAs(null);
+              setRejected(null);
+            }}
+            /* One past the cap, so a seventeenth letter is refused by a message
+               rather than swallowed by the field with nothing said. */
+            maxLength={BOOKING_PREFIX_MAX + 1}
+            placeholder="e.g. LAPULAPU"
+            aria-label={`Booking number prefix for ${venue.name}`}
+            aria-invalid={problem != null}
+            className={
+              "w-44 rounded-lg border bg-background px-3 py-2 text-sm uppercase outline-none focus:ring-2 " +
+              (problem
+                ? "border-destructive focus:border-destructive focus:ring-destructive/30"
+                : "border-border focus:border-primary focus:ring-primary/30")
+            }
+          />
+          <span className="text-xs text-muted-foreground">
+            {check.ok ? (
+              <>
+                shows as{" "}
+                <b className="font-semibold text-foreground">{formatBookingNo(draft, 1)}</b>,{" "}
+                {formatBookingNo(draft, 2)}, {formatBookingNo(draft, 12)}…
+              </>
+            ) : (
+              "not a valid prefix"
+            )}
+          </span>
+        </div>
+        {problem && <p className="mt-1.5 text-xs text-destructive">{problem}</p>}
+        {check.ok && !problem && typed === "" && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Leave empty and save to go back to the name-based default.
+          </p>
+        )}
+      </div>
+      <div className="sm:pt-2">
+        {/* Green while there is something new to save, amber once it is saved.
+            Disabled states drop the colour entirely rather than dimming it, so a
+            button that cannot be pressed never looks like one that can. */}
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSave && !done}
+          style={
+            done
+              ? { backgroundColor: VIZ.pending, color: "#102521" }
+              : canSave
+                ? { backgroundColor: VIZ.up, color: "#ffffff" }
+                : undefined
+          }
+          className={
+            "w-24 rounded-lg px-3 py-2 text-sm font-semibold transition " +
+            (done || canSave
+              ? "border border-transparent"
+              : "border border-border bg-background text-muted-foreground")
+          }
+        >
+          {saving ? "Saving…" : done ? "Done" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Booking-number prefixes for every venue this tenant owns.
+ *
+ *  Kept apart from the payment table above rather than folded into it: they
+ *  filter and page independently, and a tenant hunting for one venue's prefix
+ *  should not have to leave the payment page they were reading. */
+function BookingNumbersPanel({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const host = useRef<HTMLDivElement | null>(null);
+  const [inView, setInView] = useState(false);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+
+  /* Nothing is fetched until the section reaches the screen. Settings opens on
+     the account card, and a tenant who came to change their name should not pay
+     for a venue list they never scroll to. Once seen it stays loaded — dropping
+     it on scroll-away would cost more than the request it saved. */
+  useEffect(() => {
+    if (inView) return;
+    const node = host.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      /* A little ahead of the viewport, so the list is there by the time the
+         heading is, rather than flashing a loader under the tenant's scroll. */
+      { rootMargin: "200px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [inView]);
+
+  const venuesQ = useQuery({
+    queryKey: ["venue-booking-prefixes", userId],
+    enabled: inView,
+    queryFn: async () => {
+      /* Scoped through `staff` exactly as the workspace list is. Venues are
+         readable by players too, so selecting without this would list every
+         venue on the platform, not the tenant's own. */
+      const { data: staffRows, error: staffErr } = await supabase
+        .from("staff")
+        .select("venue_id")
+        .eq("user_id", userId);
+      if (staffErr) throw staffErr;
+      const ids = (staffRows ?? []).map((row) => row.venue_id);
+      if (ids.length === 0) return [] as VenuePrefixRow[];
+      const { data, error } = await supabase
+        .from("venues")
+        .select("id, name, booking_no_prefix")
+        .in("id", ids)
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as VenuePrefixRow[];
+    },
+  });
+
+  const venues = useMemo(() => venuesQ.data ?? [], [venuesQ.data]);
+
+  /* Searched over every venue, never the page on screen: a list that only finds
+     what you can already see is not a search. */
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle ? venues.filter((v) => v.name.toLowerCase().includes(needle)) : venues;
+  }, [venues, query]);
+
+  /* Narrowing the list can leave the tenant on a page that no longer exists —
+     clamp rather than showing an empty table under a live page counter. */
+  const pageCount = Math.max(1, Math.ceil(filtered.length / BOOKING_PREFIX_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = filtered.slice(
+    safePage * BOOKING_PREFIX_PAGE_SIZE,
+    safePage * BOOKING_PREFIX_PAGE_SIZE + BOOKING_PREFIX_PAGE_SIZE,
+  );
+
+  /* Built from every venue rather than the page, so a clash with a venue three
+     pages away is still named. */
+  const heldBy = useMemo(() => {
+    const map = new Map<string, VenuePrefixRow>();
+    for (const v of venues) {
+      const prefix = normaliseBookingPrefix(v.booking_no_prefix ?? "");
+      if (prefix) map.set(prefix, v);
+    }
+    return map;
+  }, [venues]);
+
+  const save = async (id: number, prefix: string) => {
+    const { data, error } = await supabase
+      .from("venues")
+      .update({ booking_no_prefix: prefix })
+      .eq("id", id)
+      .select("booking_no_prefix")
+      .single();
+    if (error) throw error;
+    await qc.invalidateQueries({ queryKey: ["venue-booking-prefixes"] });
+    /* The Transactions table prints these letters too, so it has to re-read them
+       — otherwise the setting looks saved and the column still disagrees. */
+    await qc.invalidateQueries({ queryKey: ["my-venues"] });
+    return normaliseBookingPrefix(data?.booking_no_prefix ?? "");
+  };
+
+  return (
+    <div
+      ref={host}
+      id={TENANT_ANCHORS.bookingNumbers}
+      className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+    >
+      <h3 className="text-base font-semibold">Booking numbers</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Each venue counts its own bookings from 1, and starts with letters taken from its name —
+        Lapu Lapu Venue becomes <b>LAPULAPU1</b>. Change them to anything you like, up to{" "}
+        {BOOKING_PREFIX_MAX} letters. No two of your venues may share the same letters. The number
+        is added for you and counts normally: 1, 2, 3 … 10, 11, 12. Each booking keeps its place in
+        the count for good; changing the letters restyles this venue&rsquo;s whole list, past
+        bookings included.
+      </p>
+
+      {!inView ? (
+        /* The placeholder the observer above is watching for. It has to occupy
+           real height, or the section never crosses the viewport and the list
+           never loads. */
+        <p className="mt-4 text-sm text-muted-foreground">Scroll here to load your venues…</p>
+      ) : venuesQ.isLoading ? (
+        <p className="mt-4 text-sm text-muted-foreground">Loading venues…</p>
+      ) : venuesQ.isError ? (
+        <QueryErrorNote
+          what="venue booking numbers"
+          error={venuesQ.error}
+          onRetry={() => venuesQ.refetch()}
+        />
+      ) : venues.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Create a venue first to set its booking numbers.
+        </p>
+      ) : (
+        <>
+          <div className="relative mt-4 max-w-xs">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              name="booking-prefix-search"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+              type="search"
+              placeholder="Search venue"
+              aria-label="Search venues by name"
+              className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              No venue matches &ldquo;{query.trim()}&rdquo;.
+            </p>
+          ) : (
+            <div className="mt-2">
+              {pageRows.map((v) => (
+                <BookingNumberRow
+                  /* Keyed by id alone. Folding the stored prefix in here remounted
+                     the row on every successful save, which reset the state behind
+                     the "Done" label so it never appeared. The row already reads
+                     the saved value back from the database itself. */
+                  key={v.id}
+                  venue={v}
+                  heldBy={heldBy}
+                  onSave={save}
+                />
+              ))}
+            </div>
+          )}
+
+          {filtered.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+              <span className="text-xs text-muted-foreground">
+                Showing {safePage * BOOKING_PREFIX_PAGE_SIZE + 1}–
+                {safePage * BOOKING_PREFIX_PAGE_SIZE + pageRows.length} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage(Math.max(0, safePage - 1))}
+                  disabled={safePage === 0}
+                  aria-label="Previous page"
+                  className="rounded-lg border border-border p-1.5 hover:border-primary disabled:opacity-40 disabled:hover:border-border"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="px-1 text-xs tabular-nums text-muted-foreground">
+                  {safePage + 1} / {pageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage(Math.min(pageCount - 1, safePage + 1))}
+                  disabled={safePage >= pageCount - 1}
+                  aria-label="Next page"
+                  className="rounded-lg border border-border p-1.5 hover:border-primary disabled:opacity-40 disabled:hover:border-border"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsSection({
   fullName,
   email,
@@ -5683,13 +6354,23 @@ function SettingsSection({
               PayMongo · Test mode
             </span>
           </div>
-          <PaymentSettingsTable
-            venues={paySettingsQ.data ?? []}
-            loading={paySettingsQ.isLoading}
-            onSave={savePaymentSettings}
-          />
+          {paySettingsQ.isError ? (
+            <QueryErrorNote
+              what="payment settings"
+              error={paySettingsQ.error}
+              onRetry={() => paySettingsQ.refetch()}
+            />
+          ) : (
+            <PaymentSettingsTable
+              venues={paySettingsQ.data ?? []}
+              loading={paySettingsQ.isLoading}
+              onSave={savePaymentSettings}
+            />
+          )}
         </div>
       )}
+
+      {role === "tenant" && <BookingNumbersPanel userId={userId} />}
 
       <div className="rounded-2xl border border-destructive/30 bg-card p-5 sm:p-6">
         <h3 className="text-base font-semibold">Session</h3>
@@ -8836,11 +9517,442 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
   );
 }
 
+// ================= Invitation acceptance =================
+
+/** The invitation an invited member is shown the moment they reach the workspace.
+ *
+ *  Acceptance is theirs alone. `tenant_accept_invitation()` takes no arguments — it
+ *  reads `auth.uid()` and updates that account's own waiting row — so there is no
+ *  call an admin can make, from any client, that accepts on somebody's behalf. This
+ *  panel is the only way in, and it appears only for the person it belongs to.
+ *
+ *  Until they accept, the membership is `invited` and no `staff` row exists, so the
+ *  workspace around this panel is genuinely empty rather than merely hidden. */
+function PendingInvitation({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const inviteQ = useQuery({
+    queryKey: ["my-tenant-invitation", userId],
+    queryFn: async () => {
+      const { data, error: memberError } = await supabase
+        .from("tenant_members")
+        .select("tenant_id, role, status")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (!data || data.status !== "invited") return null;
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("name")
+        .eq("id", data.tenant_id)
+        .maybeSingle();
+      return { role: data.role as MemberRole, business: tenant?.name ?? null };
+    },
+  });
+
+  if (!inviteQ.data) return null;
+  const { role, business } = inviteQ.data;
+
+  const accept = async () => {
+    setBusy(true);
+    setError(null);
+    const { error: rpcError } = await supabase.rpc("tenant_accept_invitation");
+    setBusy(false);
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
+    }
+    /* Everything the workspace shows is gated on the staff rows this call creates,
+       so the whole tenant view has to be re-read rather than just this panel. */
+    await qc.invalidateQueries();
+  };
+
+  return (
+    <div className="mb-5 rounded-2xl border-2 border-primary/40 bg-primary/5 p-4 sm:p-5">
+      <h2 className="font-display text-lg font-semibold">
+        You have been invited to {business || "this workspace"}
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        You would join as <b className="text-foreground">{ROLE_LABELS[role]}</b>. Nothing is shared
+        with you, and nothing of yours is shared with them, until you accept.
+      </p>
+      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      <button
+        type="button"
+        onClick={accept}
+        disabled={busy}
+        className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "Joining…" : "Accept invitation"}
+      </button>
+    </div>
+  );
+}
+
+// ================= Team =================
+
+type TeamRow = {
+  user_id: string;
+  role: MemberRole;
+  status: MemberStatus;
+  full_name: string | null;
+  email: string | null;
+};
+
+/** The tenant's team.
+ *
+ *  Every control here is offered to admins only, and every one of them is refused
+ *  again in SQL — `tenant_remove_member` and `tenant_set_member_role` re-check the
+ *  caller and the last-admin rule themselves. What this screen decides is what to
+ *  show; what the database decides is what may happen.
+ *
+ *  Roles are honest about their reach: until the row-level policies are reworked
+ *  they shape this screen and not what the API permits, which the note at the foot
+ *  of the list says out loud rather than leaving to be discovered. */
+function TeamSection({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<MemberRole>("staff");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSent, setInviteSent] = useState<string | null>(null);
+  const [inviteWarning, setInviteWarning] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const teamQ = useQuery({
+    queryKey: ["tenant-team"],
+    queryFn: async () => {
+      /* Members first, then their names in one follow-up. `tenant_members` carries
+         no name of its own on purpose — a person's name belongs to their profile,
+         and copying it here would leave two versions to disagree. */
+      const { data: members, error } = await supabase
+        .from("tenant_members")
+        .select("user_id, role, status")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      const ids = (members ?? []).map((m) => m.user_id);
+      if (ids.length === 0) return [] as TeamRow[];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", ids);
+      const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+      return (members ?? []).map((m) => ({
+        user_id: m.user_id,
+        role: m.role as MemberRole,
+        status: m.status as MemberStatus,
+        full_name: nameById.get(m.user_id) ?? null,
+        /* Only the signed-in member's own address is available to the browser;
+           `auth.users` is not readable from here and should not be. Everyone
+           else's is shown as the invitation that carried it. */
+        email: null,
+      })) as TeamRow[];
+    },
+  });
+
+  const rows = useMemo(() => teamQ.data ?? [], [teamQ.data]);
+  const asRules: TeamMemberLike[] = useMemo(
+    () => rows.map((r) => ({ userId: r.user_id, role: r.role, status: r.status })),
+    [rows],
+  );
+  const viewer = asRules.find((m) => m.userId === userId) ?? null;
+  const isAdmin = canManageTeam(viewer);
+
+  const invite = async () => {
+    setInviteBusy(true);
+    setInviteError(null);
+    setInviteSent(null);
+    try {
+      /* The caller's own token, so the endpoint can establish who is asking rather
+         than believing what it is told. */
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Your session has expired. Sign in again.");
+      const response = await fetch("/api/tenant/invite", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: inviteEmail, fullName: inviteName, role: inviteRole }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        email?: string;
+        emailReason?: string;
+      };
+      if (!response.ok) throw new Error(payload.error ?? "Could not send that invitation.");
+      /* The member is added whatever the mail provider did, but an admin who is not
+         told the email bounced will sit waiting for someone who never heard. */
+      setInviteWarning(
+        payload.email && payload.email !== "sent"
+          ? `The member was added, but the invitation email did not go out (${payload.emailReason ?? payload.email}). Check RESEND_API_KEY and NOTIFICATION_FROM_EMAIL, then resend.`
+          : null,
+      );
+      setInviteSent(inviteEmail.trim());
+      setInviteName("");
+      setInviteEmail("");
+      setInviteRole("staff");
+      setAdding(false);
+      await qc.invalidateQueries({ queryKey: ["tenant-team"] });
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : "Could not send that invitation.");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  /* PromiseLike, not Promise: a Supabase query builder is thenable but is not a
+     Promise, and awaiting it is what runs it. */
+  const runAction = async (fn: () => PromiseLike<{ error: unknown }>) => {
+    setActionError(null);
+    const { error } = await fn();
+    if (error) {
+      setActionError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    await qc.invalidateQueries({ queryKey: ["tenant-team"] });
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Team" subtitle="The people who work inside this workspace." />
+
+      {teamQ.isError ? (
+        <QueryErrorNote what="your team" error={teamQ.error} onRetry={() => teamQ.refetch()} />
+      ) : teamQ.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading team…</p>
+      ) : (
+        <>
+          {isAdmin && (
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+              {!adding ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdding(true);
+                    setInviteSent(null);
+                  }}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  Add member
+                </button>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-semibold">
+                    Full name
+                    <input
+                      name="team-invite-name"
+                      value={inviteName}
+                      onChange={(e) => setInviteName(e.target.value)}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+                      placeholder="Sarah Reyes"
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Email
+                    <input
+                      name="team-invite-email"
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+                      placeholder="sarah@yourbusiness.com"
+                    />
+                    {/* Said before the attempt, because the refusal afterwards is
+                        deliberately vague and this is the reason for it. */}
+                    <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
+                      Must be an address with no CourtHub account. Player accounts cannot join a
+                      team.
+                    </span>
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Role
+                    <select
+                      name="team-invite-role"
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as MemberRole)}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+                    >
+                      {MEMBER_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABELS[r]} — {ROLE_DESCRIPTIONS[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex items-end gap-2">
+                    <button
+                      type="button"
+                      onClick={invite}
+                      disabled={inviteBusy || !inviteEmail.trim() || !inviteName.trim()}
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                    >
+                      {inviteBusy ? "Sending…" : "Send invitation"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdding(false);
+                        setInviteError(null);
+                      }}
+                      className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-semibold hover:border-primary"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {inviteError && (
+                    <p className="sm:col-span-2 text-sm text-destructive">{inviteError}</p>
+                  )}
+                </div>
+              )}
+              {inviteSent && !inviteWarning && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Invitation sent to <b className="text-foreground">{inviteSent}</b>. They join once
+                  they set a password and accept — nothing is shared until then.
+                </p>
+              )}
+              {inviteWarning && (
+                <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {inviteWarning}
+                </p>
+              )}
+            </div>
+          )}
+
+          {actionError && (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {actionError}
+            </p>
+          )}
+
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Member</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Status</th>
+                  {isAdmin && <th className="px-4 py-3 text-right">Manage</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-6 text-muted-foreground" colSpan={isAdmin ? 4 : 3}>
+                      Nobody here yet.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => {
+                    const removal = canRemoveMember(asRules, r.user_id);
+                    return (
+                      <tr key={r.user_id} className="border-t border-border">
+                        <td className="px-4 py-3">
+                          <div className="font-medium break-words">
+                            {r.full_name || "Invited member"}
+                            {r.user_id === userId && (
+                              <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {isAdmin && r.status !== "inactive" ? (
+                            <select
+                              name={`team-role-${r.user_id}`}
+                              value={r.role}
+                              onChange={(e) =>
+                                runAction(() =>
+                                  supabase.rpc("tenant_set_member_role", {
+                                    _user_id: r.user_id,
+                                    _role: e.target.value,
+                                  }),
+                                )
+                              }
+                              aria-label={`Role for ${r.full_name || "this member"}`}
+                              className="rounded-lg border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                            >
+                              {MEMBER_ROLES.map((role) => (
+                                <option
+                                  key={role}
+                                  value={role}
+                                  /* The last-admin rule, shown as an option that
+                                     cannot be picked rather than a change that is
+                                     accepted and then refused. */
+                                  disabled={!canChangeRole(asRules, r.user_id, role).ok}
+                                >
+                                  {ROLE_LABELS[role]}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            ROLE_LABELS[r.role]
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={
+                              "rounded-full px-2 py-0.5 text-[11px] font-semibold " +
+                              (r.status === "active"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : r.status === "invited"
+                                  ? "bg-secondary text-muted-foreground"
+                                  : "bg-muted text-muted-foreground")
+                            }
+                          >
+                            {STATUS_LABELS[r.status]}
+                          </span>
+                        </td>
+                        {isAdmin && (
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                runAction(() =>
+                                  supabase.rpc("tenant_remove_member", { _user_id: r.user_id }),
+                                )
+                              }
+                              disabled={!removal.ok}
+                              title={removal.ok ? undefined : removal.reason}
+                              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-destructive hover:text-destructive disabled:opacity-40 disabled:hover:border-border disabled:hover:text-foreground"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Not hidden in a comment: a Manager and a Staff member currently have
+              the same reach once inside, because the policies guarding venues and
+              bookings ask only whether a person is on the team. Saying so is the
+              difference between a known limit and a false sense of one. */}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Roles shape what this workspace offers each member. They do not yet restrict what the
+            underlying data allows, so give Admin only to people you would trust with everything.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ================= Transactions =================
 
 type TxRow = {
   id: string;
   booking_id: number;
+  /** Embedded from the booking this payment settled, so the table can show the
+   *  tenant's own number instead of the row id. Null for a booking that has none
+   *  — one whose court has no venue, or one the backfill could not reach. */
+  bookings?: { booking_no: number | null } | null;
   venue_id: number;
   user_id: string;
   amount: number;
@@ -8866,7 +9978,10 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
     queryFn: async () => {
       let q = supabase
         .from("transactions")
-        .select("*")
+        /* Embedded through `transactions_booking_id_fkey` rather than fetched in a
+           second round trip: the number belongs to the booking, and a separate
+           query would let the two lists arrive out of step. */
+        .select("*, bookings(booking_no)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (venueFilter !== "all") q = q.eq("venue_id", venueFilter);
@@ -8981,6 +10096,19 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
                     Loading…
                   </td>
                 </tr>
+              ) : txQ.isError ? (
+                /* Checked before the empty case, which is the whole point: a
+                   failed load has no rows either, and letting it fall through
+                   told the tenant they had no transactions. */
+                <tr>
+                  <td className="px-4 py-4" colSpan={7}>
+                    <QueryErrorNote
+                      what="transactions"
+                      error={txQ.error}
+                      onRetry={() => txQ.refetch()}
+                    />
+                  </td>
+                </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
@@ -8999,7 +10127,14 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
                     <td className="px-4 py-3">
                       <code className="text-xs font-semibold">{r.raw?.payment_id ?? "—"}</code>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">#{r.booking_id}</td>
+                    {/* The tenant's own number, not the row id. A booking with no
+                        number shows an em dash rather than a fabricated one. */}
+                    <td className="px-4 py-3 font-medium">
+                      {formatBookingNo(
+                        venues.find((v) => v.id === r.venue_id)?.booking_no_prefix,
+                        r.bookings?.booking_no,
+                      ) ?? <span className="text-muted-foreground">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}
                     </td>
@@ -10046,6 +11181,11 @@ function BookingsSection({
  *  floor, not a total, which the UI says out loud rather than hiding. */
 const TENANT_ROW_CAP = 10_000;
 
+/** How many month buckets a tile's sparkline shows. Twelve so the line always
+ *  spans a full seasonal cycle: a venue's quiet months are a shape, and a
+ *  window shorter than a year would read that shape as a decline. */
+const SPARKLINE_MONTHS = 12;
+
 /** "all" is the whole book. A year is a reporting period — it scopes what a
  *  customer booked and spent, and never what they are. */
 type ReportYear = "all" | number;
@@ -10193,8 +11333,16 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
          the count needs and nothing else, so the cap stretches much further here
          than it would over full booking rows. When a year is not selected the
          period query already is the whole book, and is reused. */
-      let lifetimeRows: { user_id: string; status: string | null; cancelled_at: string | null }[] =
-        bookings;
+      /* `start_time` is carried here, not just `user_id`, because the second of
+         these rows per customer is the exact moment `isRepeatCustomer` starts
+         answering true for them — which is what the repeat sparkline plots. Both
+         branches below already select it. */
+      let lifetimeRows: {
+        user_id: string;
+        status: string | null;
+        cancelled_at: string | null;
+        start_time: string;
+      }[] = bookings;
       let lifetimeSaturated = bookings.length >= TENANT_ROW_CAP;
       if (period && uids.length > 0) {
         let lq = supabase
@@ -10283,7 +11431,119 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
           cur.since = p.created_at;
         }
       }
-      return { rows: Array.from(map.values()), lifetimeSaturated };
+      /* ── the twelve-month shape ────────────────────────────────────────────
+         Built entirely from rows already fetched above, so the sparklines cost
+         no extra round trip.
+
+         Every series is cumulative "to date" rather than per-month, and that is
+         the property that makes it safe to draw one under a headline figure:
+         the last point of each series is exactly the number printed above it.
+         A line that ends somewhere other than the value it sits beneath asks
+         the reader to reconcile two figures that were never the same. */
+      const monthOf = (instant: string) => zonedDateISO(new Date(instant), tz).slice(0, 7);
+      const thisMonth = zonedDateISO(new Date(), tz).slice(0, 7);
+      /* The window ends at the reporting year's last month, or at this month
+         while that year is still running — never on empty months ahead of now. */
+      const endMonth = period ? [`${year}-12`, thisMonth].sort()[0] : thisMonth;
+      const months: string[] = [];
+      if (period) {
+        /* January to whatever month the reporting year has reached, not the
+           twelve months up to it: the rows behind this series are filtered to
+           the selected year, so a rolling window would open on months that were
+           excluded by the query rather than quiet at the venue — a flat run the
+           reader would take for a slump. */
+        const through = endMonth.startsWith(`${year}-`) ? Number(endMonth.slice(5)) : 12;
+        for (let m = 1; m <= through; m++) months.push(`${year}-${String(m).padStart(2, "0")}`);
+      } else {
+        let [cy, cm] = thisMonth.split("-").map(Number);
+        for (let i = 0; i < SPARKLINE_MONTHS; i++) {
+          months.unshift(`${cy}-${String(cm).padStart(2, "0")}`);
+          cm -= 1;
+          if (cm === 0) {
+            cm = 12;
+            cy -= 1;
+          }
+        }
+      }
+      const lastMonth = months[months.length - 1];
+      /* Which bucket an event belongs to. A booking dated ahead of the window is
+         folded into its final month rather than dropped: this table counts
+         upcoming reservations, so a customer whose only booking is next week is
+         already in the headline above, and a line that quietly omitted them
+         would end below the number it sits under — the one thing the cumulative
+         shape is here to prevent. */
+      const bucketOf = (key: string) => (key > lastMonth ? lastMonth : key);
+
+      /* The month each customer first appears in this report. */
+      const firstSeen = new Map<string, string>();
+      for (const b of bookings) {
+        const k = monthOf(b.start_time);
+        const seen = firstSeen.get(b.user_id);
+        if (!seen || k < seen) firstSeen.set(b.user_id, k);
+      }
+
+      /* The month each customer became a repeat customer: the second countable
+         booking of their history here. Restricted to customers this report
+         actually lists, so the line lands on the same count the tile shows. */
+      const timesByUser = new Map<string, string[]>();
+      for (const r of lifetimeRows) {
+        if (!isCountableBooking(r)) continue;
+        const list = timesByUser.get(r.user_id);
+        if (list) list.push(r.start_time);
+        else timesByUser.set(r.user_id, [r.start_time]);
+      }
+      const becameRepeat = new Map<string, string>();
+      for (const [id, times] of timesByUser) {
+        if (!map.has(id) || times.length < 2) continue;
+        times.sort();
+        becameRepeat.set(id, monthOf(times[1]));
+      }
+
+      /* Anything that happened before the window is the line's starting height,
+         never a zero: a curve that restarts at nothing each January would draw
+         growth the venue did not have. */
+      const runningCount = (whenByUser: Iterable<string>) => {
+        const perMonth = new Map<string, number>();
+        let carried = 0;
+        for (const k of whenByUser) {
+          if (k < months[0]) carried += 1;
+          else {
+            const b = bucketOf(k);
+            perMonth.set(b, (perMonth.get(b) ?? 0) + 1);
+          }
+        }
+        let running = carried;
+        return months.map((m) => {
+          running += perMonth.get(m) ?? 0;
+          return running;
+        });
+      };
+
+      const revenuePerMonth = new Map<string, number>();
+      let revenueCarried = 0;
+      for (const t of txs) {
+        const settled = t.paid_at ?? t.created_at;
+        if (!settled) continue;
+        const k = monthOf(settled);
+        if (k < months[0]) revenueCarried += Number(t.amount);
+        else {
+          const b = bucketOf(k);
+          revenuePerMonth.set(b, (revenuePerMonth.get(b) ?? 0) + Number(t.amount));
+        }
+      }
+      let revenueRunning = revenueCarried;
+      const revenueSeries = months.map((m) => {
+        revenueRunning += revenuePerMonth.get(m) ?? 0;
+        return revenueRunning;
+      });
+
+      return {
+        rows: Array.from(map.values()),
+        lifetimeSaturated,
+        customerSeries: runningCount(firstSeen.values()),
+        repeatSeries: runningCount(becameRepeat.values()),
+        revenueSeries,
+      };
     },
   });
 
@@ -10328,6 +11588,13 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
   /* Lifetime, never the period. A customer who booked three times in 2024 and
      once in the year being reported on is still someone who came back. */
   const repeat = all.filter((r) => isRepeatCustomer(r.lifetimeBookings)).length;
+  /* Bookings inside the reporting period, so the figure beneath the headcount is
+     scoped the same way the table below it is. */
+  const periodBookings = all.reduce((s, r) => s + r.bookings, 0);
+  const repeatShare = totalCustomers > 0 ? repeat / totalCustomers : 0;
+  /* Named once here because the revenue tile no longer says "lifetime": the year
+     picker below scopes the figure, so the hint has to say which year it was. */
+  const periodLabel = year === "all" ? "All time" : String(year);
   const years = useMemo(
     () => tenantYears(venues, venues[0]?.timezone || DEFAULT_TIMEZONE),
     [venues],
@@ -10344,22 +11611,45 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <PlayerKpi
           label="Total customers"
-          value={String(totalCustomers)}
+          value={totalCustomers.toLocaleString("en-PH")}
+          trend={dataQ.data?.customerSeries}
+          hint={
+            totalCustomers > 0
+              ? `${periodBookings.toLocaleString("en-PH")} booking${periodBookings === 1 ? "" : "s"} between them`
+              : undefined
+          }
           icon={<Users className="h-4 w-4" />}
         />
         <PlayerKpi
           label="Repeat customers"
-          value={String(repeat)}
+          value={repeat.toLocaleString("en-PH")}
+          trend={dataQ.data?.repeatSeries}
           hint={
             totalCustomers > 0
-              ? `${Math.round((repeat / totalCustomers) * 100)}% booked more than once`
+              ? /* The share the bar used to draw, said in words instead: a
+                   percentage is one number, and a number reads better as a number
+                   than as a length the eye has to measure against a track.
+                   "At least" past the cap, because a truncated lifetime pass can
+                   only undercount a return — the same caveat the notice below
+                   spells out, said where the number is actually read. */
+                `${lifetimeSaturated ? "At least " : ""}${Math.round(repeatShare * 100)}% of ${totalCustomers.toLocaleString("en-PH")} booked more than once`
               : undefined
           }
           icon={<Repeat className="h-4 w-4" />}
         />
         <PlayerKpi
-          label="Lifetime revenue"
+          /* Just "Revenue". The figure follows the year picker — spend is filtered
+             by settlement date above — so "Lifetime" was the one word on this tile
+             a tenant had no way to check, and the period belongs in the hint where
+             it can change with the picker. */
+          label="Revenue"
           value={currency(totalSpent)}
+          trend={dataQ.data?.revenueSeries}
+          hint={
+            totalCustomers > 0
+              ? `${periodLabel} · ${currency(totalSpent / totalCustomers)} per customer`
+              : periodLabel
+          }
           icon={<Wallet className="h-4 w-4" />}
         />
       </div>
@@ -10950,23 +12240,63 @@ function PlayerKpi({
   value,
   hint,
   icon,
+  trend,
 }: {
   label: string;
   value: string;
   hint?: string;
-  /** Optional, so the seven call sites that predate it keep rendering as they did. */
+  /** Optional, so the eight call sites that predate it keep rendering as they did. */
   icon?: React.ReactNode;
+  /** A short series drawn as a sparkline beneath the value, through the same
+   *  `Sparkline` the Dashboard's own tiles use. Cumulative at every call site, so
+   *  the line ends on the figure printed above it — see the note where the series
+   *  are built. Omit it and the tile lays out as it did before. */
+  trend?: number[];
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
+    /* A container, so the value below can size itself against the tile rather
+       than the viewport: the same component sits three-up in Bookings and
+       five-up in Transactions, and a figure tuned for one overflows the other. */
+    <div className="@container group relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm transition-colors duration-200 hover:border-primary/40">
+      {/* Decoration, behind everything and hidden from the reader: it gives the
+          tile a lit corner without tinting the text sitting on top of it. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-primary/5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+      />
+      <div className="relative flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        {icon && <span className="shrink-0 text-muted-foreground">{icon}</span>}
+        {icon && (
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            {icon}
+          </span>
+        )}
       </div>
-      <p className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
+      {/* Proportional figures, not `tabular-nums`: tabular widens every digit to
+          the width of a zero, which reads loose at this size. The table further
+          down keeps tabular, where columns genuinely have to line up.
+          `break-words` earns its place next to the `overflow-hidden` above: a
+          long unbroken figure like ₱1,284,000.00 in the five-up Transactions row
+          would otherwise be clipped mid-number, and a clipped number is a wrong
+          number. It wraps instead. */}
+      <p className="relative mt-2 break-words font-display text-[clamp(1.5rem,12cqw,1.75rem)] font-semibold leading-tight tracking-tight text-foreground">
+        {value}
+      </p>
+      {/* The Dashboard's own sparkline rather than one built for this tile: it
+          already down-samples by bucket mean instead of dropping points, and it
+          draws in `VIZ.series` — the computed chart hue, which the brand teal is
+          too low in chroma to stand in for. A second copy would have drifted
+          from both on the first change to either. */}
+      {trend && trend.length > 1 && (
+        <div className="relative mt-2">
+          <Sparkline values={trend} />
+        </div>
+      )}
+      {hint && (
+        <p className="relative mt-1.5 text-[11px] leading-snug text-muted-foreground">{hint}</p>
+      )}
     </div>
   );
 }
