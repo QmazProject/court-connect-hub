@@ -1519,9 +1519,26 @@ export type Database = {
           unread: number
         }[]
       }
+      ensure_tenant_workspace: {
+        Args: Record<string, never>
+        Returns: {
+          created: boolean
+          tenant_id: string
+        }[]
+      }
+      membership_matches_slug: {
+        Args: { _slug: string }
+        Returns: boolean
+      }
       tenant_accept_invitation: {
         Args: Record<string, never>
         Returns: string
+      }
+      tenant_login_page: {
+        Args: { _slug: string }
+        Returns: {
+          name: string
+        }[]
       }
       tenant_member_eligibility: {
         Args: { _email: string }

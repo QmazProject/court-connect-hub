@@ -2,7 +2,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  createContext,
+  useContext,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel } from "@/lib/booking-groups";
@@ -95,6 +104,15 @@ import {
   type MemberStatus,
   type TeamMemberLike,
 } from "@/lib/team";
+import { capabilitiesFor, requiredRoleLabel, type Capability } from "@/lib/permissions";
+import {
+  BUSINESS_NAME_MAX,
+  checkBusinessName,
+  DUPLICATE_BUSINESS_NAME_MESSAGE,
+  isDuplicateBusinessNameError,
+  isVenueCreationRefused,
+  VENUE_CREATION_REFUSED_MESSAGE,
+} from "@/lib/tenant-workspace";
 import { cancelBookingsWithRefund } from "@/lib/refunds.functions";
 
 const chLogo = { url: "/CHicon.png" };
@@ -441,6 +459,47 @@ function Dashboard() {
     },
   });
 
+  /* A tenant account that has no workspace yet gets one here, on first load. The
+     function it calls answers from `auth.uid()` alone and no-ops for anyone who already
+     belongs somewhere — an invited member, a backfilled tenant — so calling it on every
+     visit is safe, and it is keyed by user so React Query calls it once per session.
+     Gated on the profile row, not on user metadata: metadata is the sign-up form's
+     claim, the profile is what `claim_initial_role` actually granted. */
+  const workspaceBootstrapQ = useQuery({
+    queryKey: ["ensure-tenant-workspace", user.id],
+    enabled: profileQ.data?.role === "tenant",
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("ensure_tenant_workspace");
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return row ?? null;
+    },
+  });
+  /* Only a workspace that was just created leaves stale caches behind: every tenant
+     panel would have queried before the rows existed. An existing workspace changes
+     nothing and invalidates nothing. */
+  const bootstrapCreated = workspaceBootstrapQ.data?.created === true;
+  useEffect(() => {
+    if (bootstrapCreated) void qc.invalidateQueries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bootstrapCreated]);
+
+  /* The caller's own membership, for the one screen control the INSERT policy now
+     stands behind. Shares the cache the header and Settings already read, and turns
+     true only once `ensure_tenant_workspace` has given a founder their membership. */
+  const myTenantQ = useMyTenant(user.id);
+  const permissions = useMemo<TenantPermissions>(() => {
+    const t = myTenantQ.data;
+    const active = !!t && t.status === "active";
+    const caps = capabilitiesFor(active ? t.role : null, active);
+    return {
+      ready: myTenantQ.isFetched,
+      role: active ? t.role : null,
+      can: (c) => caps.has(c),
+    };
+  }, [myTenantQ.data, myTenantQ.isFetched]);
+
   const venuesQ = useQuery({
     queryKey: ["my-venues", user.id],
     queryFn: async () => {
@@ -493,6 +552,7 @@ function Dashboard() {
     query: searchQuery,
     venues: searchVenues,
     actions: searchActions,
+    can: permissions.can,
   });
   const shellSearch = {
     query: searchQuery,
@@ -544,155 +604,163 @@ function Dashboard() {
   const loadingVenues = venuesQ.isLoading;
 
   return (
-    <TenantShell
-      userId={user.id}
-      section={section}
-      setSection={setSection}
-      mobileOpen={mobileOpen}
-      setMobileOpen={setMobileOpen}
-      collapsed={collapsed}
-      setCollapsed={setCollapsed}
-      fullName={fullName}
-      avatarUrl={avatarUrl}
-      onSignOut={signOut}
-      search={shellSearch}
-    >
-      {/* Above whichever section is open, because an unaccepted invitation is the
-          only thing that matters until it is answered — every panel below it is
-          empty for this account anyway. Renders nothing when none is waiting. */}
-      <PendingInvitation userId={user.id} />
-      {section === "dashboard" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
-        </div>
-      )}
-      {section === "courts" && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
-          <VenuesCourtsActions
-            hasVenues={venues.length > 0}
-            onCreateVenue={() => setCreateVenueOpen(true)}
-            onAddCourt={() => setAddCourtOpen(true)}
-            onCreateGroup={() => setCreateGroupOpen(true)}
-          />
-          <VenuesCourtsGlance venues={venues} />
-
-          {loadingVenues ? (
-            <Skeleton />
-          ) : venues.length === 0 ? (
-            <EmptyState
-              title="No venues yet"
-              body="Create your first venue to start adding courts and taking bookings."
-              cta={
-                <button
-                  onClick={() => setCreateVenueOpen(true)}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                >
-                  + Create venue
-                </button>
-              }
+    <TenantPermissionsContext.Provider value={permissions}>
+      <TenantShell
+        userId={user.id}
+        section={section}
+        setSection={setSection}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        fullName={fullName}
+        avatarUrl={avatarUrl}
+        onSignOut={signOut}
+        search={shellSearch}
+      >
+        {/* Above whichever section is open, because an unaccepted invitation is the
+            only thing that matters until it is answered — every panel below it is
+            empty for this account anyway. Renders nothing when none is waiting. */}
+        <PendingInvitation userId={user.id} />
+        <WorkspaceNamePrompt userId={user.id} />
+        {section === "dashboard" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <DashboardOverview venues={venues} loading={loadingVenues} setSection={setSection} />
+          </div>
+        )}
+        {section === "courts" && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SectionHeader title="Venues & Courts" subtitle="Manage your venues and courts." />
+            <VenuesCourtsActions
+              hasVenues={venues.length > 0}
+              canCreateVenue={myTenantQ.data?.isAdmin === true}
+              onCreateVenue={() => setCreateVenueOpen(true)}
+              onAddCourt={() => setAddCourtOpen(true)}
+              onCreateGroup={() => setCreateGroupOpen(true)}
             />
-          ) : (
-            <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col">
-              <VenuesCourtsTabs venues={venues} tab={courtsTab} setTab={setCourtsTab} />
-            </div>
-          )}
+            <VenuesCourtsGlance venues={venues} />
 
-          <CreateVenueDrawer
-            open={createVenueOpen}
-            onClose={() => setCreateVenueOpen(false)}
-            onCreated={() => {
-              qc.invalidateQueries({ queryKey: ["my-venues"] });
-              setCreateVenueOpen(false);
-            }}
-          />
-          <AddCourtDrawer
-            open={addCourtOpen}
-            onClose={() => setAddCourtOpen(false)}
-            venues={venues}
-            onCreated={() => {
-              [
-                "my-venues",
-                "venues-courts-glance",
-                "venues-court-counts",
-                "all-tenant-courts",
-                "venues-courts-table",
-                "courts",
-                "group-eligible-courts",
-                "physical-courts-full",
-                "physical-courts",
-                "venues-group-counts",
-              ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-              setAddCourtOpen(false);
-            }}
-          />
-          <CreateGroupDrawer
-            open={createGroupOpen}
-            onClose={() => setCreateGroupOpen(false)}
-            venues={venues}
-            onCreated={() => {
-              [
-                "physical-courts-full",
-                "physical-courts",
-                "tenant-venues-full",
-                "venues-group-counts",
-                "group-eligible-courts",
-                "all-tenant-courts",
-                "court-block-rules",
-              ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-              setCreateGroupOpen(false);
-            }}
-          />
-        </div>
-      )}
-      {section === "calendar" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <CalendarSection venues={venues} />
-        </div>
-      )}
-      {section === "bookings" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <BookingsSection
-            venues={venues}
-            userId={user.id}
-            focusBookingId={search.booking}
-            openChat={search.chat}
-          />
-        </div>
-      )}
-      {section === "customers" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <CustomersSection venues={venues} />
-        </div>
-      )}
-      {section === "team" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <TeamSection userId={user.id} />
-        </div>
-      )}
-      {section === "transactions" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <TransactionsSection venues={venues} />
-        </div>
-      )}
-      {section === "vouchers" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <VouchersSection venues={venues} />
-        </div>
-      )}
-      {section === "settings" && (
-        <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
-          <SettingsSection
-            fullName={profileQ.data?.full_name ?? ""}
-            email={user.email ?? ""}
-            role={profileQ.data?.role ?? "tenant"}
-            userId={user.id}
-            avatarUrl={avatarUrl}
-            onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
-          />
-        </div>
-      )}
-    </TenantShell>
+            {loadingVenues ? (
+              <Skeleton />
+            ) : venues.length === 0 ? (
+              <EmptyState
+                title="No venues yet"
+                body="Create your first venue to start adding courts and taking bookings."
+                cta={
+                  <button
+                    onClick={() => setCreateVenueOpen(true)}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                  >
+                    + Create venue
+                  </button>
+                }
+              />
+            ) : (
+              <div id="add-court-anchor" className="flex min-h-0 flex-1 flex-col">
+                <VenuesCourtsTabs venues={venues} tab={courtsTab} setTab={setCourtsTab} />
+              </div>
+            )}
+
+            <CreateVenueDrawer
+              open={createVenueOpen}
+              onClose={() => setCreateVenueOpen(false)}
+              onCreated={() => {
+                qc.invalidateQueries({ queryKey: ["my-venues"] });
+                setCreateVenueOpen(false);
+              }}
+            />
+            <AddCourtDrawer
+              open={addCourtOpen}
+              onClose={() => setAddCourtOpen(false)}
+              venues={venues}
+              onCreated={() => {
+                [
+                  "my-venues",
+                  "venues-courts-glance",
+                  "venues-court-counts",
+                  "all-tenant-courts",
+                  "venues-courts-table",
+                  "courts",
+                  "group-eligible-courts",
+                  "physical-courts-full",
+                  "physical-courts",
+                  "venues-group-counts",
+                ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+                setAddCourtOpen(false);
+              }}
+            />
+            <CreateGroupDrawer
+              open={createGroupOpen}
+              onClose={() => setCreateGroupOpen(false)}
+              venues={venues}
+              onCreated={() => {
+                [
+                  "physical-courts-full",
+                  "physical-courts",
+                  "tenant-venues-full",
+                  "venues-group-counts",
+                  "group-eligible-courts",
+                  "all-tenant-courts",
+                  "court-block-rules",
+                ].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+                setCreateGroupOpen(false);
+              }}
+            />
+          </div>
+        )}
+        {section === "calendar" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <CalendarSection venues={venues} />
+          </div>
+        )}
+        {section === "bookings" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <BookingsSection
+              venues={venues}
+              userId={user.id}
+              focusBookingId={search.booking}
+              openChat={search.chat}
+            />
+          </div>
+        )}
+        {section === "customers" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <CustomersSection venues={venues} />
+          </div>
+        )}
+        {section === "team" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <TeamSection userId={user.id} />
+          </div>
+        )}
+        {section === "transactions" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            {permissions.ready && !permissions.can("transactions.view") ? (
+              <RestrictedSection what="Transactions" needs="transactions.view" />
+            ) : (
+              <TransactionsSection venues={venues} />
+            )}
+          </div>
+        )}
+        {section === "vouchers" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <VouchersSection venues={venues} />
+          </div>
+        )}
+        {section === "settings" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <SettingsSection
+              fullName={profileQ.data?.full_name ?? ""}
+              email={user.email ?? ""}
+              role={profileQ.data?.role ?? "tenant"}
+              userId={user.id}
+              avatarUrl={avatarUrl}
+              onSaved={() => qc.invalidateQueries({ queryKey: ["profile", user.id] })}
+            />
+          </div>
+        )}
+      </TenantShell>
+    </TenantPermissionsContext.Provider>
   );
 }
 
@@ -800,12 +868,14 @@ function TenantShell({
           <span className="truncate text-sm font-semibold">{current?.label ?? "Dashboard"}</span>
           <div className="flex shrink-0 items-center gap-2">
             {searchField(true)}
+            <TenantIdentity userId={userId} compact />
             <NotificationBell userId={userId} />
           </div>
         </div>
         {/* Desktop top bar */}
-        <div className="hidden items-center justify-end gap-2 border-b border-border bg-background px-6 py-2 md:flex">
+        <div className="hidden items-center justify-end gap-3 border-b border-border bg-background px-6 py-2 md:flex">
           {searchField(false)}
+          <TenantIdentity userId={userId} compact={false} />
           <NotificationBell userId={userId} />
         </div>
 
@@ -836,6 +906,7 @@ function SidebarBody({
   avatarUrl?: string | null;
   onSignOut?: () => void;
 }) {
+  const perm = useTenantCan();
   return (
     <>
       <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-3">
@@ -880,26 +951,28 @@ function SidebarBody({
       </div>
       <nav className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-1">
-          {NAV.map(({ key, label, icon: Icon }) => {
-            const active = section === key;
-            return (
-              <li key={key}>
-                <button
-                  onClick={() => setSection(key)}
-                  title={collapsed ? label : undefined}
-                  className={
-                    "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
-                    (active
-                      ? "bg-[#b8f05a] text-[#102521] shadow-sm"
-                      : "text-white/75 hover:bg-white/10 hover:text-[#b8f05a]")
-                  }
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{label}</span>}
-                </button>
-              </li>
-            );
-          })}
+          {NAV.filter(({ key }) => key !== "transactions" || perm.can("transactions.view")).map(
+            ({ key, label, icon: Icon }) => {
+              const active = section === key;
+              return (
+                <li key={key}>
+                  <button
+                    onClick={() => setSection(key)}
+                    title={collapsed ? label : undefined}
+                    className={
+                      "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
+                      (active
+                        ? "bg-[#b8f05a] text-[#102521] shadow-sm"
+                        : "text-white/75 hover:bg-white/10 hover:text-[#b8f05a]")
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span className="truncate">{label}</span>}
+                  </button>
+                </li>
+              );
+            },
+          )}
         </ul>
       </nav>
       {/* Sitting in the rail's footer, this is the same affordance the player rail
@@ -1140,6 +1213,7 @@ function DashboardOverview({
   loading: boolean;
   setSection: (s: SectionKey) => void;
 }) {
+  const perm = useTenantCan();
   const [periodKey, setPeriodKey] = useState<PeriodKey>("d30");
   const tz = venues[0]?.timezone || DEFAULT_TIMEZONE;
   const period = useMemo(() => resolvePeriod(periodKey, tz), [periodKey, tz]);
@@ -1614,11 +1688,18 @@ function DashboardOverview({
                  as their transaction leaves `paid`. The word is the one a tenant
                  uses, and the breakdown below totals to exactly this. */
               label="Total sales"
-              value={peso(a?.revenue.current ?? 0)}
-              delta={pctChange(a?.revenue.current ?? 0, a?.revenue.previous ?? 0)}
-              spark={sparkRevenue}
+              /* The figure reads `transactions`, which Stage 2 keeps from a front-desk
+                 role — so for that role the tile says so instead of showing a zero
+                 that reads as "no money was taken". */
+              value={perm.can("finance.view") ? peso(a?.revenue.current ?? 0) : "—"}
+              delta={
+                perm.can("finance.view")
+                  ? pctChange(a?.revenue.current ?? 0, a?.revenue.previous ?? 0)
+                  : null
+              }
+              spark={perm.can("finance.view") ? sparkRevenue : undefined}
               icon={<Wallet className="h-4 w-4" />}
-              hint={`settled in ${period.label}`}
+              hint={perm.can("finance.view") ? `settled in ${period.label}` : "Manager access"}
             />
             <MetricTile
               label="Bookings"
@@ -1689,15 +1770,17 @@ function DashboardOverview({
           {/* Full width, below the two-column grid: this is a list that grows with
               the account, and a tenant with nine venues needs the room more than
               it needs to sit beside something. */}
-          <div className="mt-4">
-            <SalesBreakdown
-              tree={a?.salesTree ?? []}
-              /* The tile's own figure, not a second sum of the same rows: the
+          {perm.can("finance.view") && (
+            <div className="mt-4">
+              <SalesBreakdown
+                tree={a?.salesTree ?? []}
+                /* The tile's own figure, not a second sum of the same rows: the
                  header and the tile are then the same number by construction. */
-              total={a?.revenue.current ?? 0}
-              period={period}
-            />
-          </div>
+                total={a?.revenue.current ?? 0}
+                period={period}
+              />
+            </div>
+          )}
         </div>
       )}
     </>
@@ -2629,15 +2712,20 @@ function RefundsPanel({
 
 function VenuesCourtsActions({
   hasVenues,
+  canCreateVenue,
   onCreateVenue,
   onAddCourt,
   onCreateGroup,
 }: {
   hasVenues: boolean;
+  /** Active admin of the workspace. A convenience for the screen: the INSERT policy
+   *  on `venues` asks the same question and refuses everyone else regardless. */
+  canCreateVenue: boolean;
   onCreateVenue: () => void;
   onAddCourt: () => void;
   onCreateGroup: () => void;
 }) {
+  const perm = useTenantCan();
   const handleAddCourt = () => {
     if (!hasVenues) {
       alert("Create a venue first, then you can add courts to it.");
@@ -2656,24 +2744,30 @@ function VenuesCourtsActions({
   };
   return (
     <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-      <button
-        onClick={handleCreateGroup}
-        className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
-      >
-        + Create group
-      </button>
-      <button
-        onClick={handleAddCourt}
-        className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
-      >
-        + Add court
-      </button>
-      <button
-        onClick={onCreateVenue}
-        className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-      >
-        + Create venue
-      </button>
+      {perm.can("court.groups") && (
+        <button
+          onClick={handleCreateGroup}
+          className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
+        >
+          + Create group
+        </button>
+      )}
+      {perm.can("court.edit") && (
+        <button
+          onClick={handleAddCourt}
+          className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold hover:border-primary"
+        >
+          + Add court
+        </button>
+      )}
+      {canCreateVenue && (
+        <button
+          onClick={onCreateVenue}
+          className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+        >
+          + Create venue
+        </button>
+      )}
     </div>
   );
 }
@@ -3406,7 +3500,12 @@ function CreateVenue({ onCreated, onCancel }: { onCreated: () => void; onCancel?
           cancellation_notes: cancellationNotes.trim() || null,
           rules: rules.trim() || null,
         });
-      if (error) throw error;
+      /* The INSERT policy admits only an active admin of the caller's own tenant, and
+         the trigger fills `tenant_id` from that membership — nothing here names one.
+         A refusal is the database saying this account is not that admin, which is
+         said as a sentence rather than as the policy's own wording. */
+      if (error)
+        throw isVenueCreationRefused(error) ? new Error(VENUE_CREATION_REFUSED_MESSAGE) : error;
     },
     onSuccess: () => {
       setName("");
@@ -4467,6 +4566,7 @@ function AddCourt({
   alwaysOpen?: boolean;
   onCancel?: () => void;
 }) {
+  const perm = useTenantCan();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [rate, setRate] = useState("25");
@@ -4571,6 +4671,10 @@ function AddCourt({
     },
     onError: (e: Error) => setErr(e.message),
   });
+
+  /* After every hook above and before the first return: a role that cannot write
+     courts sees neither the tile nor the form, on either path through this. */
+  if (!perm.can("court.edit")) return null;
 
   if (!open && !alwaysOpen) {
     return (
@@ -6206,6 +6310,7 @@ function SettingsSection({
   avatarUrl: string | null;
   onSaved: () => void;
 }) {
+  const perm = useTenantCan();
   const [name, setName] = useState(fullName);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -6336,7 +6441,9 @@ function SettingsSection({
         </div>
       </div>
 
-      {role === "tenant" && (
+      {role === "tenant" && <BusinessNameCard userId={userId} />}
+
+      {role === "tenant" && perm.can("settings.venue") && (
         <div
           id={TENANT_ANCHORS.payments}
           className="rounded-2xl border border-border bg-card p-5 sm:p-6"
@@ -6370,7 +6477,7 @@ function SettingsSection({
         </div>
       )}
 
-      {role === "tenant" && <BookingNumbersPanel userId={userId} />}
+      {role === "tenant" && perm.can("settings.venue") && <BookingNumbersPanel userId={userId} />}
 
       <div className="rounded-2xl border border-destructive/30 bg-card p-5 sm:p-6">
         <h3 className="text-base font-semibold">Session</h3>
@@ -7086,6 +7193,7 @@ function ColumnConfigModal({
 }
 
 function VenuesTab({ venues }: { venues: Venue[] }) {
+  const perm = useTenantCan();
   const [editing, setEditing] = useState<Venue | null>(null);
   const [viewing, setViewing] = useState<Venue | null>(null);
   const [history, setHistory] = useState<Venue | null>(null);
@@ -7403,31 +7511,35 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         return (
           <td key={id} className="px-3 py-3">
             <div className="flex items-center justify-end gap-1">
-              <button
-                type="button"
-                onClick={() => setEditing(v)}
-                title="Edit venue"
-                aria-label={`Edit ${v.name}`}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <DeleteVenueButton venue={v} />
+              {perm.can("venue.edit") && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(v)}
+                  title="Edit venue"
+                  aria-label={`Edit ${v.name}`}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {perm.can("venue.delete") && <DeleteVenueButton venue={v} />}
             </div>
           </td>
         );
       case "history":
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <button
-              type="button"
-              onClick={() => setHistory(v)}
-              title="Audit history"
-              aria-label={`View audit history for ${v.name}`}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-            >
-              <HistoryIcon className="h-4 w-4" />
-            </button>
+            {perm.can("audit.view") && (
+              <button
+                type="button"
+                onClick={() => setHistory(v)}
+                title="Audit history"
+                aria-label={`View audit history for ${v.name}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+              >
+                <HistoryIcon className="h-4 w-4" />
+              </button>
+            )}
           </td>
         );
       case "amenities":
@@ -7643,7 +7755,10 @@ function VenuesTab({ venues }: { venues: Venue[] }) {
         onApply={saveCols}
       />
 
-      <EditVenueDrawer venue={editing} onClose={() => setEditing(null)} />
+      <EditVenueDrawer
+        venue={perm.can("venue.edit") ? editing : null}
+        onClose={() => setEditing(null)}
+      />
       <MapViewModal venue={viewing} onClose={() => setViewing(null)} />
       <AuditHistoryModal venue={history} onClose={() => setHistory(null)} />
       <VenueCourtsModal venue={courtsFor} onClose={() => setCourtsFor(null)} />
@@ -8303,6 +8418,7 @@ function DeleteCourtButton({ court, onDeleted }: { court: CourtRow; onDeleted: (
 }
 
 function CourtsTab({ venues }: { venues: Venue[] }) {
+  const perm = useTenantCan();
   const qc = useQueryClient();
   const venueIds = venues.map((v) => v.id);
   const courtsQ = useQuery({
@@ -8576,31 +8692,35 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
       case "history":
         return (
           <td key={id} className="px-3 py-3 text-center">
-            <button
-              type="button"
-              onClick={() => setHistoryCourt(c)}
-              title="Audit history"
-              aria-label={`View audit history for ${c.name}`}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-            >
-              <HistoryIcon className="h-3.5 w-3.5" />
-            </button>
+            {perm.can("audit.view") && (
+              <button
+                type="button"
+                onClick={() => setHistoryCourt(c)}
+                title="Audit history"
+                aria-label={`View audit history for ${c.name}`}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+              >
+                <HistoryIcon className="h-3.5 w-3.5" />
+              </button>
+            )}
           </td>
         );
       case "actions":
         return (
           <td key={id} className="px-3 py-3">
             <div className="flex items-center justify-end gap-1">
-              <button
-                type="button"
-                onClick={() => setEditing(c)}
-                title="Edit court"
-                aria-label={`Edit ${c.name}`}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <DeleteCourtButton court={c} onDeleted={invalidate} />
+              {perm.can("court.edit") && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(c)}
+                  title="Edit court"
+                  aria-label={`Edit ${c.name}`}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {perm.can("court.delete") && <DeleteCourtButton court={c} onDeleted={invalidate} />}
             </div>
           </td>
         );
@@ -8653,7 +8773,11 @@ function CourtsTab({ venues }: { venues: Venue[] }) {
         presetKey="courts_column_presets"
       />
       <CourtAuditHistoryModal court={historyCourt} onClose={() => setHistoryCourt(null)} />
-      <CourtDrawer title="Edit court" open={editing !== null} onClose={() => setEditing(null)}>
+      <CourtDrawer
+        title="Edit court"
+        open={editing !== null && perm.can("court.edit")}
+        onClose={() => setEditing(null)}
+      >
         {editing && (
           <EditCourt
             court={editing}
@@ -8861,6 +8985,7 @@ function CourtDrawer({
 // ================= Court Groups (physical courts / shared surfaces) =================
 
 function CourtGroupsTab({ venues }: { venues: Venue[] }) {
+  const perm = useTenantCan();
   const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
   const [editing, setEditing] = useState<GroupRow | null>(null);
   const [colCfgOpen, setColCfgOpen] = useState(false);
@@ -9029,16 +9154,18 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
         return (
           <td key={id} className="px-3 py-3">
             <div className="flex items-center justify-end gap-1.5">
-              <button
-                type="button"
-                onClick={() => setEditing(g)}
-                title="Edit group"
-                aria-label={`Edit ${g.name}`}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <DeleteGroupButton group={g} />
+              {perm.can("court.groups") && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(g)}
+                  title="Edit group"
+                  aria-label={`Edit ${g.name}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary/10 hover:text-primary"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {perm.can("court.groups") && <DeleteGroupButton group={g} />}
             </div>
           </td>
         );
@@ -9108,7 +9235,9 @@ function CourtGroupsTab({ venues }: { venues: Venue[] }) {
         defaults={DEFAULT_GROUP_COLS}
         presetKey="groups_column_presets"
       />
-      {editing && <EditGroupDrawer group={editing} onClose={() => setEditing(null)} />}
+      {editing && perm.can("court.groups") && (
+        <EditGroupDrawer group={editing} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }
@@ -9513,6 +9642,363 @@ function EditGroupDrawer({ group, onClose }: { group: GroupRow; onClose: () => v
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ================= Tenant permissions =================
+
+type TenantPermissions = {
+  /** False until the membership has been read once. While false, `can` answers no to
+   *  everything and no "you cannot" notice is drawn — a control never appears for the
+   *  wrong person, and an admin is never told they are restricted for a moment. */
+  ready: boolean;
+  role: MemberRole | null;
+  can: (c: Capability) => boolean;
+};
+
+const TenantPermissionsContext = createContext<TenantPermissions>({
+  ready: false,
+  role: null,
+  can: () => false,
+});
+
+/** The capabilities of the signed-in member. Read from the same `useMyTenant` cache
+ *  the header badge draws from, so the badge and every gate below agree, and there is
+ *  one place the role comes from: the active `tenant_members` row. Hiding a control
+ *  with this changes nothing about what the database permits. */
+function useTenantCan() {
+  return useContext(TenantPermissionsContext);
+}
+
+/** What a member sees in place of a page or panel their role cannot use. Said
+ *  plainly rather than left as an empty table: the empty state of every list here
+ *  reads as "you have none", which is the one thing a refused read must not say. */
+function RestrictedSection({ what, needs }: { what: string; needs: Capability }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 text-sm sm:p-6">
+      <p className="font-semibold">
+        {what} is available to {requiredRoleLabel(needs)}s.
+      </p>
+      <p className="mt-1 text-muted-foreground">
+        Your role does not include this. Ask an admin of your workspace if you need it.
+      </p>
+    </div>
+  );
+}
+
+// ================= Tenant identity =================
+
+type MyTenant = {
+  tenantId: string;
+  name: string | null;
+  slug: string;
+  role: MemberRole;
+  status: MemberStatus;
+  /** Active admin — the only membership the Settings form lets edit the name. The
+   *  database asks the same question again in the UPDATE policy on `tenants`. */
+  isAdmin: boolean;
+};
+
+/** The signed-in user's own tenant, resolved from their `tenant_members` row and
+ *  nothing else. No URL, no metadata, no stored value and no caller-supplied id takes
+ *  part: the membership row is what the row-level policies read, so what this returns
+ *  is what the database would say. One query, shared by the header, the Settings card
+ *  and the naming prompt under a single cache key, so all three agree at every moment. */
+function useMyTenant(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["my-tenant-workspace", userId ?? "anonymous"],
+    /* The shell types its user id as optional, as NotificationBell beside this does.
+       No id means no session to ask about, so the query simply does not run. */
+    enabled: !!userId,
+    queryFn: async (): Promise<MyTenant | null> => {
+      const { data: membership, error: memberError } = await supabase
+        .from("tenant_members")
+        .select("tenant_id, role, status")
+        .eq("user_id", userId!)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (!membership) return null;
+      const { data: tenant, error: tenantError } = await supabase
+        .from("tenants")
+        .select("id, name, slug")
+        .eq("id", membership.tenant_id)
+        .maybeSingle();
+      if (tenantError) throw tenantError;
+      if (!tenant) return null;
+      return {
+        tenantId: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        role: membership.role as MemberRole,
+        status: membership.status as MemberStatus,
+        isAdmin: membership.role === "admin" && membership.status === "active",
+      };
+    },
+  });
+}
+
+/** Business name and role, in the top bar beside the master search.
+ *
+ *  Informational only. The chip says which role this account is *using*; what that
+ *  role may do is decided by the policies, which read the same membership row and
+ *  would refuse a request regardless of what any chip claimed. Rendered only for an
+ *  active membership — an invited member is shown their invitation instead, and a
+ *  player has no membership and gets nothing — and only once the query has resolved,
+ *  so a refresh never flashes a role that is not this account's.
+ *
+ *  `compact` is the phone bar, where the search must win: the name is dropped there
+ *  and the badge kept, because a role fits and a business name does not. On the wide
+ *  bar the name truncates and the badge never shrinks. */
+function TenantIdentity({ userId, compact }: { userId: string | undefined; compact: boolean }) {
+  const { data: tenant } = useMyTenant(userId);
+  if (!tenant || tenant.status !== "active") return null;
+  const name = (tenant.name ?? "").trim();
+  return (
+    <div className="flex min-w-0 shrink items-center gap-2" aria-label="Your workspace">
+      {!compact && name && (
+        <span
+          className="hidden min-w-0 max-w-64 truncate text-sm font-semibold lg:block"
+          title={name}
+        >
+          {name}
+        </span>
+      )}
+      <span
+        className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground"
+        title={`Your role in ${name || "this workspace"}`}
+      >
+        {ROLE_LABELS[tenant.role]}
+      </span>
+    </div>
+  );
+}
+
+/** The business name in Settings. Every active member sees it; only an admin gets a
+ *  field. The field is a convenience — the row-level policy on `tenants` requires
+ *  `is_tenant_admin()` and the caller's own `current_tenant_id()`, so a manager, a
+ *  staff member, or an admin of some other business is refused by the database
+ *  whatever the screen offered them.
+ *
+ *  Renaming never touches the slug: `tenants_maintain_slug` freezes it once minted,
+ *  and this form does not send one. */
+function BusinessNameCard({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const tenantQ = useMyTenant(userId);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const tenant = tenantQ.data;
+  if (tenantQ.isLoading) {
+    return <p className="mt-4 text-sm text-muted-foreground">Loading…</p>;
+  }
+  if (!tenant || tenant.status !== "active") return null;
+
+  const current = (tenant.name ?? "").trim();
+  /* Null until the admin types: the field shows the stored name, and "dirty" means
+     they have changed it, not that a draft happens to exist. */
+  const value = draft ?? current;
+  const check = checkBusinessName(value);
+  const dirty = check.ok ? check.value !== current : value !== current;
+
+  const save = async () => {
+    if (!check.ok) {
+      setError(check.reason);
+      return;
+    }
+    if (!dirty) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    const { error: updateError } = await supabase
+      .from("tenants")
+      .update({ name: check.value })
+      .eq("id", tenant.tenantId);
+    setBusy(false);
+    if (updateError) {
+      /* The uniqueness rule refusing another business's name. Said in a sentence; the
+         stored name is unchanged because the write never happened. Anything else is
+         shown as a generic failure rather than the driver's own wording. */
+      setError(
+        isDuplicateBusinessNameError(updateError)
+          ? DUPLICATE_BUSINESS_NAME_MESSAGE
+          : "Couldn't save that name. Please try again.",
+      );
+      return;
+    }
+    setDraft(null);
+    setSaved(true);
+    await qc.invalidateQueries({ queryKey: ["my-tenant-workspace"] });
+    await qc.invalidateQueries({ queryKey: ["my-tenant-invitation"] });
+  };
+
+  return (
+    <div
+      id={TENANT_ANCHORS.business}
+      className="rounded-2xl border border-border bg-card p-5 sm:p-6"
+    >
+      <h3 className="text-base font-semibold">Business</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        The name your workspace and team are known by. Your workspace address ({tenant.slug}) was
+        set when the business was first named and does not change with the name.
+      </p>
+      {tenant.isAdmin ? (
+        <form
+          className="mt-4 flex flex-wrap items-start gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <label htmlFor="settings-business-name" className="text-sm font-semibold">
+              Business name
+            </label>
+            <input
+              id="settings-business-name"
+              name="settings-business-name"
+              value={value}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setError(null);
+                setSaved(false);
+              }}
+              maxLength={BUSINESS_NAME_MAX + 1}
+              aria-invalid={error != null}
+              className={
+                "mt-1.5 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 " +
+                (error
+                  ? "border-destructive focus:border-destructive focus:ring-destructive/30"
+                  : "border-border focus:border-primary focus:ring-primary/30")
+              }
+            />
+            {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+            {saved && !dirty && !error && (
+              <p className="mt-1.5 text-xs text-muted-foreground">Saved.</p>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={busy || !dirty}
+            className="mt-6 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </form>
+      ) : (
+        <div className="mt-4">
+          <div className="text-sm font-semibold">Business name</div>
+          <div className="mt-1.5 text-sm">
+            {current || <span className="text-muted-foreground">Not set yet</span>}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">Only an admin can change this.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================= Workspace name =================
+
+/** Asks the admin to name the business, once, when the workspace has no name.
+ *
+ *  Phase 0 left `tenants.name` null for every account it backfilled rather than guess
+ *  one from a venue or a person, and a founder who signed up through Google reaches
+ *  the dashboard before their name is applied. Either way the workspace is addressed
+ *  by a placeholder slug until this is answered.
+ *
+ *  Admin only, and the database agrees: the UPDATE policy on `tenants` requires
+ *  `is_tenant_admin()`, so a manager who somehow reached this form would be refused
+ *  by the row-level policy, not merely by the absence of a button. Saving the name is
+ *  what lets `tenants_maintain_slug` mint the real slug and freeze it; the slug is
+ *  never written from here. */
+function WorkspaceNamePrompt({ userId }: { userId: string }) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const workspaceQ = useMyTenant(userId);
+
+  const ws = workspaceQ.data;
+  /* Shown only to an active admin of a workspace whose name is genuinely missing. An
+     existing tenant with a name never sees it; a manager or staff member never sees
+     it either, whatever the name says. */
+  if (!ws || !ws.isAdmin || (ws.name ?? "").trim() !== "") return null;
+
+  const check = checkBusinessName(draft);
+
+  const save = async () => {
+    if (!check.ok) {
+      setError(check.reason);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const { error: updateError } = await supabase
+      .from("tenants")
+      .update({ name: check.value })
+      .eq("id", ws.tenantId);
+    setBusy(false);
+    if (updateError) {
+      setError(
+        isDuplicateBusinessNameError(updateError)
+          ? DUPLICATE_BUSINESS_NAME_MESSAGE
+          : "Couldn't save that name. Please try again.",
+      );
+      return;
+    }
+    /* The name reaches the invitation email and the acceptance panel through their
+       own queries, so those are re-read alongside this one. */
+    await qc.invalidateQueries({ queryKey: ["my-tenant-workspace"] });
+    await qc.invalidateQueries({ queryKey: ["my-tenant-invitation"] });
+  };
+
+  return (
+    <div className="mb-5 rounded-2xl border-2 border-primary/40 bg-primary/5 p-4 sm:p-5">
+      <h2 className="font-display text-lg font-semibold">Name your business</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        This is what your team and your customers will see, and it sets the address of your
+        workspace. Use your trading name. You can change the name later; the address is fixed once
+        it is chosen.
+      </p>
+      <form
+        className="mt-3 flex flex-wrap items-start gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <div className="min-w-0 flex-1">
+          <input
+            name="workspace-business-name"
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setError(null);
+            }}
+            maxLength={BUSINESS_NAME_MAX + 1}
+            placeholder="e.g. ABC Sports"
+            aria-label="Business name"
+            aria-invalid={error != null}
+            className={
+              "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 " +
+              (error
+                ? "border-destructive focus:border-destructive focus:ring-destructive/30"
+                : "border-border focus:border-primary focus:ring-primary/30")
+            }
+          />
+          {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+        </div>
+        <button
+          type="submit"
+          disabled={busy || !draft.trim()}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "Saving…" : "Save name"}
+        </button>
+      </form>
     </div>
   );
 }
@@ -10713,6 +11199,7 @@ function BookingsSection({
   /** From `?chat=1` on a message notification. */
   openChat?: boolean;
 }) {
+  const perm = useTenantCan();
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [status, setStatus] = useState<"all" | "upcoming" | "past" | "cancelled" | "expired">(
@@ -11105,7 +11592,7 @@ function BookingsSection({
                             refund" until someone records that it was sent. Nothing in the
                             app called staff_mark_refund_settled before, so this was a
                             dead end. */}
-                          {showSettle && (
+                          {showSettle && perm.can("refunds.settle") && (
                             <button
                               onClick={() => setSettleTarget({ ids: s.ids, label })}
                               className="rounded-lg border border-primary/50 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
@@ -11113,7 +11600,7 @@ function BookingsSection({
                               Mark refund settled
                             </button>
                           )}
-                          {showCancel && (
+                          {showCancel && perm.can("bookings.cancelRefund") && (
                             <button
                               onClick={() => setCancelTarget({ label, slots: s.items })}
                               className="rounded-lg border border-destructive/40 px-2.5 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/10"
@@ -12305,6 +12792,7 @@ function PlayerKpi({
 // Vouchers Section
 // ===========================================================================
 function VouchersSection({ venues }: { venues: Venue[] }) {
+  const perm = useTenantCan();
   const qc = useQueryClient();
   const [venueId, setVenueId] = useState<number | null>(venues[0]?.id ?? null);
 
@@ -12437,7 +12925,7 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
         </select>
       </div>
 
-      {venueId && (
+      {venueId && perm.can("vouchers.manage") && (
         <div className="rounded-2xl border bg-card p-4">
           <div className="mb-3 flex items-center gap-2">
             <TicketPercent className="h-5 w-5 text-primary" />
@@ -12592,29 +13080,33 @@ function VouchersSection({ venues }: { venues: Venue[] }) {
                       {v.min_booking_amount ? `₱${Number(v.min_booking_amount).toFixed(2)}` : "—"}
                     </td>
                     <td className="p-3">
-                      <button
-                        onClick={() =>
-                          toggleActive.mutate({ id: v.id as string, is_active: !v.is_active })
-                        }
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
-                      >
-                        {v.is_active ? "Active" : "Inactive"}
-                      </button>
+                      {perm.can("vouchers.manage") && (
+                        <button
+                          onClick={() =>
+                            toggleActive.mutate({ id: v.id as string, is_active: !v.is_active })
+                          }
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                        >
+                          {v.is_active ? "Active" : "Inactive"}
+                        </button>
+                      )}
                     </td>
                     <td className="p-3 text-right">
-                      <button
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Delete voucher ${v.code}? Existing redemptions will be removed.`,
+                      {perm.can("vouchers.manage") && (
+                        <button
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete voucher ${v.code}? Existing redemptions will be removed.`,
+                              )
                             )
-                          )
-                            del.mutate(v.id as string);
-                        }}
-                        className="rounded-md border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
+                              del.mutate(v.id as string);
+                          }}
+                          className="rounded-md border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

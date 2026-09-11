@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
+  Building2,
   CalendarDays,
   Hash,
   LandPlot,
@@ -33,6 +34,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { scrollToAnchor, useDebounced, type SearchEntry } from "@/lib/master-search";
+import type { Capability } from "@/lib/permissions";
 
 export type TenantSectionKey =
   | "dashboard"
@@ -53,6 +55,7 @@ export const TENANT_ANCHORS = {
   account: "tenant-settings-account",
   payments: "tenant-settings-payments",
   bookingNumbers: "tenant-settings-booking-numbers",
+  business: "tenant-settings-business",
 } as const;
 
 /** Just enough of a venue to list one. The dashboard's own `Venue` is far wider and
@@ -75,6 +78,19 @@ const P_TAB = 80;
 const P_ACTION = 60;
 const P_SETTING = 40;
 const P_RECORD = 20;
+
+/** Which entries a role must not be offered. Everything else is either a page every
+ *  member may read or a personal action. The gate lives in the database; this only
+ *  keeps the palette from suggesting a destination that would show an empty page or
+ *  a refused action. */
+const ENTRY_CAPABILITY: Partial<Record<string, Capability>> = {
+  "sec:transactions": "transactions.view",
+  "act:create-venue": "venue.create",
+  "act:add-court": "court.edit",
+  "act:create-group": "court.groups",
+  "set:payments": "settings.venue",
+  "set:booking-numbers": "settings.venue",
+};
 
 function staticEntries(a: TenantSearchActions): SearchEntry[] {
   const goCourts = (tab: TenantCourtsTab) => () => {
@@ -331,6 +347,20 @@ function staticEntries(a: TenantSearchActions): SearchEntry[] {
       },
     },
     {
+      id: "set:business",
+      label: "Business name",
+      group: "Settings",
+      kind: "setting",
+      hint: "The name your workspace and team are known by",
+      icon: Building2,
+      priority: P_SETTING,
+      keywords: ["business", "company", "workspace name", "tenant name", "rename", "brand"],
+      run: () => {
+        a.setSection("settings");
+        scrollToAnchor(TENANT_ANCHORS.business);
+      },
+    },
+    {
       id: "set:booking-numbers",
       label: "Booking numbers",
       group: "Settings",
@@ -368,10 +398,13 @@ export function useTenantSearchEntries({
   query,
   venues,
   actions,
+  can,
 }: {
   query: string;
   venues: VenueLite[];
   actions: TenantSearchActions;
+  /** The signed-in member's capabilities, from their active membership. */
+  can: (c: Capability) => boolean;
 }): { entries: SearchEntry[]; loading: boolean } {
   const debounced = useDebounced(query);
   const needle = debounced.trim();
@@ -399,7 +432,10 @@ export function useTenantSearchEntries({
   });
 
   const entries = useMemo(() => {
-    const base = staticEntries(actions);
+    const base = staticEntries(actions).filter((e) => {
+      const need = ENTRY_CAPABILITY[e.id];
+      return !need || can(need);
+    });
 
     const venueEntries: SearchEntry[] = venues.map((v) => ({
       id: `venue:${v.id}`,
@@ -435,7 +471,7 @@ export function useTenantSearchEntries({
     }));
 
     return [...base, ...venueEntries, ...courtEntries];
-  }, [actions, venues, courtsQ.data]);
+  }, [actions, venues, courtsQ.data, can]);
 
   return { entries, loading: courtsQ.isFetching };
 }
