@@ -336,3 +336,122 @@ describe("the whole decision, end to end", () => {
     expect(a.url).not.toEqual(b.url);
   });
 });
+
+import { workspaceAddressFor } from "../tenant-login";
+
+describe("workspaceAddressFor", () => {
+  const GENERIC = undefined;
+  const at = (addressSlug: string | undefined) => ({ addressSlug, membershipKnown: true });
+
+  it("moves an active member from the generic address to their own", () => {
+    expect(
+      workspaceAddressFor({ ...at(GENERIC), status: "active", mySlug: "clav22-restobar" }),
+    ).toEqual({ kind: "workspace", slug: "clav22-restobar" });
+  });
+
+  it("leaves an active member alone at their own address", () => {
+    expect(
+      workspaceAddressFor({
+        ...at("clav22-restobar"),
+        status: "active",
+        mySlug: "clav22-restobar",
+      }),
+    ).toEqual({ kind: "stay" });
+  });
+
+  /* The wrong-slug case: corrected to their own business, never shown another's. */
+  it("corrects an active member who is at another business's address", () => {
+    expect(
+      workspaceAddressFor({ ...at("other-company"), status: "active", mySlug: "clav22-restobar" }),
+    ).toEqual({ kind: "workspace", slug: "clav22-restobar" });
+  });
+
+  it("matches slugs the same way the login page does", () => {
+    expect(
+      workspaceAddressFor({
+        ...at("CLAV22-Restobar "),
+        status: "active",
+        mySlug: "clav22-restobar",
+      }),
+    ).toEqual({ kind: "stay" });
+  });
+
+  /* Founder mid-bootstrap: no membership yet, and the generic address is the only
+     place the workspace gets created. Moving them would strand them. */
+  it("leaves a founder with no membership at the generic address", () => {
+    expect(workspaceAddressFor({ ...at(GENERIC), status: null, mySlug: null })).toEqual({
+      kind: "stay",
+    });
+  });
+
+  it("leaves an invited member at the generic address, where the invitation is", () => {
+    expect(
+      workspaceAddressFor({ ...at(GENERIC), status: "invited", mySlug: "clav22-restobar" }),
+    ).toEqual({ kind: "stay" });
+  });
+
+  it("leaves a removed member at the generic address", () => {
+    expect(
+      workspaceAddressFor({ ...at(GENERIC), status: "inactive", mySlug: "clav22-restobar" }),
+    ).toEqual({ kind: "stay" });
+  });
+
+  /* Nobody sits at a workspace address without an active membership in one. */
+  it("sends anyone without an active membership away from a workspace address", () => {
+    for (const status of ["invited", "inactive", null, undefined] as const) {
+      expect(
+        workspaceAddressFor({ ...at("clav22-restobar"), status, mySlug: "clav22-restobar" }),
+      ).toEqual({ kind: "generic" });
+    }
+  });
+
+  it("sends a player away from a workspace address and leaves them alone otherwise", () => {
+    expect(workspaceAddressFor({ ...at("clav22-restobar"), status: null, mySlug: null })).toEqual({
+      kind: "generic",
+    });
+    expect(workspaceAddressFor({ ...at(GENERIC), status: null, mySlug: null })).toEqual({
+      kind: "stay",
+    });
+  });
+
+  /* The guard that stops a founder being bounced off the bootstrap page mid-read. */
+  it("does nothing at all until the membership has actually been read", () => {
+    for (const addressSlug of [GENERIC, "clav22-restobar", "other-company"]) {
+      expect(
+        workspaceAddressFor({
+          membershipKnown: false,
+          addressSlug,
+          status: "active",
+          mySlug: "clav22-restobar",
+        }),
+      ).toEqual({ kind: "stay" });
+    }
+  });
+
+  it("treats an active membership with no usable slug as nothing to move to", () => {
+    expect(workspaceAddressFor({ ...at(GENERIC), status: "active", mySlug: "" })).toEqual({
+      kind: "stay",
+    });
+    expect(workspaceAddressFor({ ...at("some-slug"), status: "active", mySlug: null })).toEqual({
+      kind: "generic",
+    });
+  });
+
+  /* Whatever the answer, it converges: applying it once yields an address that then
+     answers "stay". A rule that did not would loop the browser. */
+  it("never loops — one correction is always enough", () => {
+    const cases = [
+      { status: "active" as const, mySlug: "a-business" },
+      { status: "invited" as const, mySlug: "a-business" },
+      { status: null, mySlug: null },
+    ];
+    for (const c of cases) {
+      for (const start of [GENERIC, "a-business", "someone-else"]) {
+        const first = workspaceAddressFor({ ...at(start), ...c });
+        if (first.kind === "stay") continue;
+        const settled = first.kind === "generic" ? GENERIC : first.slug;
+        expect(workspaceAddressFor({ ...at(settled), ...c })).toEqual({ kind: "stay" });
+      }
+    }
+  });
+});

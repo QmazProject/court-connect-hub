@@ -27,8 +27,12 @@ export const Route = createFileRoute("/tenant/$slug/login")({
   component: TenantLoginPage,
 });
 
-/** The one exit that means success, and the only place this file navigates. */
-const DASHBOARD = "/dashboard" as const;
+/** The one exit that means success, and the only place this file navigates.
+ *
+ *  The workspace's own address, not CourtHub's: someone who signed in at their
+ *  business's page stays visibly inside it. It is the same screen either way — the
+ *  slug in the address is where they are, never what they may see. */
+const WORKSPACE_DASHBOARD = "/tenant/$slug/dashboard" as const;
 
 function TenantLoginPage() {
   const { slug } = Route.useParams();
@@ -107,7 +111,13 @@ function TenantLoginPage() {
       } catch {
         /* see above */
       }
-      navigate({ to: DASHBOARD, replace: true });
+      /* `intendedSlug` and not the address bar: this is the slug the database just
+         confirmed the member belongs to, which is the only one worth landing on. */
+      navigate({
+        to: WORKSPACE_DASHBOARD,
+        params: { slug: intendedSlug },
+        replace: true,
+      });
     },
     [navigate, rejectAndSignOut],
   );
@@ -151,7 +161,7 @@ function TenantLoginPage() {
            A no is silent: they were not trying to sign in, so there is nothing to
            refuse and nothing to say. */
         if (!checkError && data === true) {
-          navigate({ to: DASHBOARD, replace: true });
+          navigate({ to: WORKSPACE_DASHBOARD, params: { slug }, replace: true });
         }
         return;
       }

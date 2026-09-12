@@ -1,5 +1,5 @@
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -105,7 +105,16 @@ import {
   type TeamMemberLike,
 } from "@/lib/team";
 import { capabilitiesFor, requiredRoleLabel, type Capability } from "@/lib/permissions";
-import { tenantLoginUrl, WORKSPACE_ACTIVATED_MESSAGE } from "@/lib/tenant-login";
+import {
+  tenantLoginUrl,
+  workspaceAddressFor,
+  WORKSPACE_ACTIVATED_MESSAGE,
+} from "@/lib/tenant-login";
+import {
+  dashboardSearchSchema,
+  type DashboardSearch,
+  type DashboardUser,
+} from "@/lib/dashboard-route";
 import {
   BUSINESS_NAME_MAX,
   checkBusinessName,
@@ -177,31 +186,18 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
     { key: "settings", label: "Settings", icon: SettingsIcon },
   ];
 
-/** `view` picks which player pane is showing. A search param rather than a separate route so
- *  the whole dashboard — including the tenant side, which ignores it — stays one route with
- *  one auth guard and one data layer. */
-const TENANT_SECTIONS = [
-  "dashboard", "calendar", "bookings", "courts",
-  "customers", "team", "transactions", "vouchers", "settings",
-] as const;
-
-const dashboardSearchSchema = z.object({
-  view: z.enum(["bookings", "calendar", "favorites", "settings"]).optional().catch("bookings"),
-  /* Tenant deep links. A notification about a booking has to land on the booking,
-     and the tenant workspace switches panes with React state rather than routes —
-     so the link carries the pane, and the Dashboard seeds its state from it. */
-  section: z.enum(TENANT_SECTIONS).optional().catch(undefined),
-  /** Open the booking's conversation, not just the booking. Set by message links. */
-  chat: z.coerce.boolean().optional().catch(undefined),
-  /* Set by booking reminders so tapping the notification lands on the booking it is
-     about, rather than the top of the workspace. */
-  booking: z.coerce.number().int().positive().optional().catch(undefined),
-});
-
 export const Route = createFileRoute("/_authenticated/dashboard")({
   validateSearch: dashboardSearchSchema,
-  component: Dashboard,
+  component: GenericDashboardRoute,
 });
+
+/** CourtHub's own address for the workspace. An active member does not stay here —
+ *  `Dashboard` sends them to their business's own address — but a player, a founder
+ *  mid-bootstrap and someone with an invitation still waiting all belong here. */
+function GenericDashboardRoute() {
+  const { user } = Route.useRouteContext() as { user: DashboardUser };
+  return <Dashboard user={user} search={Route.useSearch()} />;
+}
 
 const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "Asia/Manila", label: "Philippines — Asia/Manila (PHT, UTC+8)" },
@@ -422,14 +418,27 @@ import { PlayerWorkspace } from "@/components/player/PlayerWorkspace";
 /* Shared with the player calendar — see the note in the module. */
 import { sportStyle } from "@/lib/sport-colors";
 
-function Dashboard() {
-  const { user } = Route.useRouteContext() as {
-    user: { id: string; email?: string; user_metadata?: { role?: unknown; full_name?: unknown } };
-  };
+/**
+ * The workspace, rendered at either of its two addresses.
+ *
+ * `/dashboard` and `/tenant/{slug}/dashboard` are the same screen: one component, one
+ * set of queries, one permission model. The slug is not a second implementation and it
+ * is not authorization either — it is where an active member's browser should say they
+ * are. Which one is rendering is the only difference, and it is this prop.
+ */
+export function Dashboard({
+  user,
+  search,
+  workspaceSlug,
+}: {
+  user: DashboardUser;
+  /* Read off whichever route is rendering, rather than from one hard-coded route. */
+  search: DashboardSearch;
+  /** The slug in the address, when rendered at a workspace's own URL. */
+  workspaceSlug?: string;
+}) {
   const qc = useQueryClient();
-  /* Which player pane is showing. The tenant side ignores it — see the note on
-     validateSearch for why both roles share one route. */
-  const search = Route.useSearch();
+  const navigate = useNavigate();
   const [section, setSection] = useState<SectionKey>(search.section ?? "dashboard");
   /* Not just the initial value: clicking a second notification while the dashboard is
      already open changes the search param without remounting, and the pane has to
@@ -490,6 +499,48 @@ function Dashboard() {
      stands behind. Shares the cache the header and Settings already read, and turns
      true only once `ensure_tenant_workspace` has given a founder their membership. */
   const myTenantQ = useMyTenant(user.id);
+
+  /* Keeping the address honest.
+
+     An active member belongs at their own workspace's URL, so that is where this puts
+     them: from `/dashboard`, and from any other business's slug they might have typed,
+     bookmarked or been sent. The slug they arrive with is never consulted for data —
+     every query here is scoped by row-level security to the membership behind
+     `auth.uid()`, so a wrong slug shows a member their own workspace, never someone
+     else's, and this only corrects the address to match.
+
+     Four accounts deliberately stay put. A player has no membership and never enters
+     this branch. A founder mid-bootstrap has none yet, and must reach `/dashboard` for
+     `ensure_tenant_workspace()` to run at all. An invitation not yet accepted is not a
+     workspace to be sent to. A removed member has nothing to be sent to either. Each of
+     those is `status !== "active"`, or no row at all.
+
+     `isFetched` is the guard that matters: acting while the membership is still loading
+     would bounce a founder away from the page that creates their workspace. */
+  const myTenant = myTenantQ.data;
+  const membershipKnown = myTenantQ.isFetched;
+  useEffect(() => {
+    const next = workspaceAddressFor({
+      membershipKnown,
+      status: myTenant?.status,
+      mySlug: myTenant?.slug,
+      addressSlug: workspaceSlug,
+    });
+    if (next.kind === "stay") return;
+    if (next.kind === "generic") {
+      navigate({ to: "/dashboard", replace: true });
+      return;
+    }
+    navigate({
+      to: "/tenant/$slug/dashboard",
+      params: { slug: next.slug },
+      /* Deep links survive the move: a notification pointing at a booking or a pane
+         still lands on it once the address has been corrected. */
+      search,
+      replace: true,
+    });
+  }, [membershipKnown, myTenant, workspaceSlug, navigate, search]);
+
   const permissions = useMemo<TenantPermissions>(() => {
     const t = myTenantQ.data;
     const active = !!t && t.status === "active";

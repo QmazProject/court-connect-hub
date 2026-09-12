@@ -28,6 +28,7 @@ import { Route as PaymentReturnRouteImport } from './routes/payment.return'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
 import { Route as ApiTenantInviteRouteImport } from './routes/api/tenant/invite'
 import { Route as TenantSlugLoginRouteImport } from './routes/tenant.$slug.login'
+import { Route as AuthenticatedTenantSlugDashboardRouteImport } from './routes/_authenticated/tenant.$slug.dashboard'
 import { Route as ApiInternalNotificationsDrainRouteImport } from './routes/api/internal/notifications.drain'
 import { Route as ApiPublicPaymongoWebhookRouteImport } from './routes/api/public/paymongo.webhook'
 
@@ -125,6 +126,12 @@ const TenantSlugLoginRoute = TenantSlugLoginRouteImport.update({
   path: '/tenant/$slug/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTenantSlugDashboardRoute =
+  AuthenticatedTenantSlugDashboardRouteImport.update({
+    id: '/tenant/$slug/dashboard',
+    path: '/tenant/$slug/dashboard',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiInternalNotificationsDrainRoute =
   ApiInternalNotificationsDrainRouteImport.update({
     id: '/api/internal/notifications/drain',
@@ -157,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/tenant/$slug/login': typeof TenantSlugLoginRoute
+  '/tenant/$slug/dashboard': typeof AuthenticatedTenantSlugDashboardRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -178,6 +186,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/tenant/$slug/login': typeof TenantSlugLoginRoute
+  '/tenant/$slug/dashboard': typeof AuthenticatedTenantSlugDashboardRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -202,6 +211,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/tenant/$slug/login': typeof TenantSlugLoginRoute
+  '/_authenticated/tenant/$slug/dashboard': typeof AuthenticatedTenantSlugDashboardRoute
   '/api/internal/notifications/drain': typeof ApiInternalNotificationsDrainRoute
   '/api/public/paymongo/webhook': typeof ApiPublicPaymongoWebhookRoute
 }
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/tenant/invite'
     | '/tenant/$slug/login'
+    | '/tenant/$slug/dashboard'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/api/tenant/invite'
     | '/tenant/$slug/login'
+    | '/tenant/$slug/dashboard'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   id:
@@ -270,6 +282,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/tenant/invite'
     | '/tenant/$slug/login'
+    | '/_authenticated/tenant/$slug/dashboard'
     | '/api/internal/notifications/drain'
     | '/api/public/paymongo/webhook'
   fileRoutesById: FileRoutesById
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TenantSlugLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/tenant/$slug/dashboard': {
+      id: '/_authenticated/tenant/$slug/dashboard'
+      path: '/tenant/$slug/dashboard'
+      fullPath: '/tenant/$slug/dashboard'
+      preLoaderRoute: typeof AuthenticatedTenantSlugDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/internal/notifications/drain': {
       id: '/api/internal/notifications/drain'
       path: '/api/internal/notifications/drain'
@@ -448,10 +468,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedTenantSlugDashboardRoute: typeof AuthenticatedTenantSlugDashboardRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedTenantSlugDashboardRoute: AuthenticatedTenantSlugDashboardRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

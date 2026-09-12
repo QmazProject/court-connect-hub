@@ -190,3 +190,44 @@ export async function resolveMyWorkspace(
     name: t.name ?? null,
   };
 }
+
+/** Where the workspace screen belongs, given who is looking at it and where they are.
+ *
+ *  `stay` is the common answer. The two corrections exist so that an active member's
+ *  address always names their own business, and so that nobody sits at a workspace
+ *  address they have no active membership in. */
+export type WorkspaceAddress =
+  | { kind: "stay" }
+  /** Go to CourtHub's own address: where an invitation is accepted and where a new
+   *  founder's workspace is created. */
+  | { kind: "generic" }
+  /** Go to this business's own address. */
+  | { kind: "workspace"; slug: string };
+
+/** The rule behind both dashboard routes.
+ *
+ *  Only an active membership moves anyone. A player has no membership, a founder has
+ *  none yet and needs the generic address for their workspace to be created at all, an
+ *  invitation not yet accepted is not a workspace to be sent to, and a removed member
+ *  has nothing to be sent to either.
+ *
+ *  `membershipKnown` is load-bearing: acting before the membership has been read would
+ *  bounce a founder away from the one page that bootstraps them. */
+export function workspaceAddressFor(args: {
+  membershipKnown: boolean;
+  status: MembershipStatusLike;
+  /** The slug on the caller's own membership, from the database. */
+  mySlug: string | null | undefined;
+  /** The slug in the address bar, or undefined at the generic address. */
+  addressSlug: string | undefined;
+}): WorkspaceAddress {
+  const { membershipKnown, status, mySlug, addressSlug } = args;
+  if (!membershipKnown) return { kind: "stay" };
+
+  if (status !== "active" || !mySlug) {
+    /* No active membership. Fine at the generic address; not at a workspace's. */
+    return addressSlug === undefined ? { kind: "stay" } : { kind: "generic" };
+  }
+  if (addressSlug !== undefined && slugsMatch(addressSlug, mySlug)) return { kind: "stay" };
+  return { kind: "workspace", slug: mySlug };
+}
