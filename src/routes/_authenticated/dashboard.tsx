@@ -105,6 +105,7 @@ import {
   type TeamMemberLike,
 } from "@/lib/team";
 import { capabilitiesFor, requiredRoleLabel, type Capability } from "@/lib/permissions";
+import { tenantLoginUrl, WORKSPACE_ACTIVATED_MESSAGE } from "@/lib/tenant-login";
 import {
   BUSINESS_NAME_MAX,
   checkBusinessName,
@@ -645,14 +646,23 @@ function Dashboard() {
             ) : venues.length === 0 ? (
               <EmptyState
                 title="No venues yet"
-                body="Create your first venue to start adding courts and taking bookings."
+                body={
+                  myTenantQ.data?.isAdmin === true
+                    ? "Create your first venue to start adding courts and taking bookings."
+                    : "An admin creates the first venue. Once one exists, it appears here."
+                }
+                /* Same active-admin test as the toolbar button and as the database
+                   policy behind it. Offering the button to a Manager only bought them
+                   a refusal from Postgres. */
                 cta={
-                  <button
-                    onClick={() => setCreateVenueOpen(true)}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                  >
-                    + Create venue
-                  </button>
+                  myTenantQ.data?.isAdmin === true ? (
+                    <button
+                      onClick={() => setCreateVenueOpen(true)}
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                    >
+                      + Create venue
+                    </button>
+                  ) : undefined
                 }
               />
             ) : (
@@ -9896,6 +9906,100 @@ function BusinessNameCard({ userId }: { userId: string }) {
           <p className="mt-1.5 text-xs text-muted-foreground">Only an admin can change this.</p>
         </div>
       )}
+      {/* Admin only. A manager or staff member has no use for a link they were given,
+          and the sharing is the admin's job. */}
+      {tenant.isAdmin && <WorkspaceLoginLink slug={tenant.slug} />}
+    </div>
+  );
+}
+
+/** The workspace's own sign-in link, for an admin to hand to their team.
+ *
+ *  Admin-only on screen, and that is all this gating is: the link is not a secret and
+ *  opens nothing. Anyone who follows it still has to sign in and still has to be an
+ *  active member of this exact workspace — `membership_matches_slug()` decides that,
+ *  and knowing the address changes none of it.
+ *
+ *  Built from the origin the app is served from and the slug the database returned for
+ *  this admin's own tenant. Not from the business name — the slug is frozen at first
+ *  naming and a renamed business would produce a link to a workspace that does not
+ *  exist. There is nothing to edit here for the same reason. */
+function WorkspaceLoginLink({ slug }: { slug: string | null | undefined }) {
+  const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const resetTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(resetTimer.current), []);
+
+  /* Read at render rather than captured once: the same build serves a preview URL, a
+     custom domain and a laptop, and each should produce its own correct link. */
+  const url = typeof window === "undefined" ? null : tenantLoginUrl(window.location.origin, slug);
+
+  if (!url) {
+    /* A workspace without a usable slug yet. Saying so beats rendering a link to
+       `/tenant//login`, which looks real and goes nowhere. */
+    return (
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        Your workspace link will appear here once your workspace address is set.
+      </p>
+    );
+  }
+
+  const copy = async () => {
+    window.clearTimeout(resetTimer.current);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setCopyFailed(false);
+    } catch {
+      /* No clipboard permission, or an insecure origin. The link is on screen and
+         selectable, so the honest answer is to say copying did not work. */
+      setCopied(false);
+      setCopyFailed(true);
+    }
+    resetTimer.current = window.setTimeout(() => {
+      setCopied(false);
+      setCopyFailed(false);
+    }, 2000);
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-background p-3">
+      <div className="text-sm font-semibold">Workspace login link</div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Share this link with your managers and staff. They should sign in here rather than on the
+        general CourtHub sign-in page.
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {/* Readable and selectable, and allowed to wrap: a long domain and a long slug
+            together outrun any single line, and a link that overflows its card is
+            worse than one that takes two rows. */}
+        <code className="min-w-0 flex-1 break-all rounded-lg bg-muted px-2.5 py-2 text-xs">
+          {url}
+        </code>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={copy}
+            className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+          >
+            {copied ? "Copied" : copyFailed ? "Copy failed" : "Copy link"}
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold hover:border-primary"
+          >
+            Open
+          </a>
+        </div>
+      </div>
+      {/* Announced rather than only coloured, so the outcome reaches a screen reader
+          as well as an eye. */}
+      <p aria-live="polite" className="sr-only">
+        {copied ? "Link copied to clipboard" : copyFailed ? "Could not copy the link" : ""}
+      </p>
     </div>
   );
 }
@@ -10018,6 +10122,11 @@ function PendingInvitation({ userId }: { userId: string }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* Set once the invitation has been accepted, so the member is told where to sign in
+     next time instead of the panel simply vanishing. */
+  const [accepted, setAccepted] = useState<{ business: string | null; url: string | null } | null>(
+    null,
+  );
 
   const inviteQ = useQuery({
     queryKey: ["my-tenant-invitation", userId],
@@ -10031,15 +10140,46 @@ function PendingInvitation({ userId }: { userId: string }) {
       if (!data || data.status !== "invited") return null;
       const { data: tenant } = await supabase
         .from("tenants")
-        .select("name")
+        .select("name, slug")
         .eq("id", data.tenant_id)
         .maybeSingle();
-      return { role: data.role as MemberRole, business: tenant?.name ?? null };
+      return {
+        role: data.role as MemberRole,
+        business: tenant?.name ?? null,
+        slug: tenant?.slug ?? null,
+      };
     },
   });
 
+  /* Held locally because accepting makes the invitation query return null, which would
+     otherwise take this panel away at the exact moment it has something to say. */
+  if (accepted) {
+    return (
+      <div className="mb-5 rounded-2xl border-2 border-primary/40 bg-primary/5 p-4 sm:p-5">
+        <h2 className="font-display text-lg font-semibold">
+          You have joined {accepted.business || "this workspace"}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">{WORKSPACE_ACTIVATED_MESSAGE}</p>
+        {accepted.url ? (
+          <>
+            <code className="mt-2 block break-all rounded-lg bg-background px-3 py-2 text-xs">
+              {accepted.url}
+            </code>
+            <p className="mt-2 text-sm text-muted-foreground">
+              The general CourtHub sign-in page will send you here from now on.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your admin can share your workspace sign-in link with you.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (!inviteQ.data) return null;
-  const { role, business } = inviteQ.data;
+  const { role, business, slug } = inviteQ.data;
 
   const accept = async () => {
     setBusy(true);
@@ -10050,6 +10190,12 @@ function PendingInvitation({ userId }: { userId: string }) {
       setError(rpcError.message);
       return;
     }
+    /* Membership is active from here on, which is what the workspace sign-in page
+       requires — so this is the first moment that link is worth showing. */
+    setAccepted({
+      business,
+      url: typeof window === "undefined" ? null : tenantLoginUrl(window.location.origin, slug),
+    });
     /* Everything the workspace shows is gated on the staff rows this call creates,
        so the whole tenant view has to be re-read rather than just this panel. */
     await qc.invalidateQueries();
@@ -10099,6 +10245,9 @@ type TeamRow = {
  *  of the list says out loud rather than leaving to be discovered. */
 function TeamSection({ userId }: { userId: string }) {
   const qc = useQueryClient();
+  /* The same membership query the header and Settings read, for the workspace slug.
+     Shared cache, so the link here and the link in Settings are the same string. */
+  const myTenant = useMyTenant(userId).data;
   const [adding, setAdding] = useState(false);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -10205,6 +10354,10 @@ function TeamSection({ userId }: { userId: string }) {
   return (
     <div className="space-y-5">
       <SectionHeader title="Team" subtitle="The people who work inside this workspace." />
+
+      {/* Beside the people it is for. Same component and same admin gate as Settings —
+          one definition, so the two can never show different links. */}
+      {isAdmin && <WorkspaceLoginLink slug={myTenant?.slug} />}
 
       {teamQ.isError ? (
         <QueryErrorNote what="your team" error={teamQ.error} onRetry={() => teamQ.refetch()} />
@@ -10416,13 +10569,14 @@ function TeamSection({ userId }: { userId: string }) {
             </table>
           </div>
 
-          {/* Not hidden in a comment: a Manager and a Staff member currently have
-              the same reach once inside, because the policies guarding venues and
-              bookings ask only whether a person is on the team. Saying so is the
-              difference between a known limit and a false sense of one. */}
+          {/* This said the opposite until the role-aware policies landed: that roles
+              shaped the screen and not the data. They now shape both — `venue_allows()`
+              ranks them and the policies read it — so the sentence had to change with
+              the code rather than outlive it. */}
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Roles shape what this workspace offers each member. They do not yet restrict what the
-            underlying data allows, so give Admin only to people you would trust with everything.
+            Roles decide what each member can do, in the database as well as on screen. Admin can
+            change the business, the team and every venue; Manager runs the venues and their money;
+            Staff works the front desk.
           </p>
         </>
       )}

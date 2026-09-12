@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { deliverEmail } from "@/lib/notification-email.server";
+import { tenantLoginUrl } from "@/lib/tenant-login";
 import { INVITE_RATE_LIMIT_PER_HOUR, MEMBER_ROLES, type MemberRole } from "@/lib/team";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -46,19 +47,35 @@ function callerClient(token: string) {
   });
 }
 
-function inviteEmail(business: string, inviter: string, email: string, link: string) {
+/** The three steps, in the order they actually happen.
+ *
+ *  Spelled out because each one is otherwise discovered by hitting it: the password
+ *  link confirms the address but accepts nothing, the invitation is accepted on the
+ *  dashboard, and only an accepted member is admitted to the workspace sign-in page.
+ *  `workspaceUrl` is omitted when the business has no usable address yet, rather than
+ *  printing a link that would turn them away. */
+function inviteEmail(
+  business: string,
+  inviter: string,
+  email: string,
+  link: string,
+  workspaceUrl: string | null,
+) {
   return {
     type: "tenant_invite",
     title: `You have been invited to ${business} on CourtHub`,
     body:
       `${inviter} has invited you to join ${business} on CourtHub.\n\n` +
-      `Set your password to accept:\n${link}\n\n` +
+      `1. Set your password:\n${link}\n\n` +
+      `2. Sign in and accept the invitation. Accepting is what joins you to ` +
+      `${business} — this email on its own gives you no access, and nothing is ` +
+      `shared with the business until you accept.\n\n` +
+      (workspaceUrl ? `3. From then on, sign in to ${business} here:\n${workspaceUrl}\n\n` : "") +
       /* Said here because it is otherwise only discoverable by failing: signing in
          with a different Google address creates a separate account, which has no
          invitation waiting and cannot be given this one. */
       `Sign in as ${email} — if you use Continue with Google, choose that same address.\n\n` +
-      `Nothing is shared with ${business} until you accept. If you were not expecting ` +
-      `this, you can ignore this email.`,
+      `If you were not expecting this, you can ignore this email.`,
     link,
   };
 }
@@ -140,7 +157,11 @@ export const Route = createFileRoute("/api/tenant/invite")({
           return json({ error: "Only an admin can add members." }, 403);
         }
         const verdict = Array.isArray(verdicts) ? verdicts[0] : verdicts;
-        if (!verdict || verdict.outcome !== "invitable") {
+        /* `resend` is the same person, already invited to this same business, who
+           never received the first email. Sending it again is the point; it is not a
+           second invitation and creates no second membership row. */
+        const resending = verdict?.outcome === "resend";
+        if (!verdict || (verdict.outcome !== "invitable" && !resending)) {
           await record(verdict?.outcome ?? "unknown");
           return json({ error: ALREADY_REGISTERED }, 409);
         }
@@ -161,13 +182,19 @@ export const Route = createFileRoute("/api/tenant/invite")({
           invitedId = created.user.id;
         }
 
-        const { error: memberError } = await supabaseAdmin
-          .from("tenant_members")
-          .insert({ tenant_id: tenantId, user_id: invitedId, role, status: "invited" });
+        /* Placed in SQL rather than inserted from here, because there may already be
+           a row: a removed member keeps theirs, and one account may hold only one.
+           The function decides between a new row, reinstating a removed one and
+           re-arming an outstanding one, and it re-checks every rule under the
+           caller's own identity rather than trusting the id this file passes it. */
+        const { data: placement, error: memberError } = await asCaller.rpc(
+          "tenant_place_invitation",
+          { _user_id: invitedId, _role: role },
+        );
         if (memberError) {
-          /* Most likely UNIQUE(user_id) — the constraint that makes one account one
-             business — losing a race with another admin. Answered the same way as any
-             other already-registered address. */
+          /* An active membership, or one held by another business — the function
+             refuses both. Answered the same way as any other already-registered
+             address, so the refusal still says nothing about the account. */
           await record("member_failed");
           return json({ error: ALREADY_REGISTERED }, 409);
         }
@@ -184,7 +211,7 @@ export const Route = createFileRoute("/api/tenant/invite")({
         });
 
         const [{ data: tenant }, { data: inviter }] = await Promise.all([
-          supabaseAdmin.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+          supabaseAdmin.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle(),
           supabaseAdmin.from("profiles").select("full_name").eq("id", actorId).maybeSingle(),
         ]);
 
@@ -200,6 +227,10 @@ export const Route = createFileRoute("/api/tenant/invite")({
             inviter?.full_name?.trim() || "An admin",
             email,
             linkData?.properties?.action_link ?? `${origin}/reset-password`,
+            /* The business's own slug, read here from the tenant row rather than
+               built from its name. Null when it is not a usable address, which
+               simply drops step 3 from the email. */
+            tenantLoginUrl(origin, tenant?.slug),
           ),
           origin,
         );
@@ -207,7 +238,10 @@ export const Route = createFileRoute("/api/tenant/invite")({
         /* The membership stands either way — it is real, and the link can be resent —
            so the audit records how the invitation went rather than pretending it
            always goes one way. */
-        await record(delivery.status === "sent" ? "invited" : `invited_email_${delivery.status}`);
+        /* Which of the three it was — a new invitation, a reinstated member or a
+           resent email — is worth having in the audit trail rather than flattened. */
+        const placed = typeof placement === "string" ? placement : "invited";
+        await record(delivery.status === "sent" ? placed : `${placed}_email_${delivery.status}`);
         return json(
           {
             ok: true,

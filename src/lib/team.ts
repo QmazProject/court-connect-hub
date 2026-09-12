@@ -6,9 +6,10 @@
  *  the *decision* are shared by the Team screen and its tests — the authority is
  *  SQL, and a check that lives only in a form is a check that can be skipped. */
 
-/** Fixed for now. Phase 2.5 is where these gain database meaning; today they are
- *  labels the UI honours and the row-level policies do not yet read — see the note
- *  on `ROLE_ENFORCEMENT` below. */
+/** Fixed, and ranked: `venue_allows()` orders them admin > manager > staff and the
+ *  row-level policies read it, so these are what the database permits and not only
+ *  what the screen offers. `src/lib/permissions.ts` mirrors the same ranking for
+ *  the UI. */
 export const MEMBER_ROLES = ["admin", "manager", "staff"] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
@@ -16,12 +17,6 @@ export type MemberRole = (typeof MEMBER_ROLES)[number];
  *  membership out of it. */
 export const MEMBER_STATUSES = ["invited", "active", "inactive"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
-
-/** Said out loud rather than left for someone to discover: the row-level policies
- *  guarding venues, courts and bookings ask only whether a `staff` row exists, not
- *  what role it carries. Until Phase 2.5 rewrites them, these roles shape what the
- *  screen offers and not what the database permits. */
-export const ROLE_ENFORCEMENT = "ui-only" as const;
 
 export const ROLE_LABELS: Record<MemberRole, string> = {
   admin: "Admin",

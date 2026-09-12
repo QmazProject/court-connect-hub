@@ -7,6 +7,7 @@ import {
   TENANT_LOGIN_PENDING_SLUG_KEY,
   WORKSPACE_SIGN_IN_FAILED,
 } from "@/lib/tenant-login";
+import { isFreshGoogleAccount } from "@/lib/google-account";
 
 /**
  * A workspace's own sign-in page.
@@ -111,11 +112,21 @@ function TenantLoginPage() {
     [navigate, rejectAndSignOut],
   );
 
-  /* Coming back from Google. The slug written before leaving is the authority — the
-     address bar is not, because a URL can be edited between leaving and arriving. When
-     the two disagree the answer is neither: it is a refusal.
-     A visitor who merely arrives here already signed in has nothing stashed, and is
-     checked against this page's own slug in the ordinary way. */
+  /* Two different things can bring a signed-in visitor to this page, and they deserve
+     different endings.
+
+     The first is a Google round trip that *started here*: an authentication attempt,
+     marked by the slug stashed before leaving. That slug is the authority and the
+     address bar is not, because a URL can be edited between leaving and arriving. A
+     failure of any kind ends signed out, because a refused attempt must not leave a
+     usable session behind.
+
+     The second is simply arriving with a session already — a stale bookmark, a link
+     from a colleague, a mistyped slug. That is not an attempt at anything, and it used
+     to end with the visitor signed out of the workspace they were already using. Any
+     page on the internet could log a CourtHub member out by linking here. Now the
+     membership check still runs, so an existing session opens nothing it should not,
+     but a refusal just leaves the sign-in form standing and the session alone. */
   useEffect(() => {
     let alive = true;
     const settle = async () => {
@@ -130,6 +141,32 @@ function TenantLoginPage() {
       } = await supabase.auth.getSession();
       if (!alive || !session || settling.current) return;
 
+      /* Nothing stashed: a visit, not an attempt. */
+      if (stashed === null) {
+        const { data, error: checkError } = await supabase.rpc("membership_matches_slug", {
+          _slug: slug,
+        });
+        if (!alive) return;
+        /* The same question the attempt path asks, and only a clear yes admits anyone.
+           A no is silent: they were not trying to sign in, so there is nothing to
+           refuse and nothing to say. */
+        if (!checkError && data === true) {
+          navigate({ to: DASHBOARD, replace: true });
+        }
+        return;
+      }
+
+      /* An account Supabase created seconds ago, in this very round trip: a Google
+         address with nothing behind it on CourtHub. Refused with the same test and the
+         same cleanup the landing page has always used, rather than a second lifecycle
+         invented for this page. No membership is created and no workspace is
+         bootstrapped, so what remains is an empty player profile — exactly what the
+         landing page leaves, and never a tenant account. */
+      if (isFreshGoogleAccount(session.user)) {
+        await rejectAndSignOut();
+        return;
+      }
+
       const verdict = classifyOAuthReturn(slug, stashed);
       if (verdict.kind === "mismatch") {
         await rejectAndSignOut();
@@ -142,7 +179,7 @@ function TenantLoginPage() {
     return () => {
       alive = false;
     };
-  }, [slug, admitOrReject, rejectAndSignOut]);
+  }, [slug, admitOrReject, rejectAndSignOut, navigate]);
 
   const signIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

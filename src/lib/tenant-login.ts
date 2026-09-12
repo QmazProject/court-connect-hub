@@ -59,3 +59,134 @@ export function classifyOAuthReturn(
   if (!slugsMatch(stashedSlug, urlSlug)) return { kind: "mismatch" };
   return { kind: "verify", slug: stashedSlug };
 }
+
+/** The path a workspace's own sign-in page lives at. One definition, so the route,
+ *  the OAuth `redirectTo` and the link an admin shares cannot drift apart. */
+export function tenantLoginPath(slug: string): string {
+  return `/tenant/${slug}/login`;
+}
+
+/** The absolute link an admin gives their team.
+ *
+ *  Built from the origin the app is actually being served from, so a preview
+ *  deployment, a custom domain and a laptop each produce their own correct link with
+ *  nothing hard-coded. The slug is the one the database returned for this admin's own
+ *  tenant — never derived from the business name, which would guess at a slug that is
+ *  frozen and may no longer match it.
+ *
+ *  Null when there is no slug yet rather than a half-built URL: a link to
+ *  `/tenant//login` looks real and goes nowhere. */
+export function tenantLoginUrl(origin: string, slug: string | null | undefined): string | null {
+  const value = (slug ?? "").trim();
+  if (!isWellFormedSlug(value)) return null;
+  const base = origin.replace(/\/+$/, "");
+  if (!base) return null;
+  return `${base}${tenantLoginPath(value)}`;
+}
+
+/** What a tenant-side account's own membership says about where it may go after
+ *  signing in on the *general* CourtHub page. */
+export type MembershipStatusLike = "invited" | "active" | "inactive" | null | undefined;
+
+export type GeneralSignInRoute =
+  /** Not a tenant account. The player experience, untouched. */
+  | { kind: "player" }
+  /** A tenant account with no membership yet: a founder whose workspace has not been
+   *  created. Must pass through to the dashboard, because that is where
+   *  `ensure_tenant_workspace()` runs. Blocking here would strand every new signup. */
+  | { kind: "bootstrap" }
+  /** An invitation not yet accepted, or a membership that was removed. The dashboard
+   *  again — it is the only place the acceptance panel lives, and a removed member
+   *  has nothing to be redirected to. */
+  | { kind: "accept" }
+  /** An active member of a workspace. Their business has its own sign-in page, and
+   *  this is the one case the general page turns away. */
+  | { kind: "workspace" };
+
+/** Where a successful sign-in on the general page should lead.
+ *
+ *  Only an *active* membership is turned away. Everything else passes through, and
+ *  that is deliberate rather than lenient: a founder mid-bootstrap has no membership
+ *  to redirect to, and an invited member sent to their workspace page would be refused
+ *  there by the active-only rule and left unable to accept anything.
+ *
+ *  The status comes from the member's own `tenant_members` row, read after
+ *  authentication. Nothing here is derived from an email domain, a guess at a slug,
+ *  user metadata or anything the browser kept. */
+export function routeAfterGeneralSignIn(
+  isTenantAccount: boolean,
+  membershipStatus: MembershipStatusLike,
+): GeneralSignInRoute {
+  if (!isTenantAccount) return { kind: "player" };
+  if (membershipStatus === "active") return { kind: "workspace" };
+  if (membershipStatus === "invited" || membershipStatus === "inactive") return { kind: "accept" };
+  return { kind: "bootstrap" };
+}
+
+/** The sentence the general page shows an active member. Names the business, because
+ *  they have just proved they belong to it, and says nothing else about the account. */
+export const WORKSPACE_ELSEWHERE_MESSAGE =
+  "Your account belongs to a business workspace. Please use your workspace sign-in page.";
+
+/** Shown once an invitation has been accepted, so the member learns where to sign in
+ *  from then on rather than discovering it by being turned away. */
+export const WORKSPACE_ACTIVATED_MESSAGE =
+  "Your workspace access is active. Use this sign-in page next time:";
+
+/** Just enough of the caller's own workspace to route and to name. */
+export type MyWorkspace = {
+  status: Exclude<MembershipStatusLike, null | undefined>;
+  slug: string;
+  name: string | null;
+};
+
+/** The three calls this module makes against Supabase, and nothing more. */
+export type WorkspaceReader = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => { maybeSingle: () => PromiseLike<{ data: unknown }> };
+    };
+  };
+};
+
+/** The caller's membership and workspace, read after they have authenticated.
+ *
+ *  One implementation, shared by the general sign-in page and the password-reset
+ *  page, so the two cannot disagree about where someone belongs. Both reads are
+ *  row-level-security scoped to the caller: the membership row is theirs, and
+ *  `tenants` admits only `id = current_tenant_id()`. No tenant id is supplied by the
+ *  caller and none is guessed — a member of another business gets nothing from this.
+ *
+ *  Null when there is no membership at all, which is a founder before bootstrap and
+ *  every player. A read that fails is also null: the callers treat "unknown" as
+ *  "carry on as before" rather than as a reason to turn someone away, because
+ *  turning people away on a failed query is how an outage becomes a lockout. */
+export async function resolveMyWorkspace(
+  /* Structural, and deliberately minimal: the Supabase query builder is a PromiseLike
+     rather than a Promise, and typing it any more tightly than the three calls actually
+     used drags the whole generated Database type through inference here. */
+  client: WorkspaceReader,
+  userId: string,
+): Promise<MyWorkspace | null> {
+  const { data: membership } = await client
+    .from("tenant_members")
+    .select("tenant_id, status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const m = membership as { tenant_id?: string; status?: string } | null;
+  if (!m?.tenant_id || !m.status) return null;
+
+  const { data: tenant } = await client
+    .from("tenants")
+    .select("slug, name")
+    .eq("id", m.tenant_id)
+    .maybeSingle();
+  const t = tenant as { slug?: string; name?: string | null } | null;
+  if (!t?.slug) return null;
+
+  return {
+    status: m.status as MyWorkspace["status"],
+    slug: t.slug,
+    name: t.name ?? null,
+  };
+}

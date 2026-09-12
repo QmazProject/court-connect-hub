@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveMyWorkspace, tenantLoginUrl, type WorkspaceReader } from "@/lib/tenant-login";
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordRoute,
@@ -21,6 +22,12 @@ function ResetPasswordRoute() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* Where this account goes once the password is set. Resolved from the member's own
+     row after the update succeeds, never from the link that brought them here.
+     `null` is the ordinary CourtHub account, player or founder alike. */
+  const [destination, setDestination] = useState<
+    { kind: "accept" } | { kind: "workspace"; name: string | null; url: string } | null
+  >(null);
 
   useEffect(() => {
     let mounted = true;
@@ -71,11 +78,48 @@ function ResetPasswordRoute() {
       return;
     }
     setBusy(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    const { data: updated, error: updateError } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (updateError) {
       setError(updateError.message);
       return;
+    }
+    const user = updated.user;
+    if (!user) {
+      setStatus("done");
+      return;
+    }
+    /* Setting a password proves control of the mailbox. It does not accept anything:
+       an invitation is still `invited` after this, and acceptance stays an explicit act
+       on the dashboard. All that is decided here is which door to point at. */
+    try {
+      /* Cast for the same reason as on the landing page: matching the generated
+         `Database` client against a structural parameter defeats inference. */
+      const workspace = await resolveMyWorkspace(supabase as unknown as WorkspaceReader, user.id);
+      if (workspace?.status === "active") {
+        const url = tenantLoginUrl(window.location.origin, workspace.slug);
+        /* Only when there is a real address to send them to; with no usable address
+           the session stays and they take the ordinary route, because signing someone
+           out with nowhere to go is worse than the inconsistency. */
+        if (url) {
+          /* The recovery link signed them in, and an active member does not enter
+             through a generic page — that is the whole point of the workspace login.
+             So the session the reset created is given up here, before the address is
+             shown, and they sign in again where everyone else in their business does.
+             Awaited, so nothing is on screen while a usable session still exists. */
+          await supabase.auth.signOut();
+          setDestination({ kind: "workspace", name: workspace.name, url });
+        }
+      } else if (workspace?.status === "invited") {
+        /* The acceptance panel lives on the dashboard, and the workspace sign-in page
+           would refuse them until they have used it. A membership that is `inactive`
+           deliberately falls through to the ordinary button instead: there is no
+           invitation left for them to accept, and saying otherwise would be a lie. */
+        setDestination({ kind: "accept" });
+      }
+    } catch {
+      /* Leave `destination` null and offer the ordinary Continue button. A failed
+         lookup should not cost someone the password they just set. */
     }
     setStatus("done");
   };
@@ -101,7 +145,9 @@ function ResetPasswordRoute() {
             {status === "invalid"
               ? "This link couldn’t be used."
               : status === "done"
-                ? "You’re all set — this device is already signed in with it."
+                ? destination?.kind === "workspace"
+                  ? "Sign in with it on your workspace page."
+                  : "You’re all set — this device is already signed in with it."
                 : "Choose a new password for your CourtHub account."}
           </p>
         </div>
@@ -178,19 +224,60 @@ function ResetPasswordRoute() {
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#eaf5d8] text-2xl">
                 ✅
               </div>
-              <p className="mt-5 text-sm leading-relaxed text-[#5e746e]">
-                Your password has been changed. Continue to CourtHub — you're already signed in.
-              </p>
-              {/* No role passed here on purpose: LandingPage's own hydration effect already
-                  knows how to read the active session and route a tenant to /dashboard or a
-                  player to /explore, so this doesn't need to duplicate that lookup. */}
-              <button
-                type="button"
-                onClick={() => navigate({ to: "/landing", search: {} })}
-                className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152]"
-              >
-                Continue to CourtHub
-              </button>
+              {destination?.kind === "workspace" ? (
+                <>
+                  <p className="mt-5 text-sm leading-relaxed text-[#5e746e]">
+                    Your password is set. Sign in with it on your workspace page:
+                  </p>
+                  {destination.name && (
+                    <p className="mt-4 font-display text-lg font-bold text-[#102521]">
+                      {destination.name}
+                    </p>
+                  )}
+                  <code className="mt-3 block break-all rounded-lg bg-[#eaf5d8] px-3 py-2 text-xs text-[#0b3d35]">
+                    {destination.url}
+                  </code>
+                  <a
+                    href={destination.url}
+                    className="mt-6 inline-block rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152]"
+                  >
+                    Open workspace login
+                  </a>
+                </>
+              ) : destination?.kind === "accept" ? (
+                <>
+                  <p className="mt-5 text-sm leading-relaxed text-[#5e746e]">
+                    Your password is set. One step left — open your invitation and accept it to join
+                    the workspace.
+                  </p>
+                  {/* Straight to the dashboard, where the invitation panel is. Not via the
+                      landing page, which now turns members away, and not to the workspace
+                      sign-in page, which admits nobody until the invitation is accepted. */}
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/dashboard" })}
+                    className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152]"
+                  >
+                    Continue to your invitation
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="mt-5 text-sm leading-relaxed text-[#5e746e]">
+                    Your password has been changed. Continue to CourtHub — you're already signed in.
+                  </p>
+                  {/* No role passed here on purpose: LandingPage's own hydration effect already
+                      knows how to read the active session and route a tenant to /dashboard or a
+                      player to /explore, so this doesn't need to duplicate that lookup. */}
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/landing", search: {} })}
+                    className="mt-7 rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#126152]"
+                  >
+                    Continue to CourtHub
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

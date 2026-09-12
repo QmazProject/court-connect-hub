@@ -1547,6 +1547,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      tenant_place_invitation: {
+        Args: { _role: string; _user_id: string }
+        Returns: string
+      }
       tenant_remove_member: {
         Args: { _user_id: string }
         Returns: undefined

@@ -84,6 +84,15 @@ import { PRIVACY, TERMS, LEGAL_VERSION } from "@/lib/legal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { searchPhPlaces, type PhPlace } from "@/lib/ph-places";
 import { haversineKm } from "@/lib/geo";
+import { hasGoogleProvider, isFreshGoogleAccount } from "@/lib/google-account";
+import {
+  resolveMyWorkspace,
+  routeAfterGeneralSignIn,
+  tenantLoginUrl,
+  WORKSPACE_ELSEWHERE_MESSAGE,
+  type MyWorkspace,
+  type WorkspaceReader,
+} from "@/lib/tenant-login";
 
 /* Google's four-color "G" mark, inlined rather than fetched — the auth sheet has no other
    dependency on an icon CDN and this keeps the button recognizable at a glance. */
@@ -133,31 +142,6 @@ const GOOGLE_PENDING_SIGNIN_SIDE_KEY = "courthub_google_pending_signin_side";
    they know the role, so a message rendered here has to be given a moment to be read — but
    it asks for no click, and the destination is the one they would have reached anyway. */
 const ROLE_NOTICE_MS = 1600;
-
-function hasGoogleProvider(user: {
-  app_metadata?: { provider?: string; providers?: string[] } | null;
-}): boolean {
-  const providers =
-    user.app_metadata?.providers ?? (user.app_metadata?.provider ? [user.app_metadata.provider] : []);
-  return providers.includes("google");
-}
-
-/* True only for a Google-provider account whose very first sign-in is happening right now
-   (created_at and last_sign_in_at land within a few seconds of each other). That's the
-   signature of clicking "Continue with Google" from Sign in with no CourtHub account behind
-   it yet — Supabase still creates the account on the spot, since that's how OAuth works, but
-   nobody has chosen player or venue manager for it. A returning Google user's last_sign_in_at
-   is long past their created_at, so this stays false for them. */
-function isFreshGoogleAccount(user: {
-  app_metadata?: { provider?: string; providers?: string[] } | null;
-  created_at: string;
-  last_sign_in_at?: string | null;
-}): boolean {
-  if (!hasGoogleProvider(user)) return false;
-  const createdAt = new Date(user.created_at).getTime();
-  const lastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : createdAt;
-  return Math.abs(lastSignIn - createdAt) < 10_000;
-}
 
 const searchSchema = z.object({
   sport: z.string().optional(),
@@ -292,6 +276,15 @@ export function VenueExplorer({ sport, guestMode }: { sport?: string; guestMode?
     },
     staleTime: 1000 * 60 * 10,
   });
+
+  /* Explore is the player's page. A venue manager who lands here — from the header,
+     from a stale link, or from the landing page's own Explore button — got a map with
+     no player shell, no booking and no way back to their workspace. They go to the
+     dashboard instead. Nothing here runs for a player or for a signed-out visitor,
+     both of whom see exactly what they saw before. */
+  useEffect(() => {
+    if (player?.role === "tenant") navigate({ to: "/dashboard", replace: true });
+  }, [player?.role, navigate]);
 
   const explorerQueryClient = useQueryClient();
   useEffect(() => {
@@ -1819,6 +1812,12 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
   /* Shown once, after a sign-in that landed on the other side's tab. It explains where the
      visitor is being taken; it never stops them going there. */
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
+  /* Set when an active member of a workspace signs in here. Their business has its own
+     sign-in page, so this page hands them the address instead of a dashboard. */
+  const [workspaceRedirect, setWorkspaceRedirect] = useState<{
+    name: string | null;
+    url: string;
+  } | null>(null);
   /* Consent to the Terms and the Privacy Policy, which is a sign-up-only gate: creating the
      account is the moment the agreement is entered into, so that is where the tick is
      required.  Signing in afterwards does not ask again — an existing account has already
@@ -1910,9 +1909,21 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
       /* Read only now, with the password already checked and the real role in hand. Saying
          anything about which side an email belongs to before this point would answer that
          question for anyone who typed an address in, signed in or not. */
+      /* Present only when "Continue with Google" was pressed on this page's sign-in
+         step. It separates a deliberate sign-in here from merely arriving with a
+         session already — someone who signed in on their workspace page and then
+         clicked the logo must not be signed out for it. */
+      const cameFromGeneralGoogleSignIn =
+        sessionStorage.getItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY) !== null;
       const chosenSide =
         sessionStorage.getItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY) ?? signinSideRef.current;
       sessionStorage.removeItem(GOOGLE_PENDING_SIGNIN_SIDE_KEY);
+      if (
+        cameFromGeneralGoogleSignIn &&
+        (await interceptWorkspaceMember(user.id, role === "tenant"))
+      ) {
+        return;
+      }
       if (mounted && chosenSide && chosenSide !== role) {
         setRoleNotice(
           role === "tenant"
@@ -1954,9 +1965,30 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         );
       }
     };
-    void hydrateAccount();
+    /* One hydration at a time, in the order they were asked for.
+
+       Supabase fires `INITIAL_SESSION` and then `SIGNED_IN` while it parses an OAuth
+       redirect, so this used to run two copies concurrently. Both read the one-shot
+       "came from the sign-in step" key and both cleared it; whichever read *after* the
+       other's clear saw nothing, concluded the visit was not a deliberate sign-in, and
+       navigated an active workspace member into the dashboard while the other copy was
+       still deciding to turn them away. The outcome depended on which promise settled
+       first.
+
+       Chaining the runs makes the first one authoritative: it consumes the key, acts on
+       it and finishes. Any run queued behind it starts afresh and, in the case that
+       mattered, finds no session at all because the first one signed the member out.
+       No timers and no delays — the ordering comes from the chain itself. */
+    let hydrating: Promise<void> = Promise.resolve();
+    const hydrateInTurn = () => {
+      hydrating = hydrating.then(hydrateAccount).catch(() => {
+        /* One failed run must not stop the next from being attempted. */
+      });
+    };
+
+    hydrateInTurn();
     const { data: subscription } = supabase.auth.onAuthStateChange(() => {
-      void hydrateAccount();
+      hydrateInTurn();
       /* VenueExplorer caches the session under this key with a 10-minute staleTime. A visitor
          who browsed /explore/guest first has a cached `null` player; signing in does not
          touch React Query, so /explore would read that stale null and skip the player shell
@@ -2187,6 +2219,7 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
        that has already happened. */
     setSigninSide("player");
     setRoleNotice(null);
+    setWorkspaceRedirect(null);
     setAuthSheetStep("signin");
     setSignInOpen(true);
   };
@@ -2278,6 +2311,54 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
      a fresh session — so the role can't travel as a function argument the way it does through
      submitAuth; it goes into sessionStorage instead and the hydration effect above reads it
      back once the redirect returns. */
+  /** Turns an active member away from the general page, having first taken their
+   *  session away.
+   *
+   *  Only an active membership reaches here — `routeAfterGeneralSignIn` decides that,
+   *  and a founder without a workspace yet and an invitation not yet accepted both
+   *  pass straight through, because neither has a workspace page that would admit
+   *  them. The sign-out is awaited before anything is shown: a session outliving the
+   *  refusal would be the general-login entry this exists to close.
+   *
+   *  Returns true when it has taken over, so the caller stops. */
+  const interceptWorkspaceMember = async (
+    userId: string,
+    isTenantAccount: boolean,
+  ): Promise<boolean> => {
+    /* A player is none of this page's business — no lookup, no change, exactly the
+       behaviour they had before. */
+    if (routeAfterGeneralSignIn(isTenantAccount, "active").kind !== "workspace") return false;
+
+    /* Read with the caller's own session, under row-level security, before that
+       session goes away: their membership row and their tenant, nothing else. */
+    let workspace: MyWorkspace | null = null;
+    try {
+      /* The cast keeps the generated `Database` type out of inference here: matching the
+         full client against a structural parameter makes tsc give up with "type
+         instantiation is excessively deep". Only the two reads below are used. */
+      workspace = await resolveMyWorkspace(supabase as unknown as WorkspaceReader, userId);
+    } catch {
+      /* A failed read is not a reason to turn anyone away — that would make an outage
+         a lockout. Fall through to the behaviour this page always had. */
+      return false;
+    }
+    if (routeAfterGeneralSignIn(isTenantAccount, workspace?.status).kind !== "workspace") {
+      return false;
+    }
+    const url = tenantLoginUrl(window.location.origin, workspace?.slug);
+    /* No usable workspace address means nowhere to send them; better in than stranded. */
+    if (!url) return false;
+
+    await supabase.auth.signOut();
+    setPlayer(null);
+    setSignInBusy(false);
+    setSignInError(null);
+    setRoleNotice(null);
+    setWorkspaceRedirect({ name: workspace?.name ?? null, url });
+    setSignInOpen(true);
+    return true;
+  };
+
   const handleGoogleAuth = async (role: "player" | "tenant" | null) => {
     setSignInError(null);
     if (role) {
@@ -2405,6 +2486,9 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
         .maybeSingle();
       const metadata = user.user_metadata as { role?: unknown; full_name?: unknown };
       const isTenant = profile?.role === "tenant" || metadata.role === "tenant";
+      /* Before any notice or navigation: an active member of a workspace does not enter
+         through this page at all. */
+      if (await interceptWorkspaceMember(user.id, isTenant)) return;
       /* The tab was a guess about this account; now the password has been checked, the role
          is known and the guess can be answered. Nothing about the destination changes. */
       if ((isTenant ? "tenant" : "player") !== signinSide) {
@@ -3217,9 +3301,34 @@ export function LandingPage({ signin, signup }: { signin?: boolean; signup?: boo
               </div>
             )}
 
+            {authSheetStep === "signin" && workspaceRedirect && (
+              /* In place of the form, not beside it: there is nothing useful to do on this
+                 page with an account that belongs to a workspace. The session is already
+                 gone by the time this renders. */
+              <div className="flex flex-1 flex-col px-6 py-8 text-center sm:px-8">
+                <p role="status" className="text-sm leading-relaxed text-[#5e746e]">
+                  {WORKSPACE_ELSEWHERE_MESSAGE}
+                </p>
+                {workspaceRedirect.name && (
+                  <p className="mt-4 font-display text-lg font-bold text-[#102521]">
+                    {workspaceRedirect.name}
+                  </p>
+                )}
+                <code className="mt-3 block break-all rounded-lg bg-[#eaf5d8] px-3 py-2 text-xs text-[#0b3d35]">
+                  {workspaceRedirect.url}
+                </code>
+                <a
+                  href={workspaceRedirect.url}
+                  className="mt-6 inline-block self-center rounded-full bg-[#0b3d35] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#126152]"
+                >
+                  Open workspace login
+                </a>
+              </div>
+            )}
+
             <form
               onSubmit={submitAuth}
-              className={`flex flex-1 flex-col px-6 py-8 sm:px-8 ${authSheetStep === "signin" || authSheetStep === "signup" ? "" : "hidden"}`}
+              className={`flex flex-1 flex-col px-6 py-8 sm:px-8 ${(authSheetStep === "signin" && !workspaceRedirect) || authSheetStep === "signup" ? "" : "hidden"}`}
             >
               {/* Sign-up's Google entry point lives below the Create account button instead,
                   one screen forward — it needs a role chosen on the role step first, and
