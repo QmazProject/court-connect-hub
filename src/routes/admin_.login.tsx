@@ -6,10 +6,17 @@
  * page authenticates with the ordinary Supabase session, then asks the database
  * whether the account holds an admin role, and signs straight back out if it does
  * not. There is no admin sign-up here or anywhere else.
+ *
+ * Two ways in, one rule. An account can hold a password or it can be a Google
+ * account with no password at all — the super admin is whichever account the
+ * bootstrap SQL named, and that account was very likely created with "Continue
+ * with Google" on the player side. Both paths end at the same `admit()`: a
+ * session is not an admission, `is_courthub_admin()` is, and an account that
+ * fails it is signed out here whichever door it came through.
  */
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAdminIdentity } from "@/lib/admin";
@@ -19,12 +26,73 @@ export const Route = createFileRoute("/admin_/login")({
   component: AdminLogin,
 });
 
+/* Written before leaving for Google, read on return. Its presence is what tells a
+   fresh page load "you are the second half of a sign-in that started here", so the
+   admission check runs; a plain visit to this page with some other session open is
+   left alone, exactly as before. */
+const GOOGLE_PENDING_KEY = "courthub-admin-login:google-pending";
+
+const NOT_ADMIN = "That account does not have CourtHub admin access.";
+
 function AdminLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** The one admission decision, shared by both doors. */
+  const admit = async () => {
+    const identity = await fetchAdminIdentity();
+    if (!identity) {
+      /* Authenticated, but not an admin. The session is dropped rather than left
+         open, so a mistaken sign-in here does not silently log someone into the
+         player app on an admin machine. */
+      await supabase.auth.signOut();
+      setError(NOT_ADMIN);
+      return;
+    }
+    await navigate({ to: "/admin", search: {} as never });
+  };
+
+  /* The return leg of a Google sign-in. Supabase has already established the
+     session by the time this page loads again; all that is left is the same
+     question the password path asks. */
+  useEffect(() => {
+    let pending = false;
+    try {
+      pending = sessionStorage.getItem(GOOGLE_PENDING_KEY) === "1";
+      sessionStorage.removeItem(GOOGLE_PENDING_KEY);
+    } catch {
+      /* Without storage the return is an ordinary visit; the /admin guard still
+         checks authority on its own, so nothing is granted by skipping this. */
+    }
+    if (!pending) return;
+
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (!session) {
+          setError("Google sign-in did not complete. Try again.");
+          return;
+        }
+        await admit();
+      } catch {
+        if (!cancelled) setError("Google sign-in did not complete. Try again.");
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,17 +105,7 @@ function AdminLogin() {
         password,
       });
       if (signInError) throw signInError;
-
-      const identity = await fetchAdminIdentity();
-      if (!identity) {
-        /* Authenticated, but not an admin. The session is dropped rather than left
-           open, so a mistaken sign-in here does not silently log someone into the
-           player app on an admin machine. */
-        await supabase.auth.signOut();
-        setError("That account does not have CourtHub admin access.");
-        return;
-      }
-      await navigate({ to: "/admin", search: {} as never });
+      await admit();
     } catch (err) {
       /* One message for every failure. Distinguishing "wrong password" from "not an
          admin" would turn this form into a way to enumerate admin accounts. */
@@ -58,6 +116,30 @@ function AdminLogin() {
       );
     } finally {
       setBusy(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    if (busy) return;
+    setError(null);
+    try {
+      sessionStorage.setItem(GOOGLE_PENDING_KEY, "1");
+    } catch {
+      /* see the effect above */
+    }
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      /* Back to this exact page, so the admission check above is what runs next —
+         not the player landing, which would happily accept the session as a player. */
+      options: { redirectTo: `${window.location.origin}/admin/login` },
+    });
+    if (oauthError) {
+      try {
+        sessionStorage.removeItem(GOOGLE_PENDING_KEY);
+      } catch {
+        /* see above */
+      }
+      setError("Google sign-in did not start. Try again.");
     }
   };
 
@@ -79,7 +161,8 @@ function AdminLogin() {
         <form onSubmit={submit} className="mt-5 space-y-3">
           <label className="block">
             <span className="text-xs font-semibold text-muted-foreground">Email</span>
-            <input name="login-email"
+            <input
+              name="login-email"
               type="email"
               required
               autoComplete="username"
@@ -90,7 +173,8 @@ function AdminLogin() {
           </label>
           <label className="block">
             <span className="text-xs font-semibold text-muted-foreground">Password</span>
-            <input name="login-password"
+            <input
+              name="login-password"
               type="password"
               required
               autoComplete="current-password"
@@ -119,8 +203,45 @@ function AdminLogin() {
           </button>
         </form>
 
+        <div className="my-4 flex items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          or
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
+        {/* For an admin whose account was created with Google and has no password.
+            Same admission rule as the form above: the session Google returns is
+            checked against user_roles and dropped if it holds nothing. */}
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          disabled={busy}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-secondary disabled:opacity-50"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
+            <path
+              fill="currentColor"
+              d="M21.6 12.23c0-.68-.06-1.33-.18-1.96H12v3.71h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.32 2.98-7.27Z"
+            />
+            <path
+              fill="currentColor"
+              d="M12 22c2.7 0 4.96-.9 6.62-2.43l-3.24-2.5c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.75-5.59-4.11H3.07v2.58A10 10 0 0 0 12 22Z"
+            />
+            <path
+              fill="currentColor"
+              d="M6.41 13.92A6.01 6.01 0 0 1 6.1 12c0-.67.11-1.31.31-1.92V7.5H3.07A10 10 0 0 0 2 12c0 1.61.39 3.14 1.07 4.5l3.34-2.58Z"
+            />
+            <path
+              fill="currentColor"
+              d="M12 5.97c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.99 14.7 2 12 2a10 10 0 0 0-8.93 5.5l3.34 2.58C7.2 7.72 9.4 5.97 12 5.97Z"
+            />
+          </svg>
+          Continue with Google
+        </button>
+
         <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
-          Admin accounts are provisioned by CourtHub. There is no sign-up here.
+          Admin accounts are provisioned by CourtHub. There is no sign-up here. An account created
+          with Google signs in with Google.
         </p>
       </div>
     </div>
