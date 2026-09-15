@@ -10,6 +10,7 @@ import {
   walkInReference,
   type MoneyBooking,
   type WalkInDraft,
+  resolveWalkInCourtId,
 } from "../walkin";
 
 const online = (unit_price: number, payment_status = "paid"): MoneyBooking => ({
@@ -161,5 +162,23 @@ describe("draft validation", () => {
   it("requires a court and a date", () => {
     expect(validateWalkInDraft({ ...good, courtId: null })).toContain("Choose a court.");
     expect(validateWalkInDraft({ ...good, dateISO: "14/09/2026" })).toContain("Choose a date.");
+  });
+});
+
+describe("which court the walk-in dialog selects", () => {
+  it("selects nothing while the venue's courts have not loaded", () => {
+    expect(resolveWalkInCourtId([], null)).toBeNull();
+  });
+
+  it("picks the first court once the list arrives — the dialog mounts before it does", () => {
+    expect(resolveWalkInCourtId([{ id: 14 }, { id: 15 }], null)).toBe(14);
+  });
+
+  it("keeps a choice that is still in the list", () => {
+    expect(resolveWalkInCourtId([{ id: 14 }, { id: 15 }], 15)).toBe(15);
+  });
+
+  it("replaces a choice the list no longer contains", () => {
+    expect(resolveWalkInCourtId([{ id: 21 }], 15)).toBe(21);
   });
 });

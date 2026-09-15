@@ -11,38 +11,58 @@
  * Every figure is read from `tenant_balances`, the same view the tenant's own
  * Finance screen reads. Deliberately not a second query with its own arithmetic:
  * an admin and a tenant disagreeing about a balance is the bug this prevents.
+ *
+ * Why this page was empty before: `tenant_balances` is security_invoker over
+ * `public.tenants`, and until migration 20260930 that table had no policy
+ * letting a platform admin read it. The fix is that policy, not anything here.
+ *
+ * Beside the balances: how many venues, the payout schedule the tenant chose,
+ * whether it is due, and any payout already open — the facts an admin needs
+ * before deciding to send money, read from tables an admin is allowed to read
+ * and joined by `adminListTenantOverview`.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { adminListTenantBalances } from "@/lib/payouts.functions";
-import { balanceFromRow, pesoFromCentavos, type TenantBalanceRow } from "@/lib/ledger";
+import { adminListTenantOverview, type TenantOverviewRow } from "@/lib/payouts.functions";
+import { balanceFromRow, pesoFromCentavos } from "@/lib/ledger";
+import { PAYOUT_FREQUENCIES, PAYOUT_STATUS_LABEL, type PayoutStatus } from "@/lib/payouts";
 
 export const Route = createFileRoute("/admin/tenants")({
   ssr: false,
   component: AdminTenants,
 });
 
-function AdminTenants() {
-  const listFn = useServerFn(adminListTenantBalances);
-  const [q, setQ] = useState("");
+type Filter = "all" | "due" | "open" | "holding";
 
-  const balancesQ = useQuery({
-    queryKey: ["admin-tenant-balances"],
+function AdminTenants() {
+  const listFn = useServerFn(adminListTenantOverview);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+
+  const overviewQ = useQuery({
+    queryKey: ["admin-tenant-overview"],
     queryFn: () => listFn({}),
   });
 
+  const all = useMemo(() => (overviewQ.data ?? []) as TenantOverviewRow[], [overviewQ.data]);
+
   const rows = useMemo(() => {
-    const all = (balancesQ.data ?? []) as TenantBalanceRow[];
     const needle = q.trim().toLowerCase();
-    if (!needle) return all;
-    return all.filter(
-      (r) =>
-        (r.tenant_name ?? "").toLowerCase().includes(needle) ||
-        (r.tenant_slug ?? "").toLowerCase().includes(needle),
-    );
-  }, [balancesQ.data, q]);
+    return all.filter((r) => {
+      if (needle) {
+        const hit =
+          (r.tenant_name ?? "").toLowerCase().includes(needle) ||
+          (r.tenant_slug ?? "").toLowerCase().includes(needle);
+        if (!hit) return false;
+      }
+      if (filter === "due") return r.recurring.due;
+      if (filter === "open") return !!r.open_payout;
+      if (filter === "holding") return balanceFromRow(r).availableCentavos > 0;
+      return true;
+    });
+  }, [all, q, filter]);
 
   /* Platform-wide totals. A sum of the same rows shown below, so the header and
      the table can never tell different stories. */
@@ -65,12 +85,15 @@ function AdminTenants() {
     return { gross, platform, tenant, available, reserved, paidOut };
   }, [rows]);
 
+  const dueCount = all.filter((r) => r.recurring.due).length;
+  const openCount = all.filter((r) => r.open_payout).length;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 px-5 py-6 sm:px-8">
       <div>
         <h1 className="font-display text-xl font-semibold">Tenants</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          What each business sold, and what the platform is holding for it.
+          What each business sold, what the platform is holding for it, and when it is next paid.
         </p>
       </div>
 
@@ -90,12 +113,34 @@ function AdminTenants() {
         anybody.
       </p>
 
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search tenants…"
-        className="w-full max-w-xs rounded-xl border border-border bg-background px-3 py-2 text-sm"
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search tenants…"
+          className="w-full max-w-xs rounded-xl border border-border bg-background px-3 py-2 text-sm"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              ["all", `All (${all.length})`],
+              ["due", `Due now (${dueCount})`],
+              ["open", `Payout open (${openCount})`],
+              ["holding", "Holding a balance"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`rounded-lg px-3 py-1.5 text-xs ${
+                filter === key ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="nice-scroll max-h-[60vh] overflow-auto">
@@ -103,37 +148,44 @@ function AdminTenants() {
             <thead className="bg-secondary/50 text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2">Tenant</th>
-                <th className="px-4 py-2 text-right">Gross sales</th>
-                <th className="px-4 py-2 text-right">Platform</th>
-                <th className="px-4 py-2 text-right">Tenant cash</th>
-                <th className="px-4 py-2 text-right">Refunded</th>
-                <th className="px-4 py-2 text-right">Available</th>
-                <th className="px-4 py-2 text-right">Reserved</th>
-                <th className="px-4 py-2 text-right">Paid out</th>
+                <th className="px-3 py-2 text-right">Venues</th>
+                <th className="px-3 py-2 text-right">Gross sales</th>
+                <th className="px-3 py-2 text-right">Platform</th>
+                <th className="px-3 py-2 text-right">Tenant cash</th>
+                <th className="px-3 py-2 text-right">Available</th>
+                <th className="px-3 py-2 text-right">Reserved</th>
+                <th className="px-3 py-2 text-right">Paid out</th>
+                <th className="px-3 py-2">Schedule</th>
+                <th className="px-3 py-2">Next due</th>
+                <th className="px-3 py-2">Pending payout</th>
               </tr>
             </thead>
             <tbody>
-              {balancesQ.isLoading ? (
+              {overviewQ.isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
-              ) : balancesQ.error ? (
+              ) : overviewQ.error ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-destructive">
-                    {(balancesQ.error as Error).message}
+                  <td colSpan={11} className="px-4 py-8 text-center text-destructive">
+                    {(overviewQ.error as Error).message}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
-                    No tenants match.
+                  <td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">
+                    {all.length === 0
+                      ? "No tenants are visible. If businesses exist, the platform-admin read policy on public.tenants (migration 20260930) has not been applied."
+                      : "No tenants match."}
                   </td>
                 </tr>
               ) : (
                 rows.map((r) => {
                   const b = balanceFromRow(r);
+                  const freq =
+                    PAYOUT_FREQUENCIES.find((f) => f.value === r.frequency)?.label ?? r.frequency;
                   return (
                     <tr key={r.tenant_id} className="border-t border-border">
                       <td className="px-4 py-3">
@@ -146,24 +198,61 @@ function AdminTenants() {
                         </Link>
                         <p className="text-[11px] text-muted-foreground">{r.tenant_slug}</p>
                       </td>
-                      <td className="px-4 py-3 text-right">{pesoFromCentavos(b.grossCentavos)}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-3 py-3 text-right">{r.venue_count}</td>
+                      <td className="px-3 py-3 text-right">{pesoFromCentavos(b.grossCentavos)}</td>
+                      <td className="px-3 py-3 text-right">
                         {pesoFromCentavos(b.platformCollectedCentavos)}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
+                      <td className="px-3 py-3 text-right text-muted-foreground">
                         {pesoFromCentavos(b.tenantCollectedCentavos)}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        {pesoFromCentavos(b.refundedCentavos)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
+                      <td className="px-3 py-3 text-right font-medium">
                         {pesoFromCentavos(b.availableCentavos)}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-3 py-3 text-right">
                         {pesoFromCentavos(b.reservedCentavos)}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
+                      <td className="px-3 py-3 text-right text-muted-foreground">
                         {pesoFromCentavos(b.paidOutCentavos)}
+                      </td>
+                      <td className="px-3 py-3 text-xs">
+                        {freq}
+                        {!r.has_account && (
+                          <p className="text-[11px] text-amber-700">No payout account</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-xs">
+                        {r.recurring.due ? (
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] text-primary">
+                            Due now
+                          </span>
+                        ) : r.recurring.nextDueAt ? (
+                          <span title={r.recurring.reason}>
+                            {new Date(r.recurring.nextDueAt).toLocaleDateString("en-PH", {
+                              dateStyle: "medium",
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground" title={r.recurring.reason}>
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-xs">
+                        {r.open_payout ? (
+                          <Link
+                            to="/admin/disbursements"
+                            className="hover:underline"
+                            title={`Payout #${r.open_payout.id}`}
+                          >
+                            #{r.open_payout.id} ·{" "}
+                            {PAYOUT_STATUS_LABEL[r.open_payout.status as PayoutStatus] ??
+                              r.open_payout.status}{" "}
+                            · {pesoFromCentavos(r.open_payout.amount_centavos)}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                     </tr>
                   );

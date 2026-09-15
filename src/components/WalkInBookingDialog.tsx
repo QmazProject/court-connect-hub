@@ -20,6 +20,7 @@ import { createWalkInBooking, type WalkInResult } from "@/lib/walkin.functions";
 import { getCourtAvailability, type CourtAvailabilityRow } from "@/lib/availability.functions";
 import {
   WALKIN_PAYMENT_METHODS,
+  resolveWalkInCourtId,
   validateWalkInDraft,
   type WalkInDraft,
   type WalkInPaymentMethod,
@@ -52,6 +53,15 @@ export function WalkInBookingDialog({
   const availabilityFn = useServerFn(getCourtAvailability);
 
   const [courtId, setCourtId] = useState<number | null>(courts[0]?.id ?? null);
+
+  /* The dialog opens the moment a venue is chosen, which is before the venue's
+     courts have loaded — so the list is empty at mount and the initial state
+     above picks nothing. Without this, `courtId` stayed null forever: no
+     availability was ever fetched, and an empty grid read as "not open on that
+     date" for a venue that was open all day. Follow the list as it arrives. */
+  useEffect(() => {
+    setCourtId((current) => resolveWalkInCourtId(courts, current));
+  }, [courts]);
   const [dateISO, setDateISO] = useState(() => zonedDateISO());
   const [startHour, setStartHour] = useState<number | null>(null);
   const [endHour, setEndHour] = useState<number | null>(null);
@@ -273,13 +283,21 @@ export function WalkInBookingDialog({
             </Field>
 
             <Field label="Time">
-              {loading ? (
+              {courts.length === 0 ? (
+                <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading courts…
+                </div>
+              ) : loading || rows === null ? (
                 <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" /> Checking availability…
                 </div>
+              ) : err ? (
+                <p className="rounded-xl border border-border p-3 text-xs text-muted-foreground">
+                  Availability could not be loaded. See the message below.
+                </p>
               ) : slots.length === 0 ? (
                 <p className="rounded-xl border border-border p-3 text-xs text-muted-foreground">
-                  This court is not open on that date.
+                  No bookable hours were returned for this court on that date.
                 </p>
               ) : (
                 <>

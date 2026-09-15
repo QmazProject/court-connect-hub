@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
+import type { Json } from "@/integrations/supabase/types";
 
 // PayMongo webhook signature format:
 //   Paymongo-Signature: t=<timestamp>,te=<test_sig>,li=<live_sig>
@@ -70,6 +71,53 @@ export const Route = createFileRoute("/api/public/paymongo/webhook")({
         if (!sessionId) return new Response("ok");
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        /* Outbound tenant disbursements: `transfer.outward.successful` and
+           `transfer.outward.failed` from PayMongo Money Movement. Handled first
+           and returned from, so a transfer event can never fall into the
+           checkout/payment branches below — those key on a checkout session id,
+           and a transfer's resource id (`wallet_tr_…`) is not one.
+
+           The two `payout.*` events PayMongo also offers describe PayMongo
+           settling OUR merchant balance to OUR bank, not a tenant transfer, and
+           are deliberately not treated as disbursement confirmation.
+
+           Settlement is one idempotent RPC, service-role only: it dedupes on the
+           event id, matches the attempt by transfer id (or our reference), and
+           refuses to move money for an attempt that is already settled. */
+        if (
+          eventType === "transfer.outward.successful" ||
+          eventType === "transfer.outward.failed"
+        ) {
+          const { parseTransferEvent, sanitizeProviderPayload } =
+            await import("@/lib/payout-providers");
+          const ev = parseTransferEvent(payload);
+          if (!ev) return new Response("ok");
+          const { data: outcome, error: settleErr } = await supabaseAdmin.rpc(
+            "payout_provider_settle",
+            {
+              _provider: "paymongo",
+              _event_id: ev.eventId,
+              _event_type: ev.eventType,
+              _provider_transfer_id: ev.transferId,
+              _provider_reference_number: ev.referenceNumber,
+              _outcome: ev.outcome,
+              _provider_status: ev.providerStatus,
+              _error_code: ev.errorCode,
+              _error_message: ev.errorMessage,
+              _livemode: ev.livemode,
+              _payload: sanitizeProviderPayload(payload) as Json,
+            },
+          );
+          if (settleErr) {
+            /* A 500 makes PayMongo retry, which is what we want for a transient
+               database error: the event id dedupes the retry. */
+            console.error("[paymongo webhook] transfer settlement failed", ev.eventId, settleErr);
+            return new Response("DB error", { status: 500 });
+          }
+          console.info("[paymongo webhook] transfer", ev.eventType, ev.transferId, "->", outcome);
+          return new Response("ok");
+        }
 
         if (eventType === "checkout_session.payment.paid") {
           const payment = sessionAttrs?.payments?.[0];

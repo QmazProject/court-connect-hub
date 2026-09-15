@@ -178,3 +178,51 @@ export function payoutSummaryLine(availableCentavos: number, reservedCentavos: n
   }
   return `${pesoFromCentavos(availableCentavos)} available for payout`;
 }
+
+/* ----------------------------------------------------------- disbursement -- */
+
+/** The queue sections of Admin → Disbursements, and which payout statuses
+ *  land in each. `recurring_due` is not a status: it is computed from
+ *  schedules and holds tenants, not payouts, until an admin acts. */
+export const DISBURSEMENT_SECTIONS = [
+  { key: "requested", label: "Requested", statuses: ["requested", "under_review", "approved"] },
+  { key: "recurring_due", label: "Recurring — Due Now", statuses: [] },
+  { key: "processing", label: "Processing", statuses: ["processing"] },
+  { key: "paid", label: "Paid", statuses: ["paid"] },
+  { key: "closed", label: "Failed / Rejected", statuses: ["failed", "rejected", "cancelled"] },
+] as const;
+
+export type DisbursementSection = (typeof DISBURSEMENT_SECTIONS)[number]["key"];
+
+export function sectionForStatus(status: PayoutStatus | string): DisbursementSection {
+  for (const s of DISBURSEMENT_SECTIONS) {
+    if ((s.statuses as readonly string[]).includes(status)) return s.key;
+  }
+  return "closed";
+}
+
+/** May an admin submit this payout to a provider right now? Mirrors the
+ *  refusals in `admin_begin_payout_attempt`: not terminal, and no attempt open.
+ *  The database re-decides this under a lock; this only keeps the checkbox
+ *  honest. */
+export function canSubmitPayout(status: PayoutStatus | string, hasOpenAttempt: boolean): boolean {
+  if (isTerminal(status)) return false;
+  if (hasOpenAttempt) return false;
+  return true;
+}
+
+/** A tenant sees a disbursement as one line: who sent it, how, and what proves it. */
+export function describeTransferMethod(
+  provider: string | null | undefined,
+  method: string | null | undefined,
+): string {
+  if (provider === "paymongo") {
+    const rail = (method ?? "").replace(/^paymongo:/, "");
+    return rail && rail !== "transfer"
+      ? `PayMongo · ${rail === "instapay" ? "InstaPay" : rail === "pesonet" ? "PESONet" : rail}`
+      : "PayMongo";
+  }
+  if (method) return method;
+  if (provider === "manual") return "Manual transfer";
+  return "—";
+}

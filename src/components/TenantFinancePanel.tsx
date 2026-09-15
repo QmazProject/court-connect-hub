@@ -13,7 +13,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Banknote, Loader2, ShieldCheck, Upload, Wallet, X } from "lucide-react";
+import { Banknote, Loader2, ShieldCheck, Upload, Wallet, X, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getTenantBalance,
@@ -45,6 +45,7 @@ import {
   type PayoutAccountType,
   type PayoutDestinationSnapshot,
   type PayoutStatus,
+  describeTransferMethod,
 } from "@/lib/payouts";
 
 type RangeKey = "today" | "week" | "month" | "all" | "custom";
@@ -336,10 +337,25 @@ type PayoutRow = {
   status: string;
   destination_snapshot: unknown;
   requested_at: string;
+  processing_at?: string | null;
   completed_at?: string | null;
+  reviewed_at?: string | null;
   transfer_reference?: string | null;
+  transfer_method?: string | null;
   rejection_reason?: string | null;
+  request_type?: string | null;
+  provider?: string | null;
+  provider_transfer_id?: string | null;
+  provider_status?: string | null;
+  provider_error_code?: string | null;
+  provider_error_message?: string | null;
+  provider_submitted_at?: string | null;
+  paid_amount_centavos?: number | null;
+  proof_path?: string | null;
 };
+
+const fmtWhen = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) : "—";
 
 function PayoutsTab({
   canManagePayouts,
@@ -392,6 +408,20 @@ function PayoutsTab({
     onError: (e) => setErr((e as Error).message),
   });
 
+  /* The proof the platform attached when it sent the money. A fresh signed URL
+     each time; Storage's owner policy is what lets this tenant, and only this
+     tenant, sign a path under its own folder. */
+  const openProof = async (path: string) => {
+    const { data, error } = await supabase.storage
+      .from(PROOF_BUCKET)
+      .createSignedUrl(path, PROOF_SIGNED_EXPIRY);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
   if (!canManagePayouts) {
     return (
       <div className="rounded-2xl border border-border bg-card p-5 text-sm">
@@ -442,8 +472,10 @@ function PayoutsTab({
             <thead className="bg-secondary/50 text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2">Payout</th>
-                <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">Requested</th>
+                <th className="px-4 py-2">Sent</th>
                 <th className="px-4 py-2">Destination</th>
+                <th className="px-4 py-2">Sent by</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Reference</th>
                 <th className="px-4 py-2"></th>
@@ -452,13 +484,13 @@ function PayoutsTab({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No payouts yet. When Court Connect is holding money for you, request it here.
                   </td>
                 </tr>
@@ -466,15 +498,47 @@ function PayoutsTab({
                 rows.map((p) => {
                   const status = p.status as PayoutStatus;
                   return (
-                    <tr key={p.id} className="border-t border-border">
-                      <td className="px-4 py-3 font-mono text-xs">#{p.id}</td>
-                      <td className="px-4 py-3 font-medium">
-                        {pesoFromCentavos(p.amount_centavos)}
+                    <tr key={p.id} className="border-t border-border align-top">
+                      <td className="px-4 py-3">
+                        <p className="font-mono text-xs">#{p.id}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p.request_type === "recurring" ? "Scheduled" : "Requested"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{pesoFromCentavos(p.amount_centavos)}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {fmtWhen(p.requested_at)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {/* The amount that actually left: equal to the request by
+                            construction (the ledger pays exactly the reservation),
+                            shown separately so the statement reads as a statement. */}
+                        <p className="font-medium">
+                          {p.paid_amount_centavos != null
+                            ? pesoFromCentavos(p.paid_amount_centavos)
+                            : "—"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p.status === "paid"
+                            ? fmtWhen(p.completed_at)
+                            : p.status === "failed"
+                              ? `Failed ${fmtWhen(p.reviewed_at)}`
+                              : p.provider_submitted_at
+                                ? `Submitted ${fmtWhen(p.provider_submitted_at)}`
+                                : p.processing_at
+                                  ? `Processing since ${fmtWhen(p.processing_at)}`
+                                  : "—"}
+                        </p>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {describeDestination(
                           p.destination_snapshot as PayoutDestinationSnapshot | null,
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {describeTransferMethod(p.provider, p.transfer_method)}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -484,13 +548,42 @@ function PayoutsTab({
                         >
                           {PAYOUT_STATUS_LABEL[status] ?? p.status}
                         </span>
+                        {p.status === "processing" && p.provider === "paymongo" && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Submitted to PayMongo · waiting for confirmation
+                          </p>
+                        )}
                         {p.rejection_reason && (
                           <p className="mt-1 text-[11px] text-muted-foreground">
                             {p.rejection_reason}
                           </p>
                         )}
+                        {p.status === "failed" && p.provider_error_message && (
+                          <p className="mt-1 text-[11px] text-destructive">
+                            {p.provider_error_message} — the amount is available again.
+                          </p>
+                        )}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">{p.transfer_reference ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs">
+                        <p className="font-mono">
+                          {p.provider_transfer_id ?? p.transfer_reference ?? "—"}
+                        </p>
+                        {p.provider_transfer_id &&
+                          p.transfer_reference &&
+                          p.transfer_reference !== p.provider_transfer_id && (
+                            <p className="font-mono text-[11px] text-muted-foreground">
+                              {p.transfer_reference}
+                            </p>
+                          )}
+                        {p.proof_path && (
+                          <button
+                            onClick={() => openProof(p.proof_path!)}
+                            className="mt-1 inline-flex items-center gap-1 text-[11px] underline"
+                          >
+                            <Paperclip className="h-3 w-3" /> Proof of transfer
+                          </button>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         {tenantCanCancel(p.status) && (
                           <button

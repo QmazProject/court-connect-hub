@@ -167,3 +167,17 @@ export function validateWalkInDraft(d: WalkInDraft): string[] {
     errors.push("Number of players must be a whole number above zero.");
   return errors;
 }
+
+/* ------------------------------------------------------------ the desk UI -- */
+
+/** Which court the walk-in dialog should have selected, given the courts that
+ *  are loaded right now. Keeps a still-valid choice; otherwise the first court;
+ *  null only while nothing has loaded. The dialog mounts before its venue's
+ *  courts arrive, so this is re-applied as the list fills in. */
+export function resolveWalkInCourtId(
+  courts: readonly { id: number }[],
+  current: number | null,
+): number | null {
+  if (current !== null && courts.some((c) => c.id === current)) return current;
+  return courts[0]?.id ?? null;
+}

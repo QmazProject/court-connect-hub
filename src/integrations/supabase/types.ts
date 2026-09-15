@@ -1362,6 +1362,8 @@ export type Database = {
           bank_name: string | null
           instructions: string | null
           proof_path: string | null
+          paymongo_bic: string | null
+          paymongo_institution_name: string | null
           status: string
           is_active: boolean
           created_by: string | null
@@ -1377,6 +1379,8 @@ export type Database = {
           bank_name?: string | null
           instructions?: string | null
           proof_path?: string | null
+          paymongo_bic?: string | null
+          paymongo_institution_name?: string | null
           status?: string
           is_active?: boolean
           created_by?: string | null
@@ -1392,6 +1396,8 @@ export type Database = {
           bank_name?: string | null
           instructions?: string | null
           proof_path?: string | null
+          paymongo_bic?: string | null
+          paymongo_institution_name?: string | null
           status?: string
           is_active?: boolean
           created_by?: string | null
@@ -1476,6 +1482,14 @@ export type Database = {
           proof_path: string | null
           admin_notes: string | null
           rejection_reason: string | null
+          request_type: string
+          provider: string | null
+          provider_transfer_id: string | null
+          provider_status: string | null
+          provider_error_code: string | null
+          provider_error_message: string | null
+          provider_submitted_at: string | null
+          paid_amount_centavos: number | null
           created_at: string
           updated_at: string
         }
@@ -1500,6 +1514,14 @@ export type Database = {
           proof_path?: string | null
           admin_notes?: string | null
           rejection_reason?: string | null
+          request_type?: string
+          provider?: string | null
+          provider_transfer_id?: string | null
+          provider_status?: string | null
+          provider_error_code?: string | null
+          provider_error_message?: string | null
+          provider_submitted_at?: string | null
+          paid_amount_centavos?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1524,6 +1546,14 @@ export type Database = {
           proof_path?: string | null
           admin_notes?: string | null
           rejection_reason?: string | null
+          request_type?: string
+          provider?: string | null
+          provider_transfer_id?: string | null
+          provider_status?: string | null
+          provider_error_code?: string | null
+          provider_error_message?: string | null
+          provider_submitted_at?: string | null
+          paid_amount_centavos?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1536,6 +1566,143 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tenant_payout_attempts: {
+        Row: {
+          id: number
+          payout_id: number
+          tenant_id: string
+          attempt_no: number
+          provider: string
+          status: string
+          amount_centavos: number
+          currency: string
+          destination_snapshot: Json
+          idempotency_key: string
+          provider_transfer_id: string | null
+          provider_batch_id: string | null
+          provider_reference_number: string | null
+          provider_status: string | null
+          provider_rail: string | null
+          destination_bic: string | null
+          livemode: boolean | null
+          error_code: string | null
+          error_message: string | null
+          provider_metadata: Json
+          created_by: string | null
+          created_at: string
+          submitted_at: string | null
+          completed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          payout_id: number
+          tenant_id: string
+          attempt_no: number
+          provider: string
+          status?: string
+          amount_centavos: number
+          currency?: string
+          destination_snapshot: Json
+          idempotency_key: string
+          provider_transfer_id?: string | null
+          provider_batch_id?: string | null
+          provider_reference_number?: string | null
+          provider_status?: string | null
+          provider_rail?: string | null
+          destination_bic?: string | null
+          livemode?: boolean | null
+          error_code?: string | null
+          error_message?: string | null
+          provider_metadata?: Json
+          created_by?: string | null
+          created_at?: string
+          submitted_at?: string | null
+          completed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          payout_id?: number
+          tenant_id?: string
+          attempt_no?: number
+          provider?: string
+          status?: string
+          amount_centavos?: number
+          currency?: string
+          destination_snapshot?: Json
+          idempotency_key?: string
+          provider_transfer_id?: string | null
+          provider_batch_id?: string | null
+          provider_reference_number?: string | null
+          provider_status?: string | null
+          provider_rail?: string | null
+          destination_bic?: string | null
+          livemode?: boolean | null
+          error_code?: string | null
+          error_message?: string | null
+          provider_metadata?: Json
+          created_by?: string | null
+          created_at?: string
+          submitted_at?: string | null
+          completed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_payout_attempts_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_payouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_provider_events: {
+        Row: {
+          id: number
+          provider: string
+          event_id: string
+          event_type: string
+          provider_transfer_id: string | null
+          provider_reference_number: string | null
+          attempt_id: number | null
+          payout_id: number | null
+          outcome: string
+          livemode: boolean | null
+          payload: Json
+          received_at: string
+        }
+        Insert: {
+          id?: number
+          provider: string
+          event_id: string
+          event_type: string
+          provider_transfer_id?: string | null
+          provider_reference_number?: string | null
+          attempt_id?: number | null
+          payout_id?: number | null
+          outcome?: string
+          livemode?: boolean | null
+          payload?: Json
+          received_at?: string
+        }
+        Update: {
+          id?: number
+          provider?: string
+          event_id?: string
+          event_type?: string
+          provider_transfer_id?: string | null
+          provider_reference_number?: string | null
+          attempt_id?: number | null
+          payout_id?: number | null
+          outcome?: string
+          livemode?: boolean | null
+          payload?: Json
+          received_at?: string
+        }
+        Relationships: []
       }
       tenant_payout_events: {
         Row: {
@@ -1626,6 +1793,80 @@ export type Database = {
           _proof_path?: string | null
           _notes?: string | null
           _reason?: string | null
+        }
+        Returns: string
+      }
+      admin_request_recurring_payout: {
+        Args: { _tenant_id: string; _amount_centavos: number }
+        Returns: {
+          payout_id: number
+          reserved_centavos: number
+          remaining_available_centavos: number
+        }[]
+      }
+      admin_begin_payout_attempt: {
+        Args: { _payout_id: number; _provider: string }
+        Returns: {
+          attempt_id: number
+          attempt_no: number
+          idempotency_key: string
+          amount_centavos: number
+          tenant_id: string
+          account_id: number | null
+          destination_snapshot: Json
+        }[]
+      }
+      admin_mark_payout_attempt_submitted: {
+        Args: {
+          _attempt_id: number
+          _provider_transfer_id: string
+          _provider_batch_id?: string | null
+          _provider_reference_number?: string | null
+          _provider_status?: string | null
+          _provider_rail?: string | null
+          _destination_bic?: string | null
+          _livemode?: boolean | null
+          _metadata?: Json
+        }
+        Returns: undefined
+      }
+      admin_mark_payout_attempt_failed: {
+        Args: {
+          _attempt_id: number
+          _error_code: string | null
+          _error_message: string | null
+          _metadata?: Json
+        }
+        Returns: undefined
+      }
+      admin_record_manual_payout: {
+        Args: {
+          _payout_id: number
+          _transfer_method: string
+          _transfer_reference: string
+          _paid_amount_centavos: number
+          _proof_path: string
+          _notes?: string | null
+        }
+        Returns: number
+      }
+      admin_set_payout_account_bic: {
+        Args: { _account_id: number; _bic: string; _institution_name: string | null }
+        Returns: undefined
+      }
+      payout_provider_settle: {
+        Args: {
+          _provider: string
+          _event_id: string
+          _event_type: string
+          _provider_transfer_id: string | null
+          _provider_reference_number: string | null
+          _outcome: string
+          _provider_status?: string | null
+          _error_code?: string | null
+          _error_message?: string | null
+          _livemode?: boolean | null
+          _payload?: Json
         }
         Returns: string
       }

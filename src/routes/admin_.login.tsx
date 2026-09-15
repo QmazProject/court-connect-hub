@@ -16,7 +16,8 @@
  */
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAdminIdentity } from "@/lib/admin";
@@ -29,21 +30,105 @@ export const Route = createFileRoute("/admin_/login")({
 /* Written before leaving for Google, read on return. Its presence is what tells a
    fresh page load "you are the second half of a sign-in that started here", so the
    admission check runs; a plain visit to this page with some other session open is
-   left alone, exactly as before. */
+   left alone, exactly as before. It is cleared only once that check has finished,
+   so a remount part-way through picks the work up rather than losing it. */
 const GOOGLE_PENDING_KEY = "courthub-admin-login:google-pending";
 
 const NOT_ADMIN = "That account does not have CourtHub admin access.";
+const GOOGLE_INCOMPLETE = "Google sign-in did not complete. Try again.";
+
+/* Nothing on this page may wait forever. The return leg makes at most three
+   network calls; if any of them has not answered in this long, the page says so
+   and hands control back rather than showing a spinner nobody can dismiss. */
+const RETURN_TIMEOUT_MS = 15_000;
+
+function readPending(): boolean {
+  try {
+    return sessionStorage.getItem(GOOGLE_PENDING_KEY) === "1";
+  } catch {
+    /* Without storage the return is an ordinary visit; the /admin guard still
+       checks authority on its own, so nothing is granted by skipping this. */
+    return false;
+  }
+}
+
+function writePending(on: boolean) {
+  try {
+    if (on) sessionStorage.setItem(GOOGLE_PENDING_KEY, "1");
+    else sessionStorage.removeItem(GOOGLE_PENDING_KEY);
+  } catch {
+    /* see readPending */
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${what} timed out`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** The session Google's redirect leaves behind.
+ *
+ *  `getSession` waits for the client to finish exchanging the code in the URL,
+ *  but on a slow exchange a first call can still come back empty. A missing
+ *  session is therefore given a bounded chance to arrive through the auth event
+ *  — the same event the landing page listens for — before it is called a failure. */
+async function awaitReturnedSession(): Promise<Session | null> {
+  const {
+    data: { session },
+  } = await withTimeout(supabase.auth.getSession(), RETURN_TIMEOUT_MS, "getSession");
+  if (session) return session;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let unsubscribe = () => {};
+    const finish = (s: Session | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(s);
+    };
+    const timer = setTimeout(() => finish(null), RETURN_TIMEOUT_MS);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, s) => {
+      if (
+        s &&
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")
+      ) {
+        finish(s);
+      }
+    });
+    unsubscribe = () => subscription.unsubscribe();
+  });
+}
 
 function AdminLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* One return leg at a time. A second effect run — a remount, a dev-mode
+     double-invoke — joins the one in flight instead of starting another. */
+  const returnLeg = useRef<Promise<void> | null>(null);
 
   /** The one admission decision, shared by both doors. */
   const admit = async () => {
-    const identity = await fetchAdminIdentity();
+    setStatus("Checking admin access…");
+    const identity = await withTimeout(fetchAdminIdentity(), RETURN_TIMEOUT_MS, "admin check");
     if (!identity) {
       /* Authenticated, but not an admin. The session is dropped rather than left
          open, so a mistaken sign-in here does not silently log someone into the
@@ -52,6 +137,7 @@ function AdminLogin() {
       setError(NOT_ADMIN);
       return;
     }
+    setStatus("Opening the console…");
     await navigate({ to: "/admin", search: {} as never });
   };
 
@@ -59,38 +145,33 @@ function AdminLogin() {
      session by the time this page loads again; all that is left is the same
      question the password path asks. */
   useEffect(() => {
-    let pending = false;
-    try {
-      pending = sessionStorage.getItem(GOOGLE_PENDING_KEY) === "1";
-      sessionStorage.removeItem(GOOGLE_PENDING_KEY);
-    } catch {
-      /* Without storage the return is an ordinary visit; the /admin guard still
-         checks authority on its own, so nothing is granted by skipping this. */
-    }
-    if (!pending) return;
+    if (!readPending()) return;
+    if (returnLeg.current) return;
 
-    let cancelled = false;
-    (async () => {
-      setBusy(true);
+    setBusy(true);
+    setError(null);
+    setStatus("Finishing Google sign-in…");
+    returnLeg.current = (async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (cancelled) return;
+        const session = await awaitReturnedSession();
         if (!session) {
-          setError("Google sign-in did not complete. Try again.");
+          setError(GOOGLE_INCOMPLETE);
           return;
         }
         await admit();
-      } catch {
-        if (!cancelled) setError("Google sign-in did not complete. Try again.");
+      } catch (err) {
+        /* The detail goes to the console for whoever is debugging; the screen
+           gets one sentence, because the specific failure is not the user's to fix. */
+        console.error("[admin login] Google return leg failed", err);
+        setError(GOOGLE_INCOMPLETE);
       } finally {
-        if (!cancelled) setBusy(false);
+        /* Unconditional. Whatever happened above, this page is never left busy. */
+        writePending(false);
+        setBusy(false);
+        setStatus(null);
+        returnLeg.current = null;
       }
     })();
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -116,17 +197,14 @@ function AdminLogin() {
       );
     } finally {
       setBusy(false);
+      setStatus(null);
     }
   };
 
   const signInWithGoogle = async () => {
     if (busy) return;
     setError(null);
-    try {
-      sessionStorage.setItem(GOOGLE_PENDING_KEY, "1");
-    } catch {
-      /* see the effect above */
-    }
+    writePending(true);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       /* Back to this exact page, so the admission check above is what runs next —
@@ -134,11 +212,7 @@ function AdminLogin() {
       options: { redirectTo: `${window.location.origin}/admin/login` },
     });
     if (oauthError) {
-      try {
-        sessionStorage.removeItem(GOOGLE_PENDING_KEY);
-      } catch {
-        /* see above */
-      }
+      writePending(false);
       setError("Google sign-in did not start. Try again.");
     }
   };
@@ -238,6 +312,14 @@ function AdminLogin() {
           </svg>
           Continue with Google
         </button>
+
+        {/* What is happening while the page is busy, so a wait reads as progress
+            and a stall reads as a stall. */}
+        {busy && status && (
+          <p role="status" className="mt-3 text-center text-xs text-muted-foreground">
+            {status}
+          </p>
+        )}
 
         <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
           Admin accounts are provisioned by CourtHub. There is no sign-up here. An account created
