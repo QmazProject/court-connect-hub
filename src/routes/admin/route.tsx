@@ -9,7 +9,15 @@
  */
 
 import { Link, Outlet, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { LogOut, MessageSquareWarning, ScrollText, ShieldCheck, Tags } from "lucide-react";
+import {
+  Building2,
+  LogOut,
+  MessageSquareWarning,
+  ScrollText,
+  ShieldCheck,
+  Tags,
+  Wallet,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAdminIdentity } from "@/lib/admin";
 
@@ -31,6 +39,8 @@ export const Route = createFileRoute("/admin")({
 
 const NAV = [
   { to: "/admin", label: "Overview", icon: ShieldCheck, exact: true },
+  { to: "/admin/tenants", label: "Tenants", icon: Building2 },
+  { to: "/admin/disbursements", label: "Disbursements", icon: Wallet },
   { to: "/admin/assistant-insights", label: "Assistant Insights", icon: MessageSquareWarning },
   { to: "/admin/assistant-mappings", label: "Assistant Mappings", icon: Tags },
 ] as const;

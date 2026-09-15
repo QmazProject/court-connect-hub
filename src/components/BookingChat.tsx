@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { X, Send, ShieldAlert, Paperclip, Reply, Loader2, FileText } from "lucide-react";
+import type { ChatWindow } from "@/lib/booking-actions";
+import { X, Send, ShieldAlert, Paperclip, Reply, Loader2, FileText, Lock } from "lucide-react";
 
 type Message = {
   id: string;
@@ -30,6 +31,9 @@ const ALLOWED_ATTACHMENTS = [
   "application/pdf",
 ];
 
+/** Closed threads keep every message readable; only the composer goes. */
+const OPEN: ChatWindow = { open: true };
+
 /**
  * Private thread attached to a single booking (player <-> venue staff).
  *
@@ -45,6 +49,7 @@ export function BookingChat({
   title,
   subtitle,
   onClose,
+  window: chatWindow,
 }: {
   bookingId: number;
   venueId: number;
@@ -53,8 +58,13 @@ export function BookingChat({
   title: string;
   subtitle?: string;
   onClose: () => void;
+  /** Whether this thread still takes messages. Computed by `bookingChatWindow` from the
+   *  booking, and passed in so the player and the venue are judged by the same rule.
+   *  Omitted means open, so a caller with no booking to hand cannot silently lock it. */
+  window?: ChatWindow;
 }) {
   const qc = useQueryClient();
+  const win = chatWindow ?? OPEN;
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -172,6 +182,9 @@ export function BookingChat({
   const send = async () => {
     const body = text.trim();
     if (!body || !conversationId) return;
+    /* The composer is already gone when the thread is closed; this is the second
+       check, for a send that was in flight as the booking's time ran out. */
+    if (!win.open) return;
     if (body.length > MAX_LEN) {
       setErr(`Messages are limited to ${MAX_LEN} characters.`);
       return;
@@ -184,6 +197,7 @@ export function BookingChat({
   };
 
   const attach = async (file: File | undefined) => {
+    if (!win.open) return;
     if (!file || !conversationId) return;
     setErr(null);
     if (!ALLOWED_ATTACHMENTS.includes(file.type)) {
@@ -393,49 +407,58 @@ export function BookingChat({
           </div>
         )}
 
-        <div className="flex items-end gap-2 border-t border-border p-3">
-          <input name="booking-chat-file"
-            ref={fileRef}
-            type="file"
-            accept={ALLOWED_ATTACHMENTS.join(",")}
-            className="hidden"
-            onChange={(e) => attach(e.target.files?.[0])}
-          />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading || !conversationId}
-            aria-label="Attach a file"
-            title="Attach an image or PDF"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
-          >
-            {uploading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Paperclip className="h-4 w-4" />
-            )}
-          </button>
-          <textarea name="booking-chat-text"
-            value={text}
-            onChange={(e) => setText(e.target.value.slice(0, MAX_LEN))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={2}
-            placeholder={replyTo ? "Write a reply…" : "Write a message…"}
-            className="min-h-[44px] flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm"
-          />
-          <button
-            onClick={send}
-            disabled={sending || uploading || !text.trim() || !conversationId}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
-            aria-label="Send message"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </div>
+        {/* The whole composer is replaced rather than disabled in place: a greyed-out
+            textarea with no explanation is the thing people click repeatedly. */}
+        {win.open === false ? (
+          <div className="flex items-start gap-2 border-t border-border bg-secondary/40 px-4 py-3">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <p className="text-[11px] text-muted-foreground">{win.message}</p>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2 border-t border-border p-3">
+            <input name="booking-chat-file"
+              ref={fileRef}
+              type="file"
+              accept={ALLOWED_ATTACHMENTS.join(",")}
+              className="hidden"
+              onChange={(e) => attach(e.target.files?.[0])}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading || !conversationId}
+              aria-label="Attach a file"
+              title="Attach an image or PDF"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+            </button>
+            <textarea name="booking-chat-text"
+              value={text}
+              onChange={(e) => setText(e.target.value.slice(0, MAX_LEN))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              rows={2}
+              placeholder={replyTo ? "Write a reply…" : "Write a message…"}
+              className="min-h-[44px] flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            />
+            <button
+              onClick={send}
+              disabled={sending || uploading || !text.trim() || !conversationId}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
+              aria-label="Send message"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -79,7 +79,10 @@ export const cancelBookingsWithRefund = createServerFn({ method: "POST" })
             await supabaseAdmin
               .from("transactions")
               .update({ status: "refunded", refunded_at: new Date().toISOString() })
-              .eq("id", t.id);
+              .eq("id", t.id)
+              /* Already narrowed to paid rows when they were selected; repeated so a
+                 retried settlement cannot overwrite the first refund's timestamp. */
+              .eq("status", "paid");
 
             /* Written per row, BEFORE the batched status flip below, and deliberately
                touching neither status nor refund_status — the notification trigger

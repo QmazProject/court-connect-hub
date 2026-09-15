@@ -23,7 +23,10 @@ export const CAPABILITIES = [
   "audit.view", // court_audit_log / venue_audit_log SELECT (Stage 2): 'manager'
   "finance.view", // the dashboard's money reads `transactions` directly (Stage 2): 'manager'
   "bookings.cancelRefund", // staff_cancel_bookings() (Stage 4): 'manager'
+  "bookings.walkIn", // tenant_create_walkin_booking(): venue_allows(venue_id, 'manager')
   "refunds.settle", // staff_mark_refund_settled() (Stage 4): 'admin'
+  "finance.payoutAccount", // tenant_payout_accounts RLS + tenant_save_payout_account(): is_tenant_admin()
+  "finance.requestPayout", // tenant_request_payout() / tenant_cancel_payout(): is_tenant_admin()
   "settings.venue", // payment mode, refund cutoff, booking-number prefix — all venues UPDATE (Stage 3): 'manager'
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
@@ -45,7 +48,10 @@ const MIN_ROLE: Record<Capability, MemberRole> = {
   "audit.view": "manager",
   "finance.view": "manager",
   "bookings.cancelRefund": "manager",
+  "bookings.walkIn": "manager",
   "refunds.settle": "admin",
+  "finance.payoutAccount": "admin",
+  "finance.requestPayout": "admin",
   "settings.venue": "manager",
 };
 

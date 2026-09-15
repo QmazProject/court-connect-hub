@@ -21,8 +21,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
+  Info,
   MapPin,
   Navigation,
+  Receipt,
   RotateCcw,
   Search as SearchIcon,
   Timer,
@@ -34,7 +36,8 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { retryBookingPayment, cancelPendingBookings } from "@/lib/paymongo.functions";
+import { retryBookingPayment, cancelBookingAsPlayer } from "@/lib/paymongo.functions";
+import { bookingChatWindow, playerCancelState } from "@/lib/booking-actions";
 import { groupBookingSessions, formatTimeRange, formatSessionLabel } from "@/lib/booking-groups";
 import { PlayerShell } from "@/components/PlayerShell";
 /* The ids the master search scrolls to. Imported rather than written out so the
@@ -57,6 +60,8 @@ import {
   sessionPrice,
   sessionPaid,
   sessionRefunded,
+  sessionRefundInfo,
+  type SessionRefund,
   sessionBalance,
   sessionMethod,
   sessionState,
@@ -77,7 +82,7 @@ import {
 } from "@/lib/player-stats";
 
 const BOOKING_SELECT =
-  "id, court_id, start_time, end_time, status, payment_status, refund_status, cancelled_at, cancelled_by, cancel_reason, unit_price, discount_amount, created_at, " +
+  "id, court_id, start_time, end_time, status, payment_status, refund_status, refund_method, refund_reference, refund_settled_at, cancelled_at, cancelled_by, cancel_reason, unit_price, discount_amount, created_at, " +
   "courts(name, hourly_rate, map_emoji, images, sports(name), venues(id, name, address, latitude, longitude, is_active))";
 
 const TX_SELECT =
@@ -315,6 +320,77 @@ function RankedBars({
 // Booking card — one session, used by Upcoming and History
 // ===========================================================================
 
+/**
+ * The receipt for a refund, on the booking it belongs to.
+ *
+ * A player who cancelled a booking they had paid for wants to check one thing, and the
+ * booking card could not tell them: did the money come back, when exactly, and under
+ * what reference. A badge reading "Refunded" answers none of that — it is the claim,
+ * not the evidence, and a player with a bank statement to reconcile needs the evidence.
+ *
+ * The pending case is shown just as deliberately. "Refund pending" with nothing beside
+ * it reads as a refund that has been forgotten; saying the venue has been asked, and
+ * that the detail appears here once it is sent, is the difference between waiting and
+ * wondering.
+ */
+function RefundDetails({ refund }: { refund: SessionRefund }) {
+  const settled = refund.settledAt;
+  return (
+    <div className="mx-4 mb-3 rounded-lg border border-sky-500/25 bg-sky-500/5 px-3 py-2.5">
+      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+        <Receipt className="h-3 w-3 shrink-0" />
+        {settled ? "Refund sent" : "Refund pending"}
+      </p>
+
+      {settled ? (
+        <dl className="mt-1.5 grid gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
+          {/* Date and time together: a refund is reconciled against a bank entry, and
+              the date alone does not identify one. */}
+          <div className="flex justify-between gap-2 sm:contents">
+            <dt className="text-muted-foreground">Refunded on</dt>
+            <dd className="text-right font-semibold tabular-nums sm:text-left">
+              {fmtDate(settled)} · {fmtTime(settled)}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-2 sm:contents">
+            <dt className="text-muted-foreground">Amount</dt>
+            <dd className="text-right font-semibold tabular-nums sm:text-left">
+              {peso(refund.amount)}
+            </dd>
+          </div>
+          {refund.method && (
+            <div className="flex justify-between gap-2 sm:contents">
+              <dt className="text-muted-foreground">Returned via</dt>
+              <dd className="text-right font-semibold capitalize sm:text-left">
+                {refund.method === "paymongo"
+                  ? "PayMongo · original payment method"
+                  : "Settled by the venue"}
+              </dd>
+            </div>
+          )}
+          {/* Never invented. A refund settled before references were recorded simply
+              does not show this row, rather than showing a made-up one. */}
+          {refund.reference && (
+            <div className="flex justify-between gap-2 sm:contents">
+              <dt className="text-muted-foreground">Reference</dt>
+              <dd className="break-all text-right font-mono text-[10px] font-semibold sm:text-left">
+                {refund.reference}
+              </dd>
+            </div>
+          )}
+        </dl>
+      ) : (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {refund.owed > 0
+            ? `The venue has been asked to refund ${peso(refund.owed)}.`
+            : "The venue has been asked to refund this booking."}{" "}
+          The date, amount and reference will appear here once it has been sent.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function BookingCard({
   session,
   idx,
@@ -351,7 +427,19 @@ function BookingCard({
   const venueInactive = c?.venues?.is_active === false;
   const thumb = c?.images?.[0];
   const canPay = state === "upcoming" && r.status === "pending" && balance > 0;
-  const canCancel = state === "upcoming";
+  /* Not simply "is it upcoming": inside the last minute before the start the booking is
+     still upcoming and no longer cancellable, and the player is owed the reason rather
+     than a button that has quietly gone. */
+  const cancelState = playerCancelState(
+    {
+      status: r.status,
+      refund_status: r.refund_status ?? "none",
+      sessionStartsAt: session.start_time,
+      sessionEndsAt: session.end_time,
+    },
+    Date.now(),
+  );
+  const refund = sessionRefundInfo(session, idx);
 
   return (
     <li
@@ -440,6 +528,8 @@ function BookingCard({
         </p>
       )}
 
+      {refund && <RefundDetails refund={refund} />}
+
       {actions && (
         <div className="flex flex-wrap justify-end gap-2 border-t border-border bg-secondary/30 px-4 py-3">
           {c?.venues?.id && onMessage && (
@@ -476,7 +566,7 @@ function BookingCard({
               Pay {peso(balance)}
             </button>
           )}
-          {canCancel && onCancel && (
+          {cancelState.allowed && onCancel && (
             <button
               onClick={() => onCancel(session)}
               className="rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10"
@@ -484,6 +574,16 @@ function BookingCard({
               Cancel
             </button>
           )}
+          {/* Why the button is gone, but only while the booking is still live. Saying
+              "already finished" under a match played last March is noise. */}
+          {!cancelState.allowed &&
+            onCancel &&
+            (cancelState.reason === "too_late" || cancelState.reason === "in_progress") && (
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Info className="h-3 w-3 shrink-0" />
+                {cancelState.message}
+              </p>
+            )}
         </div>
       )}
     </li>
@@ -2381,6 +2481,10 @@ export function PlayerWorkspace({
     venueId: number;
     title: string;
     subtitle: string;
+    /** Enough of the booking to decide whether the thread still takes messages. */
+    status: string;
+    refundStatus: string;
+    endsAt: string;
   } | null>(null);
 
   const bookingsQ = useQuery({
@@ -2432,7 +2536,7 @@ export function PlayerWorkspace({
 
   // ---- Payment ----------------------------------------------------------
   const retryFn = useServerFn(retryBookingPayment);
-  const cancelPendingFn = useServerFn(cancelPendingBookings);
+  const cancelBookingFn = useServerFn(cancelBookingAsPlayer);
   const [payFor, setPayFor] = useState<{ ids: number[]; amount: number; label: string } | null>(
     null,
   );
@@ -2469,35 +2573,47 @@ export function PlayerWorkspace({
      the player's own cancellations as nobody's. */
   const cancelMut = useMutation({
     mutationFn: async (session: PlayerSession) => {
-      const unpaid = sessionPaid(session, idx) === 0 && session.first.status === "pending";
-      if (unpaid) {
-        await cancelPendingFn({ data: { bookingIds: session.ids } });
-        return;
-      }
-      const { error } = await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-          cancelled_at: new Date().toISOString(),
-          cancelled_by: userId,
-          cancel_reason: "Cancelled by player",
-        })
-        .in("id", session.ids)
-        .eq("user_id", userId);
-      if (error) throw error;
+      /* One server call for paid and unpaid alike. This used to branch, writing to
+         `bookings` straight from the browser for a paid session — which both skipped the
+         cutoff (a client cannot enforce a rule against itself) and left the money
+         columns untouched, so the venue went on counting a cancelled booking as a sale.
+         Both are now decided on the server. */
+      await cancelBookingFn({ data: { bookingIds: session.ids } });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["player-bookings", userId] });
       qc.invalidateQueries({ queryKey: ["player-transactions", userId] });
     },
+    /* The server refuses a cancellation that is past its cutoff, and that refusal has to
+       reach the person who asked. Previously any failure here was swallowed and the
+       booking simply stayed as it was, which reads as the button being broken. */
+    onError: (e: unknown) => {
+      alert((e as Error)?.message ?? "That booking could not be cancelled.");
+    },
   });
 
   const askCancel = (s: PlayerSession) => {
     const when = `${fmtDateShort(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)}`;
+    const decision = playerCancelState(
+      {
+        status: s.first.status,
+        refund_status: s.first.refund_status ?? "none",
+        sessionStartsAt: s.start_time,
+        sessionEndsAt: s.end_time,
+      },
+      Date.now(),
+    );
+    /* Checked again at the moment of the click, not just when the card rendered: a
+       booking an hour away when the page loaded can be a minute away by the time
+       somebody reaches for the button. */
+    if (!decision.allowed) {
+      alert(decision.message);
+      return;
+    }
     const paid = sessionPaid(s, idx);
     const note =
       paid > 0
-        ? `\n\n${peso(paid)} has been paid. Any refund follows the venue's policy.`
+        ? `\n\n${peso(paid)} has been paid. The venue will be asked to refund it, and you can follow the refund on this booking.`
         : "\n\nThis booking is not paid, so nothing will be charged.";
     if (confirm(`Cancel this booking?\n\n${when}${note}`)) cancelMut.mutate(s);
   };
@@ -2533,6 +2649,9 @@ export function PlayerWorkspace({
       venueId: vId,
       title: s.first.courts?.venues?.name ?? "Venue",
       subtitle: `${fmtDate(s.start_time)} · ${formatSessionLabel(s.start_time, s.end_time)}`,
+      status: s.first.status,
+      refundStatus: s.first.refund_status ?? "none",
+      endsAt: s.end_time,
     });
   }, []);
 
@@ -2595,6 +2714,10 @@ export function PlayerWorkspace({
           meId={userId}
           title={chat.title}
           subtitle={chat.subtitle}
+          window={bookingChatWindow(
+            { status: chat.status, refund_status: chat.refundStatus, sessionEndsAt: chat.endsAt },
+            Date.now(),
+          )}
           onClose={() => {
             setChat(null);
             qc.invalidateQueries({ queryKey: ["unread-messages"] });

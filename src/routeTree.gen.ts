@@ -21,11 +21,14 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAssistantInsightsRouteImport } from './routes/admin/assistant-insights'
 import { Route as AdminAssistantMappingsRouteImport } from './routes/admin/assistant-mappings'
+import { Route as AdminDisbursementsRouteImport } from './routes/admin/disbursements'
+import { Route as AdminTenantsRouteImport } from './routes/admin/tenants'
 import { Route as AdminLoginRouteImport } from './routes/admin_.login'
 import { Route as CourtsCourtIdRouteImport } from './routes/courts.$courtId'
 import { Route as ExploreGuestRouteImport } from './routes/explore_.guest'
 import { Route as PaymentReturnRouteImport } from './routes/payment.return'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues.$venueId'
+import { Route as AdminTenantsTenantIdRouteImport } from './routes/admin/tenants.$tenantId'
 import { Route as ApiTenantInviteRouteImport } from './routes/api/tenant/invite'
 import { Route as TenantSlugLoginRouteImport } from './routes/tenant.$slug.login'
 import { Route as AuthenticatedTenantSlugDashboardRouteImport } from './routes/_authenticated/tenant.$slug.dashboard'
@@ -91,6 +94,16 @@ const AdminAssistantMappingsRoute = AdminAssistantMappingsRouteImport.update({
   path: '/assistant-mappings',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminDisbursementsRoute = AdminDisbursementsRouteImport.update({
+  id: '/disbursements',
+  path: '/disbursements',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminTenantsRoute = AdminTenantsRouteImport.update({
+  id: '/tenants',
+  path: '/tenants',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin_/login',
   path: '/admin/login',
@@ -115,6 +128,11 @@ const VenuesVenueIdRoute = VenuesVenueIdRouteImport.update({
   id: '/venues/$venueId',
   path: '/venues/$venueId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminTenantsTenantIdRoute = AdminTenantsTenantIdRouteImport.update({
+  id: '/$tenantId',
+  path: '/$tenantId',
+  getParentRoute: () => AdminTenantsRoute,
 } as any)
 const ApiTenantInviteRoute = ApiTenantInviteRouteImport.update({
   id: '/api/tenant/invite',
@@ -156,12 +174,15 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/assistant-insights': typeof AdminAssistantInsightsRoute
   '/admin/assistant-mappings': typeof AdminAssistantMappingsRoute
+  '/admin/disbursements': typeof AdminDisbursementsRoute
+  '/admin/tenants': typeof AdminTenantsRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/tenants/$tenantId': typeof AdminTenantsTenantIdRoute
   '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/tenant/$slug/login': typeof TenantSlugLoginRoute
   '/tenant/$slug/dashboard': typeof AuthenticatedTenantSlugDashboardRoute
@@ -178,12 +199,15 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/assistant-insights': typeof AdminAssistantInsightsRoute
   '/admin/assistant-mappings': typeof AdminAssistantMappingsRoute
+  '/admin/disbursements': typeof AdminDisbursementsRoute
+  '/admin/tenants': typeof AdminTenantsRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/admin': typeof AdminIndexRoute
+  '/admin/tenants/$tenantId': typeof AdminTenantsTenantIdRoute
   '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/tenant/$slug/login': typeof TenantSlugLoginRoute
   '/tenant/$slug/dashboard': typeof AuthenticatedTenantSlugDashboardRoute
@@ -203,12 +227,15 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/admin/assistant-insights': typeof AdminAssistantInsightsRoute
   '/admin/assistant-mappings': typeof AdminAssistantMappingsRoute
+  '/admin/disbursements': typeof AdminDisbursementsRoute
+  '/admin/tenants': typeof AdminTenantsRouteWithChildren
   '/admin_/login': typeof AdminLoginRoute
   '/courts/$courtId': typeof CourtsCourtIdRoute
   '/explore_/guest': typeof ExploreGuestRoute
   '/payment/return': typeof PaymentReturnRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/tenants/$tenantId': typeof AdminTenantsTenantIdRoute
   '/api/tenant/invite': typeof ApiTenantInviteRoute
   '/tenant/$slug/login': typeof TenantSlugLoginRoute
   '/_authenticated/tenant/$slug/dashboard': typeof AuthenticatedTenantSlugDashboardRoute
@@ -228,12 +255,15 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/admin/assistant-insights'
     | '/admin/assistant-mappings'
+    | '/admin/disbursements'
+    | '/admin/tenants'
     | '/admin/login'
     | '/courts/$courtId'
     | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
     | '/admin/'
+    | '/admin/tenants/$tenantId'
     | '/api/tenant/invite'
     | '/tenant/$slug/login'
     | '/tenant/$slug/dashboard'
@@ -250,12 +280,15 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/admin/assistant-insights'
     | '/admin/assistant-mappings'
+    | '/admin/disbursements'
+    | '/admin/tenants'
     | '/admin/login'
     | '/courts/$courtId'
     | '/explore/guest'
     | '/payment/return'
     | '/venues/$venueId'
     | '/admin'
+    | '/admin/tenants/$tenantId'
     | '/api/tenant/invite'
     | '/tenant/$slug/login'
     | '/tenant/$slug/dashboard'
@@ -274,12 +307,15 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/admin/assistant-insights'
     | '/admin/assistant-mappings'
+    | '/admin/disbursements'
+    | '/admin/tenants'
     | '/admin_/login'
     | '/courts/$courtId'
     | '/explore_/guest'
     | '/payment/return'
     | '/venues/$venueId'
     | '/admin/'
+    | '/admin/tenants/$tenantId'
     | '/api/tenant/invite'
     | '/tenant/$slug/login'
     | '/_authenticated/tenant/$slug/dashboard'
@@ -393,6 +429,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAssistantMappingsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/disbursements': {
+      id: '/admin/disbursements'
+      path: '/disbursements'
+      fullPath: '/admin/disbursements'
+      preLoaderRoute: typeof AdminDisbursementsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/tenants': {
+      id: '/admin/tenants'
+      path: '/tenants'
+      fullPath: '/admin/tenants'
+      preLoaderRoute: typeof AdminTenantsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin_/login': {
       id: '/admin_/login'
       path: '/admin/login'
@@ -427,6 +477,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/venues/$venueId'
       preLoaderRoute: typeof VenuesVenueIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/tenants/$tenantId': {
+      id: '/admin/tenants/$tenantId'
+      path: '/$tenantId'
+      fullPath: '/admin/tenants/$tenantId'
+      preLoaderRoute: typeof AdminTenantsTenantIdRouteImport
+      parentRoute: typeof AdminTenantsRoute
     }
     '/api/tenant/invite': {
       id: '/api/tenant/invite'
@@ -479,15 +536,31 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AdminTenantsRouteChildren {
+  AdminTenantsTenantIdRoute: typeof AdminTenantsTenantIdRoute
+}
+
+const AdminTenantsRouteChildren: AdminTenantsRouteChildren = {
+  AdminTenantsTenantIdRoute: AdminTenantsTenantIdRoute,
+}
+
+const AdminTenantsRouteWithChildren = AdminTenantsRoute._addFileChildren(
+  AdminTenantsRouteChildren,
+)
+
 interface AdminRouteRouteChildren {
   AdminAssistantInsightsRoute: typeof AdminAssistantInsightsRoute
   AdminAssistantMappingsRoute: typeof AdminAssistantMappingsRoute
+  AdminDisbursementsRoute: typeof AdminDisbursementsRoute
+  AdminTenantsRoute: typeof AdminTenantsRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminAssistantInsightsRoute: AdminAssistantInsightsRoute,
   AdminAssistantMappingsRoute: AdminAssistantMappingsRoute,
+  AdminDisbursementsRoute: AdminDisbursementsRoute,
+  AdminTenantsRoute: AdminTenantsRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
 }
 

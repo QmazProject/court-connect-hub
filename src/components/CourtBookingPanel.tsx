@@ -6,7 +6,7 @@ import { startBookingCheckout } from "@/lib/paymongo.functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
-import { X, LogIn, UserPlus } from "lucide-react";
+import { X, LogIn, UserPlus, Clock, ShieldCheck, Wallet } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
   normalizeRules,
@@ -113,11 +113,53 @@ function groupHourRanges(hours: number[]): { start: number; end: number }[] {
 }
 
 type PmMethod = "gcash" | "paymaya" | "grab_pay" | "qrph";
-const PM_METHODS: { key: PmMethod; label: string; emoji: string }[] = [
-  { key: "gcash", label: "GCash", emoji: "💙" },
-  { key: "paymaya", label: "Maya", emoji: "💚" },
-  { key: "grab_pay", label: "GrabPay", emoji: "🟢" },
-  { key: "qrph", label: "QR Ph", emoji: "🔳" },
+/** The four wallets PayMongo is live with, presented with the same brand assets the landing
+ *  page already serves from `public/payments/` (see PaymentRally). Marks are the providers'
+ *  own artwork, shipped unaltered; `tint`/`initials` back only the fallback chip below. */
+const PM_METHODS: {
+  key: PmMethod;
+  label: string;
+  note: string;
+  logo: string;
+  tint: string;
+  initials: string;
+  /** Maya's green is 1.43:1 on white and its guidelines present it on dark, so the mark
+   *  gets a dark ground. The others sit on the card, which is what their kits expect. */
+  markBg?: string;
+}[] = [
+  {
+    key: "gcash",
+    label: "GCash",
+    note: "E-wallet",
+    logo: "/payments/gcash.svg",
+    tint: "#007CFF",
+    initials: "G",
+  },
+  {
+    key: "paymaya",
+    label: "Maya",
+    note: "E-wallet",
+    logo: "/payments/maya.svg",
+    tint: "#00B37E",
+    initials: "M",
+    markBg: "#102521",
+  },
+  {
+    key: "grab_pay",
+    label: "GrabPay",
+    note: "E-wallet",
+    logo: "/payments/grabpay.svg",
+    tint: "#00B14F",
+    initials: "GP",
+  },
+  {
+    key: "qrph",
+    label: "QR Ph",
+    note: "Any QR Ph bank app",
+    logo: "/payments/qrph.svg",
+    tint: "#204884",
+    initials: "QR",
+  },
 ];
 
 export function CourtBookingContent({
@@ -985,67 +1027,85 @@ export function CourtBookingContent({
                 </div>
               )}
 
-              <div className="text-sm text-muted-foreground">
-                {selected.length > 0 ? (
-                  <>
-                    Selected{" "}
-                    <span className="font-semibold text-foreground">
+              {selected.length > 0 ? (
+                <div className="rounded-2xl border border-[#dce8e2] bg-[#f6f8f7] p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#5e746e]">
+                      Your selection
+                    </p>
+                    <span className="rounded-full bg-[#0b3d35] px-2.5 py-0.5 text-[11px] font-bold text-white">
                       {selected.length} hr{selected.length > 1 ? "s" : ""}
                     </span>
-                    {voucher ? (
-                      <>
-                        {" "}
-                        · Subtotal <span className="line-through">{peso(subtotal)}</span> · Total{" "}
-                        <span className="font-semibold text-emerald-700">
-                          ₱{Math.max(0, subtotal - voucher.discount).toFixed(2)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        {" "}
-                        · Total{" "}
-                        <span className="font-semibold text-foreground">{peso(subtotal)}</span>
-                      </>
-                    )}
-                    {variablePricing && breakdown.length > 0 && (
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        {breakdown.map((b, i) => (
-                          <span key={b.rate}>
-                            {i > 0 && " + "}
-                            {b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {groupHourRanges(selected).map((r) => {
-                        const hrs = r.end - r.start;
-                        return (
-                          <span
-                            key={`${r.start}-${r.end}`}
-                            className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-foreground"
-                          >
+                  </div>
+
+                  {/* One row per contiguous run, so a split selection reads as two bookable
+                      windows rather than one span with a hole in it. */}
+                  <ul className="mt-2.5 space-y-1.5">
+                    {groupHourRanges(selected).map((r) => {
+                      const hrs = r.end - r.start;
+                      return (
+                        <li
+                          key={`${r.start}-${r.end}`}
+                          className="flex items-center gap-2 rounded-xl border border-[#dce8e2] bg-white px-2.5 py-2"
+                        >
+                          <Clock className="h-3.5 w-3.5 shrink-0 text-[#0b3d35]" aria-hidden />
+                          <span className="text-[13px] font-semibold text-foreground">
                             {fmtHour(r.start)} – {fmtHour(r.end % 24)}
-                            <span className="text-[10px] text-muted-foreground">
-                              · {hrs} hr{hrs > 1 ? "s" : ""}
-                            </span>
                           </span>
-                        );
-                      })}
+                          <span className="ml-auto text-[11px] font-medium text-muted-foreground">
+                            {hrs} hr{hrs > 1 ? "s" : ""}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Adjacent slots are combined into one segment.
+                  </p>
+
+                  {/* priceBreakdown returns one entry per distinct rate and is never empty for
+                      a non-empty selection, so a flat court renders a single line and a
+                      variable one renders a line per rate. */}
+                  <dl className="mt-3 border-t border-[#dce8e2] pt-2.5 text-[13px]">
+                    {breakdown.map((b) => (
+                      <div key={b.rate} className="flex justify-between py-0.5">
+                        <dt className="text-muted-foreground">
+                          {b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}
+                        </dt>
+                        <dd className="font-medium text-foreground">{peso(b.rate * b.hours)}</dd>
+                      </div>
+                    ))}
+                    {voucher && (
+                      <>
+                        <div className="flex justify-between py-0.5">
+                          <dt className="text-muted-foreground">Subtotal</dt>
+                          <dd className="text-muted-foreground line-through">{peso(subtotal)}</dd>
+                        </div>
+                        <div className="flex justify-between py-0.5 text-emerald-700">
+                          <dt>Voucher discount</dt>
+                          <dd className="font-medium">−{peso(voucher.discount)}</dd>
+                        </div>
+                      </>
+                    )}
+                    <div className="mt-1.5 flex items-baseline justify-between border-t border-[#dce8e2] pt-2">
+                      <dt className="font-semibold text-foreground">Total</dt>
+                      <dd className="font-cabinet text-lg font-bold text-[#0b3d35]">
+                        {peso(Math.max(0, subtotal - (voucher?.discount ?? 0)))}
+                      </dd>
                     </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Adjacent slots are combined into one segment.
-                    </p>
-                  </>
-                ) : (
-                  "Choose one or more hours."
-                )}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
+                  </dl>
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-dashed border-[#dce8e2] bg-[#f6f8f7] px-3.5 py-5 text-center text-sm text-muted-foreground">
+                  Choose one or more hours to see your total.
+                </p>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-2">
                 {selected.length > 0 && (
                   <button
                     onClick={() => setSelected([])}
-                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold hover:border-primary hover:text-primary"
+                    className="rounded-full border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:border-primary hover:text-primary"
                   >
                     Clear
                   </button>
@@ -1076,11 +1136,19 @@ export function CourtBookingContent({
                 </button>
               </div>
 
-              <p className="mt-2 text-xs text-muted-foreground">
-                {court.venues?.payment_mode === "full" &&
-                  "Full payment required online to reserve the slot."}
-                {(!court.venues?.payment_mode || court.venues.payment_mode === "none") &&
-                  "Payment handled at the venue."}
+              <p className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                {court.venues?.payment_mode === "full" && (
+                  <>
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#0b3d35]" aria-hidden />
+                    Full payment required online to reserve the slot.
+                  </>
+                )}
+                {(!court.venues?.payment_mode || court.venues.payment_mode === "none") && (
+                  <>
+                    <Wallet className="h-3.5 w-3.5 shrink-0 text-[#0b3d35]" aria-hidden />
+                    Payment handled at the venue.
+                  </>
+                )}
               </p>
             </div>
           </section>
@@ -1302,81 +1370,155 @@ function CheckoutDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 sm:items-center">
-      <div className="w-full max-w-md overflow-hidden rounded-t-2xl border border-[#b8f05a]/35 bg-card p-6 shadow-2xl sm:rounded-2xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-primary">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-[#dce8e2] bg-card shadow-2xl sm:rounded-3xl">
+        {/* ---- header ---- */}
+        <div className="flex items-start justify-between gap-3 border-b border-[#dce8e2] bg-[#f6f8f7] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#5e746e]">
               CourtHub checkout
             </p>
-            <h2 className="text-lg font-bold">Choose payment method</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h2 className="mt-0.5 font-cabinet text-lg font-bold tracking-tight text-[#102521]">
+              Choose payment method
+            </h2>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {venueName} · {courtName}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-muted-foreground hover:bg-secondary"
+            className="shrink-0 rounded-full p-1.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
             aria-label="Close"
           >
-            ✕
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
-        <div className="mt-4 rounded-xl border border-[#dce8e2] bg-[#eaf5d8]/55 p-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Hours</span>
-            <span>{hours.length}</span>
-          </div>
-          {breakdown.length > 1 &&
-            breakdown.map((b) => (
-              <div key={b.rate} className="mt-1 flex justify-between text-xs text-muted-foreground">
-                <span>
-                  {b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}
-                </span>
-                <span>{peso(b.rate * b.hours)}</span>
+        <div className="px-5 py-5">
+          {/* ---- what is being paid for ---- */}
+          <dl className="rounded-2xl border border-[#dce8e2] bg-[#f6f8f7] p-3.5 text-[13px]">
+            <div className="flex justify-between py-0.5">
+              <dt className="text-muted-foreground">Hours</dt>
+              <dd className="font-medium text-foreground">{hours.length}</dd>
+            </div>
+            {breakdown.length > 1 &&
+              breakdown.map((b) => (
+                <div key={b.rate} className="flex justify-between py-0.5 text-xs">
+                  <dt className="text-muted-foreground">
+                    {b.hours} hr{b.hours > 1 ? "s" : ""} × {peso(b.rate)}
+                  </dt>
+                  <dd className="text-muted-foreground">{peso(b.rate * b.hours)}</dd>
+                </div>
+              ))}
+            {discount > 0 && (
+              <>
+                <div className="flex justify-between py-0.5 text-xs">
+                  <dt className="text-muted-foreground">Subtotal</dt>
+                  <dd className="text-muted-foreground line-through">{peso(subtotal)}</dd>
+                </div>
+                <div className="flex justify-between py-0.5 text-xs text-emerald-700">
+                  <dt>Voucher discount</dt>
+                  <dd className="font-medium">−₱{discount.toFixed(2)}</dd>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between py-0.5">
+              <dt className="text-muted-foreground">Total</dt>
+              <dd className="font-medium text-foreground">₱{fullAmount.toFixed(2)}</dd>
+            </div>
+            {paymentMode === "full" && (
+              <div className="mt-1.5 flex items-baseline justify-between border-t border-[#dce8e2] pt-2.5">
+                <dt className="font-semibold text-foreground">Due now</dt>
+                <dd className="font-cabinet text-xl font-bold text-[#0b3d35]">
+                  ₱{fullAmount.toFixed(2)}
+                </dd>
               </div>
-            ))}
-          {discount > 0 && (
-            <div className="mt-1 flex justify-between text-xs">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{peso(subtotal)}</span>
-            </div>
-          )}
-          {discount > 0 && (
-            <div className="mt-1 flex justify-between text-xs text-emerald-700">
-              <span>Voucher discount</span>
-              <span>−₱{discount.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="mt-1 flex justify-between">
-            <span className="text-muted-foreground">Total</span>
-            <span>₱{fullAmount.toFixed(2)}</span>
+            )}
+          </dl>
+
+          {/* ---- the wallets ---- */}
+          <p className="mt-5 text-[10px] font-bold uppercase tracking-[.18em] text-[#5e746e]">
+            Pay with
+          </p>
+          <div className="mt-2.5 grid gap-2">
+            {PM_METHODS.map((m) => {
+              const loading = payLoading === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  disabled={payLoading !== null}
+                  onClick={() => pay(m.key)}
+                  className="group flex items-center gap-3 rounded-2xl border border-[#dce8e2] bg-background px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-[#b8f05a] hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <PaymentMark method={m} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-cabinet text-sm font-bold text-[#102521]">
+                      {m.label}
+                    </span>
+                    <span className="block text-[10px] font-semibold text-[#8aa39a]">
+                      {loading ? "Redirecting…" : m.note}
+                    </span>
+                  </span>
+                  <span
+                    aria-hidden
+                    className={`text-base text-[#8aa39a] transition-transform ${
+                      loading ? "animate-pulse" : "group-hover:translate-x-0.5"
+                    }`}
+                  >
+                    →
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          {paymentMode === "full" && (
-            <div className="mt-1 flex justify-between border-t border-border pt-2 font-semibold">
-              <span>Due now</span>
-              <span className="text-primary">₱{fullAmount.toFixed(2)}</span>
-            </div>
-          )}
-        </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {PM_METHODS.map((m) => (
-            <button
-              key={m.key}
-              disabled={payLoading !== null}
-              onClick={() => pay(m.key)}
-              className="flex flex-col items-center rounded-xl border border-border bg-background p-3 text-sm font-semibold transition hover:border-primary hover:bg-primary/5 disabled:opacity-50"
-            >
-              <span className="text-2xl">{m.emoji}</span>
-              <span className="mt-1">{payLoading === m.key ? "Redirecting…" : m.label}</span>
-            </button>
-          ))}
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#0b3d35]" aria-hidden />
+            Powered by PayMongo · Test mode.
+          </p>
         </div>
-
-        <p className="mt-3 text-[11px] text-muted-foreground">Powered by PayMongo · Test mode.</p>
       </div>
     </div>
+  );
+}
+
+/** The provider's own mark, on the ground its brand kit expects. A path that fails to load
+ *  falls back to a tinted initials chip rather than leaving a broken image on the one screen
+ *  where a player is deciding whether to trust the page — the same rule the landing page's
+ *  PaymentRally applies to the same assets. */
+function PaymentMark({ method }: { method: (typeof PM_METHODS)[number] }) {
+  const [broken, setBroken] = useState(false);
+  const showLogo = !broken;
+
+  return (
+    <span
+      /* w-14, not a square: three of the four marks are wordmarks, and object-contain would
+         otherwise shrink them to a few pixels tall to fit the width. */
+      className="grid h-9 w-14 shrink-0 place-items-center overflow-hidden rounded-xl px-1.5"
+      style={
+        showLogo
+          ? method.markBg
+            ? { backgroundColor: method.markBg }
+            : { backgroundColor: "#ffffff", boxShadow: "inset 0 0 0 1px #eef3f0" }
+          : { backgroundColor: `${method.tint}1a` }
+      }
+    >
+      {showLogo ? (
+        <img
+          src={method.logo}
+          alt=""
+          width={56}
+          height={36}
+          loading="lazy"
+          onError={() => setBroken(true)}
+          className="h-full w-full object-contain"
+        />
+      ) : (
+        <span className="text-[10px] font-bold" style={{ color: method.tint }}>
+          {method.initials}
+        </span>
+      )}
+    </span>
   );
 }

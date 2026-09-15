@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { PLAYER_CANCEL_CUTOFF_MS } from "@/lib/booking-actions";
 
 const StartCheckoutInput = z.object({
   courtId: z.number().int().positive(),
@@ -120,16 +121,33 @@ export const startBookingCheckout = createServerFn({ method: "POST" })
     }
 
     const mode = paymongoMode();
-    const perBookingCentavos = Math.round(centavos / bookingIds.length);
-    const txRows = bookingIds.map((bid) => ({
+    /* Each row carries what its own hour is worth, in proportion to the rates that
+       priced it, and the rows add up to `centavos` exactly — the amount PayMongo was
+       asked for. The old rule divided the total evenly, which lost a centavo on
+       ₱1,000 over three hours and misreported every hour whenever the rates differed.
+       `bookingIds` came back from the insert in the order the hours were sent, so
+       index i is hour i. */
+    const { allocateCheckoutCents } = await import("./checkout-allocation");
+    const allocation = allocateCheckoutCents(
+      centavos,
+      unitPrices.map((p) => Math.round(p * 100)),
+    );
+    const txRows = bookingIds.map((bid, idx) => ({
       booking_id: bid,
       venue_id: court.venue_id,
       user_id: userId,
-      amount: perBookingCentavos / 100,
+      amount: (allocation[idx] ?? 0) / 100,
       currency: "PHP",
       method: data.method,
       provider: "paymongo",
       provider_ref: session.data.id,
+      /* CourtHub's own reference for this checkout, the one already sent to PayMongo
+         as `reference_number`. The column and its unique index on
+         (reference_number, booking_id) have existed since 20260729123000 and were
+         never written to, so a checkout could only ever be identified by the
+         gateway's session id. Stored now so that identity is ours rather than the
+         payment provider's. Historical rows stay null and are not backfilled. */
+      reference_number: reference,
       raw: { payment_kind: "full" },
       status: "pending",
       mode,
@@ -233,16 +251,36 @@ export const retryBookingPayment = createServerFn({ method: "POST" })
       .eq("status", "pending");
 
     const mode = paymongoMode();
-    const perBookingCentavos = Math.round(centavos / bookingIds.length);
-    const txRows = bookingIds.map((bid) => ({
+    /* Same allocation as a first attempt. `bookingIds` is sorted here while the
+       booking rows arrived in whatever order the query returned, so the price is
+       looked up per id rather than by position — lining them up by index would have
+       paired hours with other hours' prices. */
+    const unitCentsById = new Map(
+      bookings.map((b) => {
+        const row = b as unknown as { id: number; unit_price: number | null };
+        return [
+          row.id,
+          Math.round(Number(row.unit_price ?? first.courts.hourly_rate) * 100),
+        ] as const;
+      }),
+    );
+    const { allocateCheckoutCents } = await import("./checkout-allocation");
+    const allocation = allocateCheckoutCents(
+      centavos,
+      bookingIds.map((bid) => unitCentsById.get(bid) ?? 0),
+    );
+    const txRows = bookingIds.map((bid, idx) => ({
       booking_id: bid,
       venue_id: first.courts.venue_id,
       user_id: userId,
-      amount: perBookingCentavos / 100,
+      amount: (allocation[idx] ?? 0) / 100,
       currency: "PHP",
       method: data.method,
       provider: "paymongo",
       provider_ref: session.data.id,
+      /* A retry is a new checkout and gets its own reference, exactly as it gets its
+         own session id. The two attempts stay separate rows and separate groups. */
+      reference_number: reference,
       raw: { payment_kind: "full" },
       status: "pending",
       mode,
@@ -286,6 +324,126 @@ export const cancelPendingBookings = createServerFn({ method: "POST" })
     return { ok: true, cancelled: ids.length };
   });
 
+const PlayerCancelInput = z.object({
+  bookingIds: z.array(z.number().int().positive()).min(1).max(24),
+});
+
+/**
+ * A player calling off their own booking, paid or not.
+ *
+ * This lives on the server for two reasons, and both of them used to be wrong when the
+ * player workspace wrote to `bookings` straight from the browser.
+ *
+ * The cutoff is a rule, not a hint. A disabled button is a courtesy to the person
+ * looking at it and no obstacle at all to anyone else, so the one-minute check is made
+ * here, against the server's clock, on the rows as they actually are. A client that
+ * lies about the time, or simply has a slow one, gets the same answer.
+ *
+ * And the money columns are not the player's to write. Postgres RLS filters rows, not
+ * columns: a policy that lets someone update their own booking lets them update every
+ * column of it, `payment_status` included. Routing the write through here — ownership
+ * checked, then a fixed set of columns written with the service key — is what stops a
+ * player marking their own booking refunded.
+ *
+ * A paid booking is left `payment_status = 'paid'` with `refund_status = 'pending'`:
+ * the venue still holds the money, and it still owes it. Nothing here calls PayMongo.
+ * Deciding what actually comes back is the venue's, under its own refund policy, and
+ * it settles it from the dashboard.
+ */
+export const cancelBookingAsPlayer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => PlayerCancelInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    /* Read through the caller's own client, so RLS decides what they may see, and the
+       ownership check below is belt and braces on top of it. */
+    const { data: rows, error } = await supabase
+      .from("bookings")
+      .select("id, user_id, status, payment_status, start_time, end_time")
+      .in("id", data.bookingIds);
+    if (error) throw new Error(error.message);
+    if (!rows || rows.length === 0) throw new Error("Booking not found");
+    if (rows.some((r) => r.user_id !== userId)) throw new Error("Not your booking");
+
+    const now = Date.now();
+    const live = rows.filter((r) => r.status !== "cancelled" && r.status !== "expired");
+    if (live.length === 0) throw new Error("This booking is already cancelled.");
+
+    /* The session starts when its earliest hour does. A player cancels the whole
+       session or none of it, so the cutoff is judged against that one moment rather
+       than per row — otherwise a 6–9pm booking would go on offering to cancel its last
+       hour at five past six. */
+    const startsAt = Math.min(...live.map((r) => new Date(r.start_time).getTime()));
+    const endsAt = Math.max(...live.map((r) => new Date(r.end_time).getTime()));
+
+    if (endsAt <= now) {
+      throw new Error("This booking has already finished, so there is nothing to cancel.");
+    }
+    if (startsAt - now <= PLAYER_CANCEL_CUTOFF_MS) {
+      throw new Error(
+        "This booking starts in less than a minute and can no longer be cancelled. Message the venue if you need help.",
+      );
+    }
+
+    const ids = live.map((r) => r.id);
+    const paidIds = live.filter((r) => r.payment_status === "paid").map((r) => r.id);
+    const unpaidIds = ids.filter((id) => !paidIds.includes(id));
+    const cancelledAt = new Date().toISOString();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    /* One statement per outcome rather than one per row: the deferred notification
+       trigger keys on the status change, so a per-row loop would fire it repeatedly and
+       describe a three-hour cancellation as one hour. The refund path in
+       `refunds.functions.ts` batches for exactly the same reason. */
+    if (unpaidIds.length > 0) {
+      const { error: unpaidErr } = await supabaseAdmin
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          payment_status: "cancelled",
+          cancelled_at: cancelledAt,
+          cancelled_by: userId,
+          cancel_reason: "Cancelled by player",
+        })
+        .in("id", unpaidIds);
+      if (unpaidErr) throw new Error(unpaidErr.message);
+
+      /* The abandoned checkout row goes with it. `cancelPendingBookings` — the path this
+         replaced for unpaid sessions — did this, and dropping it would leave a `pending`
+         transaction behind with no live booking, which the tenant ledger would go on
+         showing as a payment still being waited on. Narrowed to `pending` so a row that
+         somehow settled in the meantime is never overwritten. */
+      await supabaseAdmin
+        .from("transactions")
+        .update({ status: "cancelled" })
+        .in("booking_id", unpaidIds)
+        .eq("status", "pending");
+    }
+
+    if (paidIds.length > 0) {
+      /* Two columns doing two different jobs. `status: 'cancelled'` is what takes the
+         booking out of the tenant's net sales — `effectiveTxState` keys on the booking's
+         own status, so this is the write that fixes a cancelled booking still reading as
+         `paid`. `refund_status: 'pending'` is what puts it on the venue's list of refunds
+         to settle. `payment_status` stays `paid`, because the money genuinely has not
+         moved yet and saying otherwise would claim a refund that has not happened. */
+      const { error: paidErr } = await supabaseAdmin
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          refund_status: "pending",
+          cancelled_at: cancelledAt,
+          cancelled_by: userId,
+          cancel_reason: "Cancelled by player",
+        })
+        .in("id", paidIds);
+      if (paidErr) throw new Error(paidErr.message);
+    }
+
+    return { ok: true, cancelled: ids.length, refundPending: paidIds.length };
+  });
+
 export const getCheckoutStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ reference: z.string().min(1) }).parse(data))
@@ -307,6 +465,19 @@ export const getCheckoutStatus = createServerFn({ method: "POST" })
 
 const RefundInput = z.object({ bookingId: z.number().int().positive() });
 
+/**
+ * A player refunding their own paid booking.
+ *
+ * This is a *finalised* refund and nothing less: it calls PayMongo, and only once
+ * the money has actually been returned does it write either record. Cancelling a
+ * booking is a different act and deliberately does not come through here — the
+ * cancel path marks the booking cancelled and leaves the money where it is,
+ * because a cancellation is not a refund and the venue's policy decides what
+ * happens next.
+ *
+ * Not currently reached from any screen. Left correct and complete so that wiring
+ * it up is a UI decision rather than a correctness one.
+ */
 export const refundBookingFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => RefundInput.parse(d))
@@ -346,14 +517,38 @@ export const refundBookingFn = createServerFn({ method: "POST" })
       reason: "requested_by_customer",
     });
 
-    await supabaseAdmin.from("transactions").update({
-      status: "refunded",
-      refunded_at: new Date().toISOString(),
-    }).eq("id", tx.id);
-    await supabaseAdmin.from("bookings").update({
-      status: "cancelled",
-      payment_status: "refunded",
-    }).eq("id", booking.id);
+    /* The money is back, so both records say so — and they say the same thing.
+       Every other finalised refund path in the system ends in exactly this state:
+       the booking refunded, and the one payment row behind it refunded too.
+
+       Scoped to this booking's own payment row by id. A three-hour checkout shares
+       one `provider_ref`, and refunding the middle hour must leave the other two
+       paid; updating by checkout would give back two hours nobody asked about.
+
+       Guarded on `status = 'paid'` so calling this twice is harmless: the second
+       call matches nothing and cannot overwrite the first refund's timestamp. */
+    const settledAt = new Date().toISOString();
+    await supabaseAdmin
+      .from("transactions")
+      .update({ status: "refunded", refunded_at: settledAt })
+      .eq("id", tx.id)
+      .eq("status", "paid");
+
+    /* The booking's refund bookkeeping, which this path used to leave half-written:
+       it set `payment_status` and nothing else, so a refund made here looked
+       different from one settled by an admin. `refund_status` is what the player's
+       own screens read, and what tells the tenant the refund is finished rather
+       than pending. */
+    await supabaseAdmin
+      .from("bookings")
+      .update({
+        status: "cancelled",
+        payment_status: "refunded",
+        refund_status: "refunded",
+        refund_method: "paymongo",
+        refund_settled_at: settledAt,
+      })
+      .eq("id", booking.id);
 
     return { ok: true };
   });

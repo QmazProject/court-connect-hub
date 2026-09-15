@@ -1,8 +1,9 @@
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -15,7 +16,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { groupBookingSessions, formatDateLabel, formatSessionLabel } from "@/lib/booking-groups";
-import { canCancel, canSettleRefund, describeRefund } from "@/lib/booking-actions";
+import {
+  bookingChatWindow,
+  canCancel,
+  canSettleRefund,
+  describeRefund,
+} from "@/lib/booking-actions";
 import {
   NON_COUNTING_STATUS_FILTER,
   countByUser,
@@ -84,6 +90,8 @@ import { TENANT_ANCHORS, useTenantSearchEntries, type TenantCourtsTab } from "@/
 import type { SearchEntry } from "@/lib/master-search";
 import { BookingChat } from "@/components/BookingChat";
 import { CancelRefundDialog, type CancelTarget } from "@/components/CancelRefundDialog";
+import { WalkInBookingDialog, type WalkInCourt } from "@/components/WalkInBookingDialog";
+import { TenantFinancePanel } from "@/components/TenantFinancePanel";
 import { HoursConflictDialog, type HoursConflict } from "@/components/HoursConflictDialog";
 import { findHoursConflicts } from "@/lib/hours-conflicts";
 import {
@@ -110,6 +118,24 @@ import {
   workspaceAddressFor,
   WORKSPACE_ACTIVATED_MESSAGE,
 } from "@/lib/tenant-login";
+import {
+  bookingSourceLabel,
+  collectionSourceLabel,
+  groupTransactions,
+  isRetainedSale,
+  isSettledRefund,
+  isSpentAttempt,
+  memberState,
+  memberStateBySource,
+  revenueState,
+  splitPageAtCheckoutBoundary,
+  summariseRevenue,
+  transactionAmounts,
+  type GroupStatus,
+  type RevenueRow,
+  type TxGroup,
+  type TxLike,
+} from "@/lib/transaction-groups";
 import {
   dashboardSearchSchema,
   type DashboardSearch,
@@ -167,11 +193,12 @@ import {
   Timer,
   Sparkles,
   CreditCard,
+  Plus,
 } from "lucide-react";
 
 type SectionKey =
   | "dashboard" | "calendar" | "bookings" | "courts"
-  | "customers" | "team" | "transactions" | "vouchers" | "settings";
+  | "customers" | "team" | "transactions" | "finance" | "vouchers" | "settings";
 
 const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ className?: string }> }[] =
   [
@@ -182,6 +209,7 @@ const NAV: { key: SectionKey; label: string; icon: React.ComponentType<{ classNa
     { key: "customers", label: "Customers", icon: Users },
     { key: "team", label: "Team", icon: UserCog },
     { key: "transactions", label: "Transactions", icon: Receipt },
+    { key: "finance", label: "Finance", icon: Wallet },
     { key: "vouchers", label: "Vouchers", icon: TicketPercent },
     { key: "settings", label: "Settings", icon: SettingsIcon },
   ];
@@ -803,6 +831,20 @@ export function Dashboard({
             )}
           </div>
         )}
+        {section === "finance" && (
+          <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            {/* Sales figures are visible to anyone who can see transactions;
+                settlement destinations and payout actions are admin-only, and the
+                panel asks the database rather than trusting this flag. */}
+            {permissions.ready && !permissions.can("finance.view") ? (
+              <RestrictedSection what="Finance" needs="finance.view" />
+            ) : (
+              <TenantFinancePanel
+                canManagePayouts={permissions.can("finance.requestPayout")}
+              />
+            )}
+          </div>
+        )}
         {section === "vouchers" && (
           <div className="nice-scroll min-h-0 flex-1 overflow-y-auto pr-1">
             <VouchersSection venues={venues} />
@@ -1338,7 +1380,12 @@ function DashboardOverview({
       const txFloor = zonedDayBoundsUtc(addZonedDays(windowStartISO, -30), tz).start.toISOString();
       const { data: txRows, error: txErr } = await supabase
         .from("transactions")
-        .select("amount, status, paid_at, created_at, booking_id, venue_id")
+        /* The booking comes along because a refund settled by staff updates the
+           booking and leaves this row saying `paid`. Revenue read from the payment
+           row alone counts money that was given back. */
+        .select(
+          "amount, status, paid_at, created_at, booking_id, venue_id, bookings(status, payment_status, refund_status)",
+        )
         .in("venue_id", venueIds)
         .gte("created_at", txFloor)
         .order("created_at", { ascending: false })
@@ -1374,7 +1421,9 @@ function DashboardOverview({
       let revenueCurrent = 0;
       let revenuePrevious = 0;
       for (const t of txs) {
-        if (t.status !== "paid") continue;
+        /* Retained money only: a settled refund is not revenue, and a pending or
+           failed refund has not left the business yet. */
+        if (!isRetainedSale(revenueState(t as unknown as RevenueRow))) continue;
         const settled = t.paid_at ?? t.created_at;
         if (!settled) continue;
         const date = zonedDateISO(new Date(settled), tz);
@@ -1507,7 +1556,10 @@ function DashboardOverview({
       const unresolved = Array.from(
         new Set(
           txs
-            .filter((t) => t.status === "paid" && t.booking_id != null)
+            .filter(
+              (t) =>
+                isRetainedSale(revenueState(t as unknown as RevenueRow)) && t.booking_id != null,
+            )
             .map((t) => t.booking_id)
             .filter((id) => !courtOfBooking.has(id)),
         ),
@@ -1520,7 +1572,7 @@ function DashboardOverview({
         for (const b of extra ?? []) courtOfBooking.set(b.id, b.court_id);
       }
       for (const t of txs) {
-        if (t.status !== "paid") continue;
+        if (!isRetainedSale(revenueState(t as unknown as RevenueRow))) continue;
         const settled = t.paid_at ?? t.created_at;
         const date = settled ? zonedDateISO(new Date(settled), tz) : null;
         if (!date || date < currentStartISO || date > periodEndISO) continue;
@@ -10640,10 +10692,37 @@ function TeamSection({ userId }: { userId: string }) {
 type TxRow = {
   id: string;
   booking_id: number;
-  /** Embedded from the booking this payment settled, so the table can show the
-   *  tenant's own number instead of the row id. Null for a booking that has none
-   *  — one whose court has no venue, or one the backfill could not reach. */
-  bookings?: { booking_no: number | null } | null;
+  /** Embedded from the booking this payment settled: the tenant's own number rather
+   *  than the row id, the slot that was bought, and the court it was on. Null for a
+   *  booking that has none — one whose court has no venue, or one the backfill could
+   *  not reach. */
+  bookings?: {
+    booking_no: number | null;
+    court_id: number;
+    start_time: string;
+    end_time: string;
+    status: string;
+    payment_status: string;
+    refund_status: string | null;
+    /* Where the booking came from and who took the money — two separate facts, so
+       a walk-in settled at the desk reads as the tenant's own sale rather than as
+       money Court Connect is holding. */
+    booking_source: string | null;
+    payment_collection_source: string | null;
+    /* How the money went back, shown beside the payment reference so a refunded
+       row can be traced to both halves of the transaction. */
+    refund_reference: string | null;
+    refund_method: string | null;
+    walkin_payment_method: string | null;
+    /* What the hour actually cost. The payment row's own `amount` is the checkout
+       total split evenly, which is a different number whenever the hours are priced
+       differently or a voucher applied. */
+    unit_price: number | null;
+    discount_amount: number | null;
+    courts?: { name: string } | null;
+  } | null;
+  provider_ref: string | null;
+  reference_number: string | null;
   venue_id: number;
   user_id: string;
   amount: number;
@@ -10657,29 +10736,119 @@ type TxRow = {
   created_at: string;
 };
 
+/** Rows per fetch. Comfortably above the twelve a single checkout can hold, so the
+ *  page-boundary trim always leaves whole checkouts behind. */
+const TX_PAGE_ROWS = 120;
+
+/** Only the columns the tiles add up. */
+type KpiTxRow = Pick<
+  TxRow,
+  "amount" | "status" | "user_id" | "booking_id" | "paid_at" | "created_at" | "mode"
+> & {
+  bookings?: {
+    /** The booking's own status: a cancelled booking is not a sale, whatever the
+     *  payment row still says. */
+    status?: string | null;
+    payment_status?: string | null;
+    refund_status?: string | null;
+  } | null;
+};
+
 function TransactionsSection({ venues }: { venues: Venue[] }) {
   const qc = useQueryClient();
   const [venueFilter, setVenueFilter] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "paid" | "pending" | "failed" | "refunded"
+    "all" | "paid" | "pending" | "failed" | "refunded" | "refund_due"
   >("all");
+  /* Grouped first: one row per payment is how the money is actually reconciled.
+     Detailed is one row per booked hour, unchanged, and still the place to go when a
+     single line needs chasing. */
+  const [view, setView] = useState<"grouped" | "detailed">("grouped");
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
-  const txQ = useQuery({
-    queryKey: ["tenant-transactions", venueFilter, statusFilter],
-    queryFn: async () => {
+  /**
+   * Paged so that a checkout is never cut in half.
+   *
+   * Every row of one checkout shares a `created_at` to the microsecond: they are
+   * written by a single multi-row INSERT, and Postgres `now()` is the transaction's
+   * start time. A cursor placed *between* timestamps therefore cannot land inside a
+   * checkout, which is what makes this safe where a plain row cap was not.
+   *
+   * Each page reads a block of rows, discards the trailing run sharing the last row's
+   * timestamp — the run a page boundary could have split — and resumes there next
+   * time. One checkout is capped at twelve hours, so that run can never be the whole
+   * page.
+   *
+   * Keyset, not OFFSET: a payment taken while someone reads page one shifts nothing,
+   * because each page asks for rows older than a fixed instant rather than for "the
+   * next fifty".
+   */
+  const txQ = useInfiniteQuery({
+    /* Both views now fetch exactly the same rows and differ only in how they present
+       and filter them, so they share one cache entry rather than re-fetching on every
+       toggle. */
+    queryKey: ["tenant-transactions", venueFilter],
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
       let q = supabase
         .from("transactions")
         /* Embedded through `transactions_booking_id_fkey` rather than fetched in a
-           second round trip: the number belongs to the booking, and a separate
-           query would let the two lists arrive out of step. */
-        .select("*, bookings(booking_no)")
+           second round trip: all of this belongs to the booking, and separate
+           queries would let the lists arrive out of step. The court comes one hop
+           further on, through the booking, because a payment knows its venue but
+           not which court inside it was played. */
+        .select(
+          "*, bookings(booking_no, court_id, start_time, end_time, status, payment_status, refund_status, booking_source, payment_collection_source, refund_reference, refund_method, walkin_payment_method, unit_price, discount_amount, courts(name))",
+        )
         .order("created_at", { ascending: false })
-        .limit(500);
+        .order("id", { ascending: false })
+        /* One query per page, and the booking, its price and its court arrive with
+           the payment row. No query per group, none per expanded row. */
+        .limit(TX_PAGE_ROWS);
+      /* At or older than the cursor, not strictly older: the run on that exact
+         timestamp was withheld from the previous page and has to be read here. */
+      if (pageParam) q = q.lte("created_at", pageParam);
       if (venueFilter !== "all") q = q.eq("venue_id", venueFilter);
-      if (statusFilter !== "all") q = q.eq("status", statusFilter);
+      /* Status is deliberately not filtered here any more. It cannot be: a refund
+         settled by staff leaves this row saying `paid`, so asking the database for
+         `status = 'refunded'` misses exactly the rows a tenant is looking for. Both
+         views filter on the effective state instead, after the booking has been read
+         alongside the payment. Filtering rows in the database would also tear a
+         partly refunded checkout in half and report the remains as a whole payment. */
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as TxRow[];
+      /* The cut itself is a pure rule, tested on its own. */
+      return splitPageAtCheckoutBoundary((data ?? []) as TxRow[], TX_PAGE_ROWS);
+    },
+    getNextPageParam: (last) => last.cursor ?? undefined,
+  });
+
+  /**
+   * The tiles read their own window rather than whatever happens to be paged in.
+   *
+   * They answer "how much this month", a question about a period and not about the
+   * rows on screen. Deriving them from the paged list would make them shrink as the
+   * page shrank, and they were only ever as true as the old cap anyway.
+   */
+  const kpiQ = useQuery({
+    queryKey: ["tenant-transaction-kpis", venueFilter],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 24 * 3_600_000).toISOString();
+      let q = supabase
+        .from("transactions")
+        /* Both states are wanted, not just `paid`: a refund is money that arrived and
+           then left, so it belongs in gross and is subtracted again in net. The
+           booking travels with it because a refund settled by staff leaves this row
+           saying `paid`. */
+        .select(
+          "amount, status, user_id, booking_id, paid_at, created_at, mode, bookings(status, payment_status, refund_status)",
+        )
+        .in("status", ["paid", "refunded"])
+        .gte("paid_at", since);
+      if (venueFilter !== "all") q = q.eq("venue_id", venueFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as KpiTxRow[];
     },
   });
 
@@ -10688,8 +10857,8 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
      of order against the date the tenant is reading. Sort on what is on screen. */
   const rows = useMemo(
     () =>
-      (txQ.data ?? [])
-        .slice()
+      (txQ.data?.pages ?? [])
+        .flatMap((page) => page.rows)
         .sort(
           (a, b) =>
             new Date(b.paid_at ?? b.created_at).getTime() -
@@ -10697,35 +10866,125 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
         ),
     [txQ.data],
   );
-  const paid = rows.filter((r) => r.status === "paid");
+  /* Who paid. Read in one batch keyed on the ids actually on screen, exactly as the
+     Bookings table does it — the two screens show the same people and there is no
+     reason for them to fetch names differently. A customer the policy does not return
+     simply has no name, and the row shows the payer as unknown rather than breaking. */
+  const payerIds = Array.from(new Set(rows.map((r) => r.user_id))).sort();
+  const payersQ = useQuery({
+    queryKey: ["tx-payer-names", payerIds.join(",")],
+    enabled: payerIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", payerIds);
+      if (error) throw error;
+      return (data ?? []) as { id: string; full_name: string | null }[];
+    },
+  });
+  const payerName = useMemo(
+    () => new Map((payersQ.data ?? []).map((p) => [p.id, p.full_name?.trim() || null])),
+    [payersQ.data],
+  );
+
+  /* Built from the rows already on hand — no second query, and nothing per expanded
+     row. `provider_ref` is the checkout; a row without one stands alone. */
+  const groups = useMemo(() => groupTransactions(rows as TxLike[]), [rows]);
+  const visibleGroups = useMemo(() => {
+    const wanted = groups.filter((g) => {
+      if (statusFilter === "all") {
+        /* An attempt that never became money is noise in an accounting view. It is
+           one filter selection away, and Detailed still shows every row. */
+        return !isSpentAttempt(g.status);
+      }
+      if (statusFilter === "refunded")
+        return g.status === "refunded" || g.status === "partially_refunded";
+      return g.status === statusFilter;
+    });
+    return wanted;
+  }, [groups, statusFilter]);
+  const hiddenAttempts = groups.length - groups.filter((g) => !isSpentAttempt(g.status)).length;
+
+  /* Detailed filters on the same effective state the Grouped view uses, so selecting
+     Refunded finds a refund settled by staff even though the payment row still reads
+     `paid`. Refunded deliberately catches nothing else: a pending request and a
+     failed attempt are not refunds. */
+  const visibleRows = useMemo(() => {
+    if (statusFilter === "all") return rows;
+    return rows.filter((r) => memberState(r as TxLike) === statusFilter);
+  }, [rows, statusFilter]);
+
+  /* A page of rows is not a page of results once a filter is applied: fifty checkouts
+     can arrive and every one of them be filtered out, which would read as "nothing
+     here" while the answer sat one page further down. When the grouped view has
+     nothing to show and there is more history, it keeps going by itself.
+     Bounded, so a filter matching nothing at all walks a few pages and stops rather
+     than pulling the entire ledger. */
+  const autoPages = useRef(0);
+  useEffect(() => {
+    autoPages.current = 0;
+  }, [statusFilter, venueFilter, view]);
+  const nothingToShow = view === "grouped" ? visibleGroups.length === 0 : visibleRows.length === 0;
+  useEffect(() => {
+    if (!nothingToShow) return;
+    if (!txQ.hasNextPage || txQ.isFetchingNextPage) return;
+    if (autoPages.current >= 10) return;
+    autoPages.current += 1;
+    void txQ.fetchNextPage();
+  }, [nothingToShow, txQ]);
+
+  /* The tiles' own window, not the page on screen. */
+  const ledger = useMemo(() => kpiQ.data ?? [], [kpiQ.data]);
   const now = Date.now();
-  const sumSince = (ms: number) =>
-    paid
-      .filter((r) => new Date(r.paid_at ?? r.created_at).getTime() >= now - ms)
-      .reduce((s, r) => s + Number(r.amount), 0);
-  const todaySum = sumSince(24 * 3_600_000);
-  const weekSum = sumSince(7 * 24 * 3_600_000);
-  const monthSum = sumSince(30 * 24 * 3_600_000);
-  const uniqueCustomers = new Set(paid.map((r) => r.user_id)).size;
-  const totalBookings = new Set(paid.map((r) => r.booking_id)).size;
+  /* Net, not gross: a refund the staff settled is money the business no longer has,
+     and a tile that keeps counting it is the bug this fixes. Gross and the refund
+     total are shown beside it so the deduction is visible rather than implied. */
+  const since = (ms: number) =>
+    ledger.filter((r) => new Date(r.paid_at ?? r.created_at).getTime() >= now - ms);
+  const todaySum = summariseRevenue(since(24 * 3_600_000) as unknown as RevenueRow[]).net;
+  const weekSum = summariseRevenue(since(7 * 24 * 3_600_000) as unknown as RevenueRow[]).net;
+  const month = summariseRevenue(since(30 * 24 * 3_600_000) as unknown as RevenueRow[]);
+  const monthSum = month.net;
+  /* Counted on money kept, so a fully refunded booking stops counting as a sale. */
+  const retained = ledger.filter((r) => isRetainedSale(revenueState(r as unknown as RevenueRow)));
+  const uniqueCustomers = new Set(retained.map((r) => r.user_id)).size;
+  const totalBookings = new Set(retained.map((r) => r.booking_id)).size;
 
   const currency = (n: number) =>
     "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  const fmtTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  /** The hour or hours the customer actually bought, which is not the same thing as
+   *  when they paid for it — a slot booked on Monday for Saturday reads as both. */
+  const fmtSlot = (start: string, end: string) => {
+    const from = new Date(start);
+    const to = new Date(end);
+    const hours = (to.getTime() - from.getTime()) / 3_600_000;
+    const label =
+      Number.isFinite(hours) && hours > 0 ? `${hours % 1 === 0 ? hours : hours.toFixed(1)}h` : null;
+    return {
+      day: from.toLocaleDateString("en-PH", { dateStyle: "medium" }),
+      range: `${fmtTime(start)} – ${fmtTime(end)}`,
+      label,
+    };
+  };
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       paid: "bg-primary/15 text-primary",
       pending: "bg-amber-500/15 text-amber-700",
       failed: "bg-destructive/15 text-destructive",
       refunded: "bg-muted text-muted-foreground",
+      refund_due: "bg-sky-500/15 text-sky-700",
       cancelled: "bg-muted text-muted-foreground",
     };
     return (
       <span
         className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${map[s] ?? "bg-secondary text-foreground"}`}
       >
-        {s}
+        {s === "refund_due" ? "Refund due" : s}
       </span>
     );
   };
@@ -10738,10 +10997,23 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
       />
 
       {/* KPI tiles */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <PlayerKpi label="Sales · Today" value={currency(todaySum)} />
-        <PlayerKpi label="Sales · 7 days" value={currency(weekSum)} />
-        <PlayerKpi label="Sales · 30 days" value={currency(monthSum)} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <PlayerKpi label="Net sales · Today" value={currency(todaySum)} />
+        <PlayerKpi label="Net sales · 7 days" value={currency(weekSum)} />
+        {/* Gross on the hint line, so net, refunds and gross reconcile on screen and
+            nobody has to wonder why the sales figure moved. */}
+        <PlayerKpi
+          label="Net sales · 30 days"
+          value={currency(monthSum)}
+          hint={`${currency(month.gross)} gross`}
+        />
+        {/* Refunds owed sit beside refunds sent, because both come off net and a tile
+            that showed only one would leave the other looking like an error. */}
+        <PlayerKpi
+          label="Refunded · 30 days"
+          value={currency(month.refunded)}
+          hint={month.refundDue > 0 ? `${currency(month.refundDue)} still to refund` : undefined}
+        />
         <PlayerKpi label="Paid bookings" value={String(totalBookings)} />
         <PlayerKpi label="Unique customers" value={String(uniqueCustomers)} />
       </div>
@@ -10759,31 +11031,91 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
           <option value="pending">Pending</option>
           <option value="failed">Failed</option>
           <option value="refunded">Refunded</option>
+          <option value="refund_due">Refund due</option>
         </select>
+        {/* One payment per row, or one booked hour per row. Both read the same
+            fetched data; neither hides anything the other shows. */}
+        <div className="inline-flex rounded-lg border border-border p-0.5">
+          {(["grouped", "detailed"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setView(mode)}
+              aria-pressed={view === mode}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition ${
+                view === mode
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
         <span className="ml-auto rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
-          PayMongo · {paid[0]?.mode === "live" ? "Live" : "Test"} mode
+          PayMongo · {ledger[0]?.mode === "live" ? "Live" : "Test"} mode
         </span>
       </div>
 
-      {/* Table */}
-      <div className="rounded-2xl border border-border bg-card shadow-sm">
+      {view === "grouped" && (
+        <TransactionGroupsTable
+          groups={visibleGroups}
+          loading={txQ.isLoading}
+          error={txQ.isError ? txQ.error : null}
+          onRetry={() => txQ.refetch()}
+          hiddenAttempts={statusFilter === "all" ? hiddenAttempts : 0}
+          expanded={expanded}
+          onToggle={(key) =>
+            setExpanded((prev) => {
+              const next = new Set(prev);
+              if (next.has(key)) next.delete(key);
+              else next.add(key);
+              return next;
+            })
+          }
+          venueName={(id) => venues.find((v) => v.id === id)?.name ?? `Venue #${id}`}
+          customerName={(id) => payerName.get(id) ?? (payersQ.isLoading ? "…" : "Unknown")}
+          bookingLabel={(venueId, no) =>
+            formatBookingNo(venues.find((v) => v.id === venueId)?.booking_no_prefix, no)
+          }
+          currency={currency}
+          fmtDate={fmtDate}
+        />
+      )}
+
+      {/* Detailed: one row per booked hour, exactly as before. */}
+      <div
+        className={`rounded-2xl border border-border bg-card shadow-sm ${view === "detailed" ? "" : "hidden"}`}
+      >
         <div className="nice-scroll max-h-[55vh] overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-10 bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+              {/* Ordered the way a tenant reads a payment: which booking, who paid,
+                  how much and how, then where and when it was for, and the payment
+                  reference last because it is only wanted when reconciling against
+                  PayMongo. Ten columns is wider than a laptop screen, so the
+                  container scrolls sideways rather than squeezing any of them. */}
               <tr>
-                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Booking ID</th>
+                <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Amount</th>
                 <th className="px-4 py-3">Method</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">PayMongo payment ID</th>
-                <th className="px-4 py-3">Booking</th>
+                <th className="px-4 py-3">Source</th>
+                <th className="px-4 py-3">Collection</th>
                 <th className="px-4 py-3">Venue</th>
+                <th className="px-4 py-3">Court</th>
+                <th className="px-4 py-3">Booked time</th>
+                <th className="px-4 py-3">Paid</th>
+                <th className="px-4 py-3">PayMongo payment ID</th>
+                <th className="px-4 py-3">Refund ref</th>
+                <th className="px-4 py-3">Net</th>
               </tr>
             </thead>
             <tbody>
               {txQ.isLoading ? (
                 <tr>
-                  <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={10}>
                     Loading…
                   </td>
                 </tr>
@@ -10792,7 +11124,7 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
                    failed load has no rows either, and letting it fall through
                    told the tenant they had no transactions. */
                 <tr>
-                  <td className="px-4 py-4" colSpan={7}>
+                  <td className="px-4 py-4" colSpan={10}>
                     <QueryErrorNote
                       what="transactions"
                       error={txQ.error}
@@ -10800,42 +11132,385 @@ function TransactionsSection({ venues }: { venues: Venue[] }) {
                     />
                   </td>
                 </tr>
-              ) : rows.length === 0 ? (
+              ) : visibleRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
-                    No transactions yet. Once players start paying online, they'll show up here.
+                  <td className="px-4 py-6 text-muted-foreground" colSpan={10}>
+                    {statusFilter === "all"
+                      ? "No transactions yet. Once players start paying online, they'll show up here."
+                      : "No payments in that state on the rows loaded so far."}
                   </td>
                 </tr>
               ) : (
-                rows.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {fmtDate(r.paid_at ?? r.created_at)}
-                    </td>
-                    <td className="px-4 py-3 font-semibold">{currency(Number(r.amount))}</td>
-                    <td className="px-4 py-3 capitalize">{r.method.replace("_", " ")}</td>
-                    <td className="px-4 py-3">{statusBadge(r.status)}</td>
-                    <td className="px-4 py-3">
-                      <code className="text-xs font-semibold">{r.raw?.payment_id ?? "—"}</code>
-                    </td>
-                    {/* The tenant's own number, not the row id. A booking with no
-                        number shows an em dash rather than a fabricated one. */}
-                    <td className="px-4 py-3 font-medium">
-                      {formatBookingNo(
-                        venues.find((v) => v.id === r.venue_id)?.booking_no_prefix,
-                        r.bookings?.booking_no,
-                      ) ?? <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}
-                    </td>
-                  </tr>
-                ))
+                visibleRows.map((r) => {
+                  const slot = r.bookings
+                    ? fmtSlot(r.bookings.start_time, r.bookings.end_time)
+                    : null;
+                  const name = payerName.get(r.user_id);
+                  return (
+                    <tr key={r.id} className="border-t border-border">
+                      {/* The tenant's own number, not the row id. A booking with no
+                          number shows an em dash rather than a fabricated one. */}
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        {formatBookingNo(
+                          venues.find((v) => v.id === r.venue_id)?.booking_no_prefix,
+                          r.bookings?.booking_no,
+                        ) ?? <span className="text-muted-foreground">—</span>}
+                      </td>
+                      {/* Still loading and genuinely unreadable look different: one is
+                          temporary, the other is what the row will always say. */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {name ?? (
+                          <span className="text-muted-foreground">
+                            {payersQ.isLoading ? "…" : "Unknown"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                        {currency(Number(r.amount))}
+                      </td>
+                      <td className="px-4 py-3 capitalize whitespace-nowrap">
+                        {r.method.replace("_", " ")}
+                      </td>
+                      {/* The effective state, not the raw column: a refund settled by
+                          staff updates the booking and leaves this row saying `paid`.
+                          Grouped has always shown the truth here; Detailed used to
+                          disagree with it on the very same payment. */}
+                      <td className="px-4 py-3">
+                        {statusBadge(memberStateBySource(r as TxLike))}
+                      </td>
+                      {/* Where the booking came from, and who actually took the
+                          money. Two questions, deliberately two columns: a
+                          walk-in settled at the desk is a real sale that Court
+                          Connect is not holding, and collapsing them is how a
+                          tenant ends up believing otherwise. */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold">
+                          {bookingSourceLabel(r.bookings?.booking_source)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap text-muted-foreground">
+                        {collectionSourceLabel(r.bookings?.payment_collection_source)}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {venues.find((v) => v.id === r.venue_id)?.name ?? `Venue #${r.venue_id}`}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {r.bookings?.courts?.name ?? (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      {/* What they bought, as opposed to when they paid for it. */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {slot ? (
+                          <>
+                            <span>{slot.range}</span>
+                            {slot.label && (
+                              <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold">
+                                {slot.label}
+                              </span>
+                            )}
+                            <span className="block text-xs text-muted-foreground">{slot.day}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {fmtDate(r.paid_at ?? r.created_at)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <code className="text-xs font-semibold">{r.raw?.payment_id ?? "—"}</code>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <code className="text-xs">
+                          {r.bookings?.refund_reference ?? (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </code>
+                      </td>
+                      {/* What the business actually keeps once refunds and money
+                          owed back are taken off. Derived in transaction-groups so
+                          this cell and the revenue tiles cannot disagree. */}
+                      <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                        {currency(transactionAmounts(r as TxLike).net)}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {txQ.hasNextPage && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => void txQ.fetchNextPage()}
+            disabled={txQ.isFetchingNextPage}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-secondary disabled:opacity-60"
+          >
+            {txQ.isFetchingNextPage ? "Loading…" : "Load more"}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {view === "grouped"
+              ? `${groups.length} payment${groups.length === 1 ? "" : "s"} loaded`
+              : `${visibleRows.length} of ${rows.length} row${rows.length === 1 ? "" : "s"} loaded`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** How a grouped status reads, and the colour it reads in. */
+const GROUP_STATUS_LABEL: Record<GroupStatus, { text: string; tone: string }> = {
+  paid: { text: "Paid", tone: "bg-primary/15 text-primary" },
+  /* Teal rather than the "Paid" primary, because this money never reached Court
+     Connect and must not read as settlement-eligible revenue. */
+  tenant_collected: { text: "Tenant Collected", tone: "bg-teal-500/15 text-teal-700" },
+  refunded: { text: "Refunded", tone: "bg-muted text-muted-foreground" },
+  partially_refunded: { text: "Partially refunded", tone: "bg-amber-500/15 text-amber-700" },
+  /* Sky, matching the refund tones the player side already uses, and deliberately not
+     the "Paid" primary: this money is not the venue's to count. */
+  refund_due: { text: "Refund due", tone: "bg-sky-500/15 text-sky-700" },
+  pending: { text: "Pending", tone: "bg-amber-500/15 text-amber-700" },
+  failed: { text: "Failed", tone: "bg-destructive/15 text-destructive" },
+  cancelled: { text: "Cancelled", tone: "bg-muted text-muted-foreground" },
+  mixed: { text: "Mixed", tone: "bg-secondary text-foreground" },
+};
+
+/**
+ * One row per payment, expandable to the hours it bought.
+ *
+ * Everything here is computed from rows the page already fetched, so opening a row
+ * costs nothing and there is no query per group. The numbers are deliberately two
+ * different figures: the total comes from the payment ledger so it reconciles against
+ * PayMongo, while each expanded line shows what that hour actually cost. When those
+ * two disagree the row says so rather than quietly preferring one.
+ */
+function TransactionGroupsTable({
+  groups,
+  loading,
+  error,
+  onRetry,
+  hiddenAttempts,
+  expanded,
+  onToggle,
+  venueName,
+  customerName,
+  bookingLabel,
+  currency,
+  fmtDate,
+}: {
+  groups: TxGroup[];
+  loading: boolean;
+  error: unknown;
+  onRetry: () => void;
+  hiddenAttempts: number;
+  expanded: Set<string>;
+  onToggle: (key: string) => void;
+  venueName: (id: number) => string;
+  customerName: (id: string) => string;
+  bookingLabel: (venueId: number, no: number | null | undefined) => string | null;
+  currency: (n: number) => string;
+  fmtDate: (iso: string) => string;
+}) {
+  const time = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-PH", { dateStyle: "medium" });
+
+  /** Consecutive hours read as one range; a gap stays two. Never "6–10" for 6–7 and 9–10. */
+  const slotSummary = (g: TxGroup) => {
+    if (g.sessions.length === 0) return null;
+    const first = g.sessions[0];
+    const head = `${time(first.start)} – ${time(first.end)}`;
+    return g.sessions.length === 1 ? head : `${head} + ${g.sessions.length - 1} more`;
+  };
+  const courtSummary = (g: TxGroup) =>
+    g.courts.length === 0
+      ? null
+      : g.courts.length === 1
+        ? g.courts[0]
+        : `${g.courts[0]} + ${g.courts.length - 1} more`;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card shadow-sm">
+      <div className="nice-scroll max-h-[55vh] overflow-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
+            <tr>
+              <th className="px-4 py-3">Reference</th>
+              <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Total</th>
+              <th className="px-4 py-3">Method</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Venue</th>
+              <th className="px-4 py-3">Court(s)</th>
+              <th className="px-4 py-3">Booked time</th>
+              <th className="px-4 py-3">Hours</th>
+              <th className="px-4 py-3">Bookings</th>
+              <th className="px-4 py-3">Paid</th>
+              <th className="px-4 py-3">PayMongo payment ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td className="px-4 py-6 text-muted-foreground" colSpan={12}>
+                  Loading…
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td className="px-4 py-4" colSpan={12}>
+                  <QueryErrorNote what="transactions" error={error} onRetry={onRetry} />
+                </td>
+              </tr>
+            ) : groups.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-muted-foreground" colSpan={12}>
+                  No payments to show here yet.
+                </td>
+              </tr>
+            ) : (
+              groups.map((g) => {
+                const open = expanded.has(g.key);
+                const label = GROUP_STATUS_LABEL[g.status];
+                return (
+                  <Fragment key={g.key}>
+                    <tr
+                      className="cursor-pointer border-t border-border hover:bg-secondary/30"
+                      onClick={() => onToggle(g.key)}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggle(g.key);
+                          }}
+                          className="mr-1.5 text-muted-foreground"
+                        >
+                          {open ? "▾" : "▸"}
+                        </button>
+                        {g.reference ? (
+                          <code className="text-xs font-semibold">{g.reference}</code>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">{customerName(g.userId)}</td>
+                      <td className="px-4 py-3 font-semibold whitespace-nowrap">
+                        {currency(g.total)}
+                        {/* Neither figure is adjusted to match the other. */}
+                        {g.discrepancy && g.bookingTotal !== null && (
+                          <span
+                            title={`Slot prices total ${currency(g.bookingTotal)}. The payment ledger records ${currency(g.total)}.`}
+                            className="ml-1.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                          >
+                            ≠ {currency(g.bookingTotal)}
+                          </span>
+                        )}
+                        {g.refundedTotal > 0 && (
+                          <span className="block text-xs font-medium text-muted-foreground">
+                            {currency(g.refundedTotal)} refunded
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 capitalize whitespace-nowrap">
+                        {g.method.replace("_", " ")}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${label.tone}`}
+                        >
+                          {label.text}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {venueName(g.venueId)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {courtSummary(g) ?? <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {slotSummary(g) ? (
+                          <>
+                            <span>{slotSummary(g)}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {day(g.sessions[0].start)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">{g.totalHours}h</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{g.bookingCount}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{fmtDate(g.at)}</td>
+                      <td className="px-4 py-3">
+                        <code className="text-xs font-semibold">{g.paymentId ?? "—"}</code>
+                      </td>
+                    </tr>
+                    {open &&
+                      g.lines.map((l) => {
+                        const lineLabel =
+                          GROUP_STATUS_LABEL[l.state === "unknown" ? "mixed" : l.state];
+                        return (
+                          <tr key={l.txId} className="border-t border-border/50 bg-secondary/20">
+                            <td className="px-4 py-2 pl-10 whitespace-nowrap" colSpan={2}>
+                              <span className="font-medium">
+                                {bookingLabel(g.venueId, l.bookingNo) ?? `Booking #${l.bookingId}`}
+                              </span>
+                            </td>
+                            {/* The slot's own price, not the ledger's even split. */}
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              {l.price === null ? (
+                                <span className="text-muted-foreground">—</span>
+                              ) : (
+                                currency(l.price)
+                              )}
+                            </td>
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${lineLabel.tone}`}
+                              >
+                                {lineLabel.text}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              {l.court ?? <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap" colSpan={5}>
+                              {time(l.startTime)} – {time(l.endTime)}
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {day(l.startTime)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+      {hiddenAttempts > 0 && (
+        /* Said out loud rather than left as a silent omission: the money view hides
+           attempts that never became money, and they are one filter away. */
+        <p className="border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+          {hiddenAttempts} failed or cancelled payment{" "}
+          {hiddenAttempts === 1 ? "attempt is" : "attempts are"} hidden. Choose a status filter, or
+          switch to Detailed, to see {hiddenAttempts === 1 ? "it" : "them"}.
+        </p>
+      )}
     </div>
   );
 }
@@ -11415,12 +12090,21 @@ function BookingsSection({
   >("all");
   const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
   const [settleTarget, setSettleTarget] = useState<{ ids: number[]; label: string } | null>(null);
+  /* The walk-in desk. Opened for one venue at a time — the one the picker above is
+     already showing — so the dialog never has to ask a question this screen has
+     already answered. */
+  const [walkInVenueId, setWalkInVenueId] = useState<number | null>(null);
   const [chat, setChat] = useState<{
     bookingId: number;
     venueId: number;
     playerId: string;
     title: string;
     subtitle: string;
+    /** Enough of the booking for `bookingChatWindow`, so staff and player are judged by
+     *  the same rule rather than one side keeping a composer the other has lost. */
+    status: string;
+    refundStatus: string;
+    endsAt: string;
   } | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   /* One shot per target. `sessions` is rebuilt on every render, so an effect that
@@ -11563,6 +12247,9 @@ function BookingsSection({
           playerId: r.user_id,
           title: nameMap.get(r.user_id)?.full_name || "Player",
           subtitle: `${formatDateLabel(target.start_time)} · ${formatSessionLabel(target.start_time, target.end_time)} · ${r.courts?.name ?? `Court #${r.court_id}`}`,
+          status: r.status,
+          refundStatus: r.refund_status ?? "none",
+          endsAt: target.end_time,
         });
       }
     }
@@ -11619,6 +12306,35 @@ function BookingsSection({
       </span>
     );
   };
+  /* Courts for the walk-in desk. Enabled only while a venue is chosen, so opening
+     the Bookings tab does not pay for a query nobody asked for. */
+  const walkInCourtsQ = useQuery({
+    queryKey: ["walkin-courts", walkInVenueId],
+    enabled: walkInVenueId != null,
+    queryFn: async (): Promise<WalkInCourt[]> => {
+      const { data, error } = await supabase
+        .from("courts")
+        .select("id, name, hourly_rate, rate_rules, is_active, coming_soon, sports(name)")
+        .eq("venue_id", walkInVenueId!)
+        .order("name");
+      if (error) throw error;
+      return (data ?? [])
+        /* A court that is switched off or not open yet cannot take a booking at
+           the desk either. The database would refuse it; not offering it is
+           simply the honest version of the same answer. */
+        .filter((c) => c.is_active !== false && c.coming_soon !== true)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          hourly_rate: Number(c.hourly_rate) || 0,
+          rate_rules: c.rate_rules,
+          sport: (c as unknown as { sports?: { name?: string } | null }).sports?.name ?? null,
+        }));
+    },
+  });
+
+  const walkInVenue = venues.find((v) => v.id === walkInVenueId) ?? null;
+
   const paymentHoldRemaining = (booking: BookingRow) => {
     if (booking.status !== "pending" || booking.payment_status !== "pending") return null;
     const seconds = Math.max(
@@ -11640,6 +12356,22 @@ function BookingsSection({
 
       <div className="flex flex-wrap items-center gap-2">
         <VenuePicker venues={venues} value={venueFilter} onChange={setVenueFilter} />
+        {/* Taking a booking for someone at the counter. Gated on the same
+            capability the database enforces in tenant_create_walkin_booking():
+            hiding it grants nothing, and showing it to someone the RPC would
+            refuse only produces a confusing error. */}
+        {perm.can("bookings.walkIn") && venues.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              setWalkInVenueId(venueFilter === "all" ? venues[0].id : (venueFilter as number))
+            }
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" />
+            Walk-in Booking
+          </button>
+        )}
         <select name="dashboard-status"
           value={status}
           onChange={(e) => setStatus(e.target.value as typeof status)}
@@ -11778,6 +12510,9 @@ function BookingsSection({
                                   playerId: r.user_id,
                                   title: p?.full_name || "Player",
                                   subtitle: label,
+                                  status: r.status,
+                                  refundStatus: r.refund_status ?? "none",
+                                  endsAt: s.end_time,
                                 })
                               }
                               className="relative rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-primary hover:text-primary"
@@ -11824,6 +12559,22 @@ function BookingsSection({
         </div>
       </div>
 
+      {walkInVenue && (
+        <WalkInBookingDialog
+          venueName={walkInVenue.name}
+          courts={walkInCourtsQ.data ?? []}
+          onClose={() => setWalkInVenueId(null)}
+          onCreated={() => {
+            /* The booking now occupies the court for everyone. Refresh the lists
+               that would otherwise still show the slot as free, and the ledger
+               figures the sale has just moved. */
+            qc.invalidateQueries({ queryKey: ["tenant-bookings"] });
+            qc.invalidateQueries({ queryKey: ["tenant-balance"] });
+            qc.invalidateQueries({ queryKey: ["tenant-transactions"] });
+          }}
+        />
+      )}
+
       {cancelTarget && (
         <CancelRefundDialog
           target={cancelTarget}
@@ -11854,6 +12605,10 @@ function BookingsSection({
           meId={userId}
           title={`Chat with ${chat.title}`}
           subtitle={chat.subtitle}
+          window={bookingChatWindow(
+            { status: chat.status, refund_status: chat.refundStatus, sessionEndsAt: chat.endsAt },
+            Date.now(),
+          )}
           onClose={() => {
             setChat(null);
             qc.invalidateQueries({ queryKey: ["unread-messages"] });
@@ -12005,13 +12760,16 @@ function CustomersSection({ venues }: { venues: Venue[] }) {
 
       let txQ = supabase
         .from("transactions")
-        .select("user_id, amount, status, venue_id, paid_at, created_at");
+        /* With the booking, so a refund settled by staff stops counting as spend. */
+        .select(
+          "user_id, amount, status, venue_id, paid_at, created_at, bookings(status, payment_status, refund_status)",
+        );
       if (venueFilter !== "all") txQ = txQ.eq("venue_id", venueFilter);
       const { data: txRows } = await txQ;
       /* Spend follows the reporting period by settlement date, matching how the
          Dashboard dates revenue, so the two panes cannot disagree about a year. */
       const txs = (txRows ?? []).filter((t) => {
-        if (t.status !== "paid") return false;
+        if (!isRetainedSale(revenueState(t as unknown as RevenueRow))) return false;
         if (!period) return true;
         const settled = t.paid_at ?? t.created_at;
         return !!settled && settled >= period.from && settled < period.to;

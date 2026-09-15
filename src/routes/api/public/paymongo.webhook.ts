@@ -100,7 +100,15 @@ export const Route = createFileRoute("/api/public/paymongo/webhook")({
               if (!paymentId || totalCentavos <= 0) throw new Error("Payment reference or refund amount is missing");
               const { refundPayment } = await import("@/lib/paymongo.server");
               await refundPayment({ paymentId, amountCentavos: totalCentavos, reason: "requested_by_customer" });
-              await supabaseAdmin.from("transactions").update({ status: "refunded", refunded_at: new Date().toISOString() }).eq("provider_ref", sessionId);
+              /* The whole checkout here, and correctly so: this path refunds the
+                 entire session in one call because the reservation was gone by the
+                 time the money arrived. Guarded on `paid` so a duplicate webhook
+                 cannot rewrite the refund's timestamp. */
+              await supabaseAdmin
+                .from("transactions")
+                .update({ status: "refunded", refunded_at: new Date().toISOString() })
+                .eq("provider_ref", sessionId)
+                .eq("status", "paid");
               await supabaseAdmin.from("bookings").update({ payment_status: "refunded", refund_status: "refunded" }).in("id", bookingIds);
             } catch (refundErr) {
               console.error("[paymongo webhook] automatic refund failed", refundErr);

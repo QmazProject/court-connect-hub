@@ -46,6 +46,11 @@ export type PlayerBookingRow = {
   status: string;
   payment_status: string;
   refund_status: string | null;
+  /** How the refund was returned, and the provider's reference for it. Written by
+   *  whichever path settled it; null until one has. */
+  refund_method: string | null;
+  refund_reference: string | null;
+  refund_settled_at: string | null;
   cancelled_at: string | null;
   cancelled_by: string | null;
   cancel_reason: string | null;
@@ -131,6 +136,50 @@ export function sessionRefunded(session: PlayerSession, idx: TxIndex): number {
  *  showing nothing owed. */
 export function sessionBalance(session: PlayerSession, idx: TxIndex): number {
   return Math.max(0, sessionPrice(session) - sessionPaid(session, idx));
+}
+
+/**
+ * What a player needs to check a refund actually happened.
+ *
+ * A player who cancelled a booking they had paid for is owed an answer to one question:
+ * has the money come back, and if so when and under what reference. That answer is
+ * spread across two tables — the amount is the ledger's, the settlement time, method
+ * and provider reference are the booking's — so it is assembled once here rather than
+ * in the card.
+ *
+ * `settledAt` is the moment the refund was actually returned, not the moment the
+ * booking was cancelled. Showing the cancellation time beside a refund is how a player
+ * concludes the money arrived days before it did.
+ */
+export type SessionRefund = {
+  /** Money actually returned, from the ledger. Zero while a refund is still owed. */
+  amount: number;
+  /** Money paid and not yet given back — what the player is still waiting on. This is
+   *  the figure the pending case has to show: `amount` is zero until the transfer
+   *  actually happens, and "we will refund you PHP 0.00" is worse than saying nothing. */
+  owed: number;
+  settledAt: string | null;
+  method: string | null;
+  reference: string | null;
+  /** Agreed and not yet sent. The player is waiting, and should be told so. */
+  pending: boolean;
+};
+
+export function sessionRefundInfo(session: PlayerSession, idx: TxIndex): SessionRefund | null {
+  const r = session.first;
+  const amount = sessionRefunded(session, idx);
+  const pending = r.refund_status === "pending";
+  /* Nothing to report: no money back, nothing owed, nothing recorded. A booking that
+     was never paid for must not grow a refund panel saying so. */
+  if (amount === 0 && !pending && r.refund_status !== "refunded") return null;
+  return {
+    amount,
+    owed: Math.max(0, sessionPaid(session, idx) - amount),
+    settledAt: r.refund_settled_at,
+    method: r.refund_method,
+    reference: r.refund_reference,
+    pending,
+  };
 }
 
 /** The payment method the player actually used, if any transaction records one. */

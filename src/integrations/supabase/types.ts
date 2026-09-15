@@ -37,6 +37,16 @@ export type Database = {
           unit_price: number | null
           user_id: string
           voucher_id: string | null
+          booking_source: string
+          payment_collection_source: string
+          recorded_by: string | null
+          walkin_customer_email: string | null
+          walkin_customer_name: string | null
+          walkin_customer_phone: string | null
+          walkin_notes: string | null
+          walkin_payment_method: string | null
+          walkin_player_count: number | null
+          walkin_reference: string | null
         }
         Insert: {
           cancel_reason?: string | null
@@ -60,6 +70,16 @@ export type Database = {
           unit_price?: number | null
           user_id?: string
           voucher_id?: string | null
+          booking_source?: string
+          payment_collection_source?: string
+          recorded_by?: string | null
+          walkin_customer_email?: string | null
+          walkin_customer_name?: string | null
+          walkin_customer_phone?: string | null
+          walkin_notes?: string | null
+          walkin_payment_method?: string | null
+          walkin_player_count?: number | null
+          walkin_reference?: string | null
         }
         Update: {
           cancel_reason?: string | null
@@ -83,6 +103,16 @@ export type Database = {
           unit_price?: number | null
           user_id?: string
           voucher_id?: string | null
+          booking_source?: string
+          payment_collection_source?: string
+          recorded_by?: string | null
+          walkin_customer_email?: string | null
+          walkin_customer_name?: string | null
+          walkin_customer_phone?: string | null
+          walkin_notes?: string | null
+          walkin_payment_method?: string | null
+          walkin_player_count?: number | null
+          walkin_reference?: string | null
         }
         Relationships: [
           {
@@ -860,6 +890,7 @@ export type Database = {
           paid_at: string | null
           provider: string
           provider_ref: string | null
+          reference_number: string | null
           raw: Json | null
           refunded_at: string | null
           status: string
@@ -878,6 +909,7 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_ref?: string | null
+          reference_number?: string | null
           raw?: Json | null
           refunded_at?: string | null
           status?: string
@@ -896,6 +928,7 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_ref?: string | null
+          reference_number?: string | null
           raw?: Json | null
           refunded_at?: string | null
           status?: string
@@ -1241,11 +1274,383 @@ export type Database = {
           },
         ]
       }
+      tenant_ledger_entries: {
+        Row: {
+          id: number
+          tenant_id: string
+          venue_id: number | null
+          court_id: number | null
+          booking_id: number | null
+          transaction_id: string | null
+          payout_id: number | null
+          entry_type: string
+          currency: string
+          gross_centavos: number
+          platform_collected_centavos: number
+          tenant_collected_centavos: number
+          liability_centavos: number
+          reserved_centavos: number
+          paid_out_centavos: number
+          collection_source: string | null
+          booking_source: string | null
+          actor_id: string | null
+          source: string
+          reference: string | null
+          idempotency_key: string
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          tenant_id?: string
+          venue_id?: number | null
+          court_id?: number | null
+          booking_id?: number | null
+          transaction_id?: string | null
+          payout_id?: number | null
+          entry_type?: string
+          currency?: string
+          gross_centavos?: number
+          platform_collected_centavos?: number
+          tenant_collected_centavos?: number
+          liability_centavos?: number
+          reserved_centavos?: number
+          paid_out_centavos?: number
+          collection_source?: string | null
+          booking_source?: string | null
+          actor_id?: string | null
+          source?: string
+          reference?: string | null
+          idempotency_key?: string
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          tenant_id?: string
+          venue_id?: number | null
+          court_id?: number | null
+          booking_id?: number | null
+          transaction_id?: string | null
+          payout_id?: number | null
+          entry_type?: string
+          currency?: string
+          gross_centavos?: number
+          platform_collected_centavos?: number
+          tenant_collected_centavos?: number
+          liability_centavos?: number
+          reserved_centavos?: number
+          paid_out_centavos?: number
+          collection_source?: string | null
+          booking_source?: string | null
+          actor_id?: string | null
+          source?: string
+          reference?: string | null
+          idempotency_key?: string
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
+      tenant_payout_accounts: {
+        Row: {
+          id: number
+          tenant_id: string
+          account_type: string
+          account_name: string
+          account_number: string | null
+          bank_name: string | null
+          instructions: string | null
+          proof_path: string | null
+          status: string
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          tenant_id?: string
+          account_type?: string
+          account_name?: string
+          account_number?: string | null
+          bank_name?: string | null
+          instructions?: string | null
+          proof_path?: string | null
+          status?: string
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          tenant_id?: string
+          account_type?: string
+          account_name?: string
+          account_number?: string | null
+          bank_name?: string | null
+          instructions?: string | null
+          proof_path?: string | null
+          status?: string
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_payout_account_events: {
+        Row: {
+          id: number
+          tenant_id: string
+          account_id: number | null
+          action: string
+          actor_id: string | null
+          old_value: Json | null
+          new_value: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          tenant_id?: string
+          account_id?: number | null
+          action?: string
+          actor_id?: string | null
+          old_value?: Json | null
+          new_value?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          tenant_id?: string
+          account_id?: number | null
+          action?: string
+          actor_id?: string | null
+          old_value?: Json | null
+          new_value?: Json | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      tenant_payout_preferences: {
+        Row: {
+          tenant_id: string
+          frequency: string
+          updated_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          tenant_id: string
+          frequency?: string
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          tenant_id?: string
+          frequency?: string
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tenant_payouts: {
+        Row: {
+          id: number
+          tenant_id: string
+          amount_centavos: number
+          currency: string
+          status: string
+          account_id: number | null
+          destination_snapshot: Json
+          available_at_request_centavos: number | null
+          requested_by: string | null
+          requested_at: string
+          reviewed_by: string | null
+          reviewed_at: string | null
+          processing_at: string | null
+          completed_by: string | null
+          completed_at: string | null
+          transfer_reference: string | null
+          transfer_method: string | null
+          proof_path: string | null
+          admin_notes: string | null
+          rejection_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          tenant_id?: string
+          amount_centavos?: number
+          currency?: string
+          status?: string
+          account_id?: number | null
+          destination_snapshot?: Json
+          available_at_request_centavos?: number | null
+          requested_by?: string | null
+          requested_at?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          processing_at?: string | null
+          completed_by?: string | null
+          completed_at?: string | null
+          transfer_reference?: string | null
+          transfer_method?: string | null
+          proof_path?: string | null
+          admin_notes?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          tenant_id?: string
+          amount_centavos?: number
+          currency?: string
+          status?: string
+          account_id?: number | null
+          destination_snapshot?: Json
+          available_at_request_centavos?: number | null
+          requested_by?: string | null
+          requested_at?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          processing_at?: string | null
+          completed_by?: string | null
+          completed_at?: string | null
+          transfer_reference?: string | null
+          transfer_method?: string | null
+          proof_path?: string | null
+          admin_notes?: string | null
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_payouts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_payout_events: {
+        Row: {
+          id: number
+          payout_id: number
+          tenant_id: string
+          action: string
+          from_status: string | null
+          to_status: string | null
+          actor_id: string | null
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          payout_id?: number
+          tenant_id?: string
+          action?: string
+          from_status?: string | null
+          to_status?: string | null
+          actor_id?: string | null
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          payout_id?: number
+          tenant_id?: string
+          action?: string
+          from_status?: string | null
+          to_status?: string | null
+          actor_id?: string | null
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      tenant_balances: {
+        Row: {
+          tenant_id: string
+          tenant_name: string | null
+          tenant_slug: string | null
+          gross_centavos: number
+          platform_collected_centavos: number
+          tenant_collected_centavos: number
+          liability_centavos: number
+          reserved_centavos: number
+          paid_out_centavos: number
+          refunded_centavos: number
+          net_position_centavos: number
+          available_centavos: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      tenant_save_payout_account: {
+        Args: {
+          _account_type: string
+          _account_name: string
+          _account_number?: string | null
+          _bank_name?: string | null
+          _instructions?: string | null
+          _proof_path?: string | null
+        }
+        Returns: number
+      }
+      tenant_request_payout: {
+        Args: { _amount_centavos: number }
+        Returns: {
+          payout_id: number
+          reserved_centavos: number
+          remaining_available_centavos: number
+        }[]
+      }
+      tenant_cancel_payout: {
+        Args: { _payout_id: number }
+        Returns: string
+      }
+      admin_transition_payout: {
+        Args: {
+          _payout_id: number
+          _to_status: string
+          _transfer_reference?: string | null
+          _transfer_method?: string | null
+          _proof_path?: string | null
+          _notes?: string | null
+          _reason?: string | null
+        }
+        Returns: string
+      }
+      mask_account_number: {
+        Args: { _n: string }
+        Returns: string
+      }
+      booking_owner: {
+        Args: { _booking_id: number }
+        Returns: {
+          tenant_id: string
+          venue_id: number
+          court_id: number
+        }[]
+      }
+      ledger_reconciliation_gaps: {
+        Args: Record<string, never>
+        Returns: {
+          reason: string
+          venue_id: number
+          venue_name: string
+          bookings_affected: number
+          amount_centavos: number
+        }[]
+      }
       booking_is_active_hold: {
         Args: { _created_at: string; _status: string }
         Returns: boolean
@@ -1363,6 +1768,29 @@ export type Database = {
           free_hour_list: number[]
           booked_hour_list: number[]
           occupancy_pct: number | null
+        }[]
+      }
+      tenant_create_walkin_booking: {
+        Args: {
+          _court_id: number
+          _start: string
+          _end: string
+          _customer_name: string
+          _customer_phone?: string | null
+          _customer_email?: string | null
+          _player_count?: number | null
+          _notes?: string | null
+          _payment_method?: string
+          _paid?: boolean
+          _link_user_id?: string | null
+        }
+        Returns: {
+          booking_id: number
+          booking_no: number
+          reference: string
+          total: number
+          starts_at: string
+          ends_at: string
         }[]
       }
       tenant_activity: {

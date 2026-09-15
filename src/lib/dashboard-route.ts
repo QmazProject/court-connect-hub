@@ -18,6 +18,7 @@ export const TENANT_SECTIONS = [
   "customers",
   "team",
   "transactions",
+  "finance",
   "vouchers",
   "settings",
 ] as const;
